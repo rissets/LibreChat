@@ -71,6 +71,13 @@ export async function loadEphemeralAgent(
     }
   }
   const tools: string[] = [];
+  if (Array.isArray(modelSpec?.tools)) {
+    for (const toolName of modelSpec.tools) {
+      if (toolName && !tools.includes(toolName)) {
+        tools.push(toolName);
+      }
+    }
+  }
   if (ephemeralAgent?.execute_code === true || modelSpec?.executeCode === true) {
     tools.push(Tools.execute_code);
   }

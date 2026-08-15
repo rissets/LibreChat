@@ -291,7 +291,7 @@ export const TOOL_ARTIFACT_TYPES = {
   /* Office-format rich previews. The backend renders the binary file as a
    * complete sanitized HTML document and ships it via `attachment.text`;
    * the client routes these types through the Sandpack `static` template's
-   * `index.html` slot. The values are synthetic LibreChat-internal MIMEs
+   * `index.html` slot. The values are synthetic BP Batam AI-internal MIMEs
    * — they don't appear on disk or in HTTP headers, only on the artifact
    * object — so they can't collide with the canonical office MIMEs that
    * the routing maps key off of. */

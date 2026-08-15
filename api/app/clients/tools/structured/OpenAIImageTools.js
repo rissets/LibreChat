@@ -51,8 +51,8 @@ function createAbortHandler() {
 /**
  * Creates OpenAI Image tools (generation and editing)
  * @param {Object} fields - Configuration fields
- * @param {ServerRequest} fields.req - Whether the tool is being used in an agent context
- * @param {boolean} fields.isAgent - Whether the tool is being used in an agent context
+ * @param {ServerRequest} fields.req - The authenticated request context
+ * @param {boolean} fields.isAgent - Whether the tool is being used by a persisted agent
  * @param {string} fields.IMAGE_GEN_OAI_API_KEY - The OpenAI API key
  * @param {boolean} [fields.override] - Whether to override the API key check, necessary for app initialization
  * @param {MongoFile[]} [fields.imageFiles] - The images to be used for editing
@@ -63,10 +63,6 @@ function createAbortHandler() {
 function createOpenAIImageTools(fields = {}) {
   /** @type {boolean} Used to initialize the Tool without necessary variables. */
   const override = fields.override ?? false;
-  /** @type {boolean} */
-  if (!override && !fields.isAgent) {
-    throw new Error('This tool is only available for agents.');
-  }
   const { req } = fields;
   const imageOutputType = fields.imageOutputType || EImageOutputType.PNG;
   const appFileStrategy = fields.fileStrategy;
@@ -88,6 +84,18 @@ function createOpenAIImageTools(fields = {}) {
   if (!override && process.env.IMAGE_GEN_OAI_BASEURL) {
     baseURL = extractBaseURL(process.env.IMAGE_GEN_OAI_BASEURL);
     closureConfig.baseURL = baseURL;
+  }
+
+  if (!override && process.env.IMAGE_GEN_OAI_WORKLOAD_MODE === 'true') {
+    const userEmail = req?.user?.email;
+    if (!userEmail) {
+      throw new Error('Authenticated user email is required for image generation.');
+    }
+    closureConfig.defaultHeaders = {
+      ...(closureConfig.defaultHeaders || {}),
+      'X-BP-Workload-Token': apiKey,
+      'X-BP-User-Email': userEmail,
+    };
   }
 
   // Note: Azure may not yet support the latest image generation models

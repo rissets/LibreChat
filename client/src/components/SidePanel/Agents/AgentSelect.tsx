@@ -183,15 +183,11 @@ function AgentSelect({
       }
 
       setCurrentAgentId(selectedId);
-      const agent = agentQuery.data;
-      if (!agent) {
-        console.warn('Agent not found');
-        return;
-      }
-
-      resetAgentForm(agent);
+      // The selected agent query updates asynchronously. The effect below is
+      // the single source that resets the form once the new record arrives;
+      // using agentQuery.data here could re-apply the previously selected one.
     },
-    [agents, createMutation, setCurrentAgentId, agentQuery.data, resetAgentForm, reset],
+    [agents, createMutation, setCurrentAgentId, reset],
   );
 
   useEffect(() => {
@@ -238,11 +234,16 @@ function AgentSelect({
           SelectIcon={field?.value?.icon}
           setValue={onSelect}
           items={
-            agents?.map((agent) => ({
-              label: agent.name ?? '',
-              value: agent.id ?? '',
-              icon: agent.icon,
-            })) ?? [
+            agents != null
+              ? [
+                  { label: createAgent, value: '', icon: null },
+                  ...agents.map((agent) => ({
+                    label: agent.name ?? '',
+                    value: agent.id ?? '',
+                    icon: agent.icon,
+                  })),
+                ]
+              : [
               {
                 label: 'Loading...',
                 value: '',

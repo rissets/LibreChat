@@ -14,14 +14,14 @@ export const defaultTheme: IThemeRGB = {
   'rgb-text-destructive': '220 38 38', // #dc2626 (red-600)
 
   // Link and accent colors
-  'rgb-link': '37 99 235', // #2563eb (blue-600)
-  'rgb-link-hover': '29 78 216', // #1d4ed8 (blue-700)
-  'rgb-link-visited': '147 51 234', // #9333ea (purple-600)
-  'rgb-accent-primary': '18 110 107', // #126e6b
-  'rgb-accent-primary-hover': '10 79 83', // #0a4f53
+  'rgb-link': '23 55 184', // BP Batam blue
+  'rgb-link-hover': '29 52 145',
+  'rgb-link-visited': '30 58 138',
+  'rgb-accent-primary': '23 55 184',
+  'rgb-accent-primary-hover': '29 52 145',
 
   // Ring colors
-  'rgb-ring-primary': '89 89 89', // #595959 (gray-500)
+  'rgb-ring-primary': '23 55 184',
 
   // Header colors
   'rgb-header-primary': '255 255 255', // #fff (white)
@@ -43,8 +43,8 @@ export const defaultTheme: IThemeRGB = {
   'rgb-surface-tertiary-alt': '255 255 255', // #fff (white)
   'rgb-surface-dialog': '255 255 255', // #fff (white)
   'rgb-surface-overlay': '89 89 89', // #595959 (gray-500)
-  'rgb-surface-submit': '4 120 87', // #047857 (green-700)
-  'rgb-surface-submit-hover': '6 95 70', // #065f46 (green-800)
+  'rgb-surface-submit': '23 55 184',
+  'rgb-surface-submit-hover': '29 52 145',
   'rgb-surface-destructive': '185 28 28', // #b91c1c (red-700)
   'rgb-surface-destructive-hover': '153 27 27', // #991b1b (red-800)
   'rgb-surface-chat': '255 255 255', // #fff (white)
@@ -86,7 +86,7 @@ export const defaultTheme: IThemeRGB = {
   'rgb-text-on-status': '255 255 255', // #fff (white)
 
   // Brand colors
-  'rgb-brand-purple': '126 34 206', // #7e22ce (purple-700)
+  'rgb-brand-purple': '245 184 0', // BP Batam gold
 
   // Presentation
   'rgb-presentation': '255 255 255', // #fff (white)

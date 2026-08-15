@@ -11,6 +11,7 @@ import { shouldRenderEndpointOption } from '../utils';
 import SpecDescription from './SpecDescription';
 import SpecIcon from './SpecIcon';
 import { cn } from '~/utils';
+import { getBPModelLabel } from '~/utils/bpModelLabels';
 
 interface SearchResultsProps {
   results: (TModelSpec | Endpoint)[] | null;
@@ -158,7 +159,7 @@ export function SearchResults({ results, localize, searchValue }: SearchResultsP
                   const modelId = model.name;
 
                   let isGlobal = false;
-                  let modelName = modelId;
+                  let modelName = getBPModelLabel(modelId);
                   if (
                     isAgentsEndpoint(endpoint.value) &&
                     endpoint.agentNames &&

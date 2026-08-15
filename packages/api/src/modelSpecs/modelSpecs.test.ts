@@ -17,6 +17,7 @@ describe('modelSpecs helpers', () => {
         {
           name: 'guarded-spec',
           label: 'Guarded Spec',
+          tools: ['image_gen_oai'],
           skills: ['private-skill'],
           subagents: { enabled: true, allowSelf: true, agent_ids: ['agent_private'] },
           preset: {
@@ -45,6 +46,7 @@ describe('modelSpecs helpers', () => {
       greeting: 'Hello',
     });
     expect(sanitizedModelSpecs.list[0]).not.toHaveProperty('skills');
+    expect(sanitizedModelSpecs.list[0]).not.toHaveProperty('tools');
   });
 
   it('should preserve conversation starters on model specs', () => {

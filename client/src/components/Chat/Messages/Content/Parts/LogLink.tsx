@@ -24,7 +24,7 @@ interface AttachmentLinkOptions {
 
 /**
  * Determines if a file is stored locally (not an external API URL).
- * Files with these sources are stored on the LibreChat server and should
+ * Files with these sources are stored on the BP Batam AI server and should
  * use the /api/files/download endpoint instead of direct URL access.
  */
 export const isLocallyStoredSource = (source?: string): boolean => {

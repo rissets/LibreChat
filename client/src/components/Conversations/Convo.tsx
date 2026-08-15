@@ -204,7 +204,7 @@ function Conversation({
     actionWidthClassName = 'max-w-[28px]';
   }
 
-  const showConvoOptions = !renaming && (hasInteracted || isActiveConvo);
+  const showConvoOptions = !renaming && (hasInteracted || isPopoverActive);
   const actionContent = isGenerating
     ? generatingSpinner
     : showConvoOptions && <ConvoOptions {...convoOptionsProps} />;

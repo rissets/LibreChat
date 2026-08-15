@@ -24,6 +24,14 @@ function parseMaxLogoutUrlLength(defaultValue = 2000) {
 const logoutController = async (req, res) => {
   const parsedCookies = req.headers.cookie ? cookies.parse(req.headers.cookie) : {};
   const isOpenIdUser = req.user?.openidId != null && req.user?.provider === 'openid';
+  const bpSession = {
+    email: req.user?.email,
+    session_key: String(req.sessionID || req.user?.id || req.user?._id || 'unknown').slice(0, 128),
+    external_user_id: String(req.user?.id || req.user?._id || ''),
+    device_name: 'BP Batam AI Web',
+    user_agent: req.headers['user-agent'] || '',
+    ip_address: String(req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim().replace(/^::ffff:/, '') || null,
+  };
 
   let refreshToken;
   let idToken;
@@ -49,6 +57,18 @@ const logoutController = async (req, res) => {
       tenantId: req.user?.tenantId,
     });
     const response = { message };
+    if (bpSession.email && process.env.CONTROL_PLANE_URL && process.env.INTERNAL_SERVICE_TOKEN) {
+      const axios = require('axios');
+      await axios.post(
+        `${process.env.CONTROL_PLANE_URL.replace(/\/$/, '')}/api/platform/internal/session/revoke/`,
+        bpSession,
+        { timeout: 3000, headers: { 'X-BP-Internal-Token': process.env.INTERNAL_SERVICE_TOKEN } },
+      ).catch((sessionError) => {
+        logger.warn('[logoutController] Session device revoke failed', {
+          upstreamStatus: sessionError.response?.status,
+        });
+      });
+    }
     if (
       isOpenIdUser &&
       isEnabled(process.env.OPENID_USE_END_SESSION_ENDPOINT) &&

@@ -46,6 +46,8 @@ export const s3Config: {
   AWS_BUCKET_NAME: string;
   /** Custom endpoint URL (for MinIO, R2, etc.) */
   AWS_ENDPOINT_URL: string | undefined;
+  /** Browser-facing reverse-proxy endpoint for private S3-compatible storage */
+  S3_PUBLIC_ENDPOINT_URL: string | undefined;
   /** Use path-style URLs instead of virtual-hosted-style */
   AWS_FORCE_PATH_STYLE: boolean;
   /** Presigned URL expiry in seconds */
@@ -61,6 +63,8 @@ export const s3Config: {
   AWS_BUCKET_NAME: process.env.AWS_BUCKET_NAME ?? '',
   /** Custom endpoint URL (for MinIO, R2, etc.) */
   AWS_ENDPOINT_URL: process.env.AWS_ENDPOINT_URL,
+  /** Browser-facing reverse-proxy endpoint */
+  S3_PUBLIC_ENDPOINT_URL: process.env.S3_PUBLIC_ENDPOINT_URL?.replace(/\/+$/, ''),
   /** Use path-style URLs instead of virtual-hosted-style */
   AWS_FORCE_PATH_STYLE: isEnabled(process.env.AWS_FORCE_PATH_STYLE),
   /** Presigned URL expiry in seconds */

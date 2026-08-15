@@ -1,17 +1,10 @@
-import { useState, memo, useRef } from 'react';
-import { useSetRecoilState } from 'recoil';
+import { useState, memo, useRef, useEffect } from 'react';
 import * as Menu from '@ariakit/react/menu';
 import { GearIcon, DropdownMenuSeparator, Avatar } from '@librechat/client';
 import {
   Archive,
-  ChevronRight,
-  CircleHelp,
   FileText,
-  Keyboard,
-  LifeBuoy,
   LogOut,
-  Scale,
-  ShieldCheck,
 } from 'lucide-react';
 import { ArchivedChatsModal } from '~/components/Nav/SettingsTabs/General/ArchivedChatsModal';
 import { MyFilesModal } from '~/components/Chat/Input/Files/MyFilesModal';
@@ -19,91 +12,72 @@ import { useGetStartupConfig, useGetUserBalance } from '~/data-provider';
 import { useAuthContext } from '~/hooks/AuthContext';
 import { useLocalize } from '~/hooks';
 import Settings from './Settings';
-import store from '~/store';
 
-function HelpSubmenu({
-  helpAndFaqURL,
-  termsOfServiceURL,
-  privacyPolicyURL,
-  onShowShortcuts,
-}: {
-  helpAndFaqURL?: string;
-  termsOfServiceURL?: string;
-  privacyPolicyURL?: string;
-  onShowShortcuts: () => void;
-}) {
-  const localize = useLocalize();
-  const hasHelpFaq = !!helpAndFaqURL && helpAndFaqURL !== '/';
-  const hasTos = !!termsOfServiceURL;
-  const hasPrivacy = !!privacyPolicyURL;
-  const showLegalDivider = (hasHelpFaq || true) && (hasTos || hasPrivacy);
-
-  return (
-    <Menu.MenuProvider placement="right-start">
-      <Menu.MenuItem
-        hideOnClick={false}
-        render={
-          <Menu.MenuButton className="select-item flex w-full cursor-pointer items-center gap-2 text-sm" />
-        }
-      >
-        <CircleHelp className="icon-md" aria-hidden="true" />
-        <span className="flex-1 text-left">{localize('com_nav_help')}</span>
-        <ChevronRight className="h-4 w-4 text-text-secondary" aria-hidden="true" />
-      </Menu.MenuItem>
-      <Menu.Menu
-        portal
-        gutter={12}
-        className="account-settings-popover popover-ui popover-from-left z-[126] w-[244px] rounded-lg"
-      >
-        {hasHelpFaq && (
-          <Menu.MenuItem
-            onClick={() => window.open(helpAndFaqURL, '_blank', 'noopener,noreferrer')}
-            className="select-item text-sm"
-          >
-            <LifeBuoy className="icon-md" aria-hidden="true" />
-            {localize('com_nav_help_faq')}
-          </Menu.MenuItem>
-        )}
-        <Menu.MenuItem onClick={onShowShortcuts} className="select-item text-sm">
-          <Keyboard className="icon-md" aria-hidden="true" />
-          {localize('com_shortcut_keyboard_shortcuts')}
-        </Menu.MenuItem>
-        {showLegalDivider && (hasTos || hasPrivacy) && <DropdownMenuSeparator />}
-        {hasTos && (
-          <Menu.MenuItem
-            onClick={() => window.open(termsOfServiceURL, '_blank', 'noopener,noreferrer')}
-            className="select-item text-sm"
-          >
-            <Scale className="icon-md" aria-hidden="true" />
-            {localize('com_ui_terms_of_service')}
-          </Menu.MenuItem>
-        )}
-        {hasPrivacy && (
-          <Menu.MenuItem
-            onClick={() => window.open(privacyPolicyURL, '_blank', 'noopener,noreferrer')}
-            className="select-item text-sm"
-          >
-            <ShieldCheck className="icon-md" aria-hidden="true" />
-            {localize('com_ui_privacy_policy')}
-          </Menu.MenuItem>
-        )}
-      </Menu.Menu>
-    </Menu.MenuProvider>
-  );
-}
+type BPAccessSummary = {
+  models: Array<{ model: string; name: string }>;
+  quota: {
+    used_tokens: number;
+    limit_tokens: number;
+    remaining_tokens: number | null;
+    windows?: Record<string, {
+      used_tokens: number;
+      limit_tokens: number;
+      remaining_tokens: number | null;
+    }>;
+  };
+};
 
 function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
   const localize = useLocalize();
-  const { user, isAuthenticated, logout } = useAuthContext();
+  const { user, token, isAuthenticated, logout } = useAuthContext();
   const { data: startupConfig } = useGetStartupConfig();
   const balanceQuery = useGetUserBalance({
     enabled: !!isAuthenticated && startupConfig?.balance?.enabled,
   });
   const [showSettings, setShowSettings] = useState(false);
   const [showFiles, setShowFiles] = useState(false);
-  const setShowShortcutsDialog = useSetRecoilState(store.showShortcutsDialog);
   const [showArchived, setShowArchived] = useState(false);
+  const [accessSummary, setAccessSummary] = useState<BPAccessSummary | null>(null);
   const accountSettingsButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setAccessSummary(null);
+      return;
+    }
+
+    let active = true;
+    const loadAccessSummary = () =>
+      fetch('/api/bp-ai/access', {
+        credentials: 'same-origin',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((data: BPAccessSummary | null) => {
+          if (active) {
+            setAccessSummary(data);
+          }
+        })
+        .catch(() => {
+          if (active) {
+            setAccessSummary(null);
+          }
+        });
+
+    void loadAccessSummary();
+    const refreshInterval = window.setInterval(loadAccessSummary, 60_000);
+    return () => {
+      active = false;
+      window.clearInterval(refreshInterval);
+    };
+  }, [isAuthenticated, token]);
+
+  const fiveHour = accessSummary?.quota.windows?.['5h'];
+  const quotaLimit = fiveHour?.limit_tokens ?? 0;
+  const quotaRemaining = fiveHour?.remaining_tokens ?? quotaLimit;
+  const quotaPercentExact = quotaLimit > 0 ? Math.min(100, (quotaRemaining / quotaLimit) * 100) : 0;
+  const quotaPercentLabel = `${Math.round(quotaPercentExact)}% tersisa`;
+  const quotaBarPercent = quotaPercentExact > 0 ? Math.max(1, quotaPercentExact) : 0;
 
   return (
     <Menu.MenuProvider placement={collapsed ? 'right-end' : undefined}>
@@ -135,16 +109,56 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
       </Menu.MenuButton>
       <Menu.Menu
         portal
-        className="account-settings-popover popover-ui z-[125] w-[305px] rounded-lg md:w-[244px]"
+        className="account-settings-popover popover-ui z-[125] w-[360px] max-w-[calc(100vw-24px)] rounded-xl"
         style={{
           transformOrigin: collapsed ? 'left bottom' : 'bottom',
           translate: collapsed ? '4px 0' : '0 -4px',
         }}
       >
-        <div className="text-token-text-secondary ml-3 mr-2 py-2 text-sm" role="note">
-          {user?.email ?? localize('com_nav_user')}
+        <div className="flex items-center gap-3 px-4 py-3" role="note">
+          <img
+            src="/assets/bp-batam.png"
+            alt="BP Batam"
+            className="h-10 w-[98px] flex-none object-contain object-left"
+          />
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-text-primary">BP Batam AI</div>
+            <div className="truncate text-xs text-text-secondary">
+              {user?.email ?? localize('com_nav_user')}
+            </div>
+          </div>
         </div>
         <DropdownMenuSeparator />
+        {accessSummary && (
+          <>
+            <div
+              className="mx-3 my-3 rounded-xl border border-border-light bg-surface-secondary p-3 text-sm"
+              role="status"
+            >
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-semibold text-text-primary">
+                    {localize('com_nav_bp_usage')}
+                  </div>
+                  <div className="mt-0.5 text-xs text-text-secondary">
+                    {localize('com_nav_bp_quota_caption')}
+                  </div>
+                </div>
+                <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-800 dark:bg-blue-950 dark:text-blue-200">
+                  {quotaPercentLabel}
+                </span>
+              </div>
+              <div className="mb-2 h-2 overflow-hidden rounded-full bg-surface-active-alt">
+                <div
+                  className="h-full rounded-full bg-blue-700 transition-[width] dark:bg-blue-400"
+                  style={{ width: `${quotaBarPercent}%` }}
+                />
+              </div>
+              <p className="mt-2 text-xs text-text-secondary">Bar berkurang dari 100% ke 0% selama jendela 5 jam.</p>
+            </div>
+            <DropdownMenuSeparator />
+          </>
+        )}
         {startupConfig?.balance?.enabled === true && balanceQuery.data != null && (
           <>
             <div className="text-token-text-secondary ml-3 mr-2 py-2 text-sm" role="note">
@@ -154,12 +168,6 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
             <DropdownMenuSeparator />
           </>
         )}
-        <HelpSubmenu
-          helpAndFaqURL={startupConfig?.helpAndFaqURL}
-          termsOfServiceURL={startupConfig?.interface?.termsOfService?.externalUrl}
-          privacyPolicyURL={startupConfig?.interface?.privacyPolicy?.externalUrl}
-          onShowShortcuts={() => setShowShortcutsDialog(true)}
-        />
         <Menu.MenuItem onClick={() => setShowFiles(true)} className="select-item text-sm">
           <FileText className="icon-md" aria-hidden="true" />
           {localize('com_nav_my_files')}

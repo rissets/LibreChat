@@ -78,6 +78,12 @@ export type TModelSpec = {
   describeIntent?: boolean | string[];
   artifacts?: string | boolean;
   mcpServers?: string[];
+  /**
+   * Server-managed built-in tools equipped on the spec's ephemeral agent.
+   * This field is removed from the client startup payload so internal tool
+   * identifiers and routing policy remain private.
+   */
+  tools?: string[];
   skills?: boolean | string[];
   subagents?: AgentSubagentsConfig;
 };
@@ -115,6 +121,7 @@ export const tModelSpecSchema = z.object({
   describeIntent: z.union([z.boolean(), z.array(z.string())]).optional(),
   artifacts: z.union([z.string(), z.boolean()]).optional(),
   mcpServers: z.array(z.string()).optional(),
+  tools: z.array(z.string()).optional(),
   skills: z.union([z.boolean(), z.array(z.string())]).optional(),
   subagents: modelSpecSubagentsSchema.optional(),
 });

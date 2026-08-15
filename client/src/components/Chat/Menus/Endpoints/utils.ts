@@ -10,6 +10,7 @@ import type {
 import type { useLocalize } from '~/hooks';
 import SpecIcon from '~/components/Chat/Menus/Endpoints/components/SpecIcon';
 import { Endpoint, SelectedValues } from '~/common';
+import { getBPModelLabel } from '~/utils/bpModelLabels';
 
 export function filterItems<
   T extends {
@@ -55,7 +56,7 @@ export function filterItems<
 
     if (item.models && item.models.length > 0) {
       return item.models.some((modelId) => {
-        if (modelId.name.toLowerCase().includes(searchTermLower)) {
+        if (getBPModelLabel(modelId.name).toLowerCase().includes(searchTermLower)) {
           return true;
         }
 
@@ -101,7 +102,7 @@ export function filterModels(
   }
 
   return models.filter((modelId) => {
-    let modelName = modelId;
+    let modelName = getBPModelLabel(modelId);
 
     if (isAgentsEndpoint(endpoint.value) && agentsMap && agentsMap[modelId]) {
       modelName = agentsMap[modelId]?.name || modelId;
@@ -226,7 +227,7 @@ export const getDisplayValue = ({
       return endpoint.assistantNames[selectedValues.model];
     }
 
-    return selectedValues.model;
+    return getBPModelLabel(selectedValues.model);
   }
 
   if (selectedValues.endpoint) {

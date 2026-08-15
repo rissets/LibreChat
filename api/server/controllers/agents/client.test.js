@@ -18,6 +18,29 @@ const { GenerationJobManager, createStreamServices } = require('@librechat/api')
 const AgentClient = require('./client');
 const { resolveConfigServers } = require('~/server/services/MCP');
 
+describe('AgentClient model normalization', () => {
+  it('uses the top-level agent model when model_parameters is absent', () => {
+    const client = new AgentClient({
+      req: {
+        user: { id: 'user-123' },
+        body: { endpoint: EModelEndpoint.agents, agent_id: 'bp-agent' },
+        config: { endpoints: { [EModelEndpoint.agents]: {} } },
+      },
+      res: {},
+      agent: {
+        id: 'bp-agent',
+        endpoint: EModelEndpoint.openAI,
+        provider: 'BP Batam AI',
+        model: 'bp/gpt-5.6-sol-medium',
+      },
+      contentParts: [],
+      collectedUsage: [],
+      artifactPromises: [],
+    });
+    expect(client.model).toBe('bp/gpt-5.6-sol-medium');
+  });
+});
+
 function deferred() {
   let resolve;
   const promise = new Promise((resolvePromise) => {

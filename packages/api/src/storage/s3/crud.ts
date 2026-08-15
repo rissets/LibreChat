@@ -57,6 +57,7 @@ import { s3Config } from './s3Config';
 const {
   AWS_BUCKET_NAME: bucketName,
   AWS_ENDPOINT_URL: endpoint,
+  S3_PUBLIC_ENDPOINT_URL: publicEndpoint,
   AWS_FORCE_PATH_STYLE: forcePathStyle,
   S3_URL_EXPIRY_SECONDS: s3UrlExpirySeconds,
   S3_REFRESH_EXPIRY_MS: s3RefreshExpiryMs,
@@ -311,7 +312,25 @@ async function getS3URLForKey({
       throw new Error('[getS3URL] S3 not initialized');
     }
 
-    return await getSignedUrl(s3, new GetObjectCommand(params), { expiresIn: s3UrlExpirySeconds });
+    const signedUrl = await getSignedUrl(s3, new GetObjectCommand(params), {
+      expiresIn: s3UrlExpirySeconds,
+    });
+    if (!publicEndpoint || !endpoint) {
+      return signedUrl;
+    }
+
+    // Preserve the signed bucket/key/query while exposing it through the
+    // browser-facing storage proxy. The proxy restores the internal signing
+    // host and strips its public prefix before forwarding the request.
+    const signed = new URL(signedUrl);
+    const internal = new URL(endpoint);
+    const external = new URL(publicEndpoint);
+    const internalPath = internal.pathname.replace(/\/$/, '');
+    const externalPath = external.pathname.replace(/\/$/, '');
+    signed.protocol = external.protocol;
+    signed.host = external.host;
+    signed.pathname = `${externalPath}${signed.pathname.slice(internalPath.length)}`;
+    return signed.toString();
   } catch (error) {
     logger.error('[getS3URL] Error getting signed URL from S3:', (error as Error).message);
     throw error;
@@ -651,6 +670,22 @@ export function extractKeyFromS3Url(fileUrlOrKey: string): string {
     const url = new URL(fileUrlOrKey);
     const hostname = url.hostname;
     const pathname = url.pathname.substring(1);
+
+    if (publicEndpoint) {
+      const publicUrl = new URL(publicEndpoint);
+      if (url.origin === publicUrl.origin) {
+        const publicPath = publicUrl.pathname.replace(/^\/+|\/+$/g, '');
+        const pathWithoutPublicPrefix = publicPath
+          ? pathname.replace(new RegExp(`^${publicPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/?`), '')
+          : pathname;
+        const key = pathWithoutPublicPrefix.startsWith(`${bucketName}/`)
+          ? pathWithoutPublicPrefix.substring(bucketName.length + 1)
+          : pathWithoutPublicPrefix;
+        if (key) {
+          return key;
+        }
+      }
+    }
 
     if (endpoint && forcePathStyle) {
       const endpointUrl = new URL(endpoint);

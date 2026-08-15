@@ -11,7 +11,7 @@ import {
 
 /**
  * Hook for client-side image resizing functionality
- * Integrates with LibreChat's file configuration system
+ * Integrates with BP Batam AI's file configuration system
  */
 export const useClientResize = () => {
   const { data: fileConfig = null } = useGetFileConfig({

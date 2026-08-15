@@ -221,7 +221,7 @@ class AgentClient extends BaseClient {
     /** @type {AgentClientOptions} */
     this.options = Object.assign({ endpoint: options.endpoint }, clientOptions);
     /** @type {string} */
-    this.model = this.options.agent.model_parameters.model;
+    this.model = this.options.agent.model_parameters?.model ?? this.options.agent.model;
     /** The key for the usage object's input tokens
      * @type {string} */
     this.inputTokensKey = 'input_tokens';
@@ -2123,7 +2123,7 @@ class AgentClient extends BaseClient {
         user: this.user ?? this.options.req.user?.id,
         conversationId: this.conversationId,
         collectedUsage,
-        model: model ?? this.model ?? this.options.agent.model_parameters.model,
+        model: model ?? this.model ?? this.options.agent.model_parameters?.model ?? this.options.agent.model,
         context,
         messageId: this.responseMessageId,
         balance,
@@ -3490,7 +3490,7 @@ class AgentClient extends BaseClient {
 
     /** @type {import('@librechat/agents').ClientOptions} */
     let clientOptions = {
-      model: agent.model || agent.model_parameters.model,
+      model: agent.model || agent.model_parameters?.model,
     };
 
     let titleProviderConfig = getProviderConfig({ provider: endpoint, appConfig });

@@ -1,7 +1,15 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import * as Ariakit from '@ariakit/react';
 import { TooltipAnchor, DropdownPopup, PinIcon, VectorIcon } from '@librechat/client';
-import { Brain, Globe, ScrollText, Settings, Settings2, TerminalSquareIcon } from 'lucide-react';
+import {
+  Brain,
+  Globe,
+  ImageIcon,
+  ScrollText,
+  Settings,
+  Settings2,
+  TerminalSquareIcon,
+} from 'lucide-react';
 import {
   AuthType,
   Permissions,
@@ -155,8 +163,28 @@ const ToolsDropdown = ({ disabled }: ToolsDropdownProps) => {
   }, [memory]);
 
   const mcpPlaceholder = startupConfig?.interface?.mcpServers?.placeholder;
+  const imageGenerationEnabled =
+    startupConfig?.interface?.defaultPinnedTools?.includes('image_gen_oai') === true;
 
   const dropdownItems: MenuItemProps[] = [];
+
+  if (imageGenerationEnabled) {
+    dropdownItems.push({
+      onClick: () => undefined,
+      hideOnClick: false,
+      render: (props) => (
+        <div {...props} data-testid="tools-menu-image-generation" aria-disabled="true">
+          <div className="flex items-center gap-2">
+            <ImageIcon className="icon-md" aria-hidden="true" />
+            <span>{localize('com_ui_tool_name_image_gen')}</span>
+          </div>
+          <span className="rounded-full bg-surface-active px-2 py-0.5 text-xs font-medium text-text-secondary">
+            {localize('com_ui_automatic')}
+          </span>
+        </div>
+      ),
+    });
+  }
 
   if (fileSearchEnabled && canUseFileSearch) {
     dropdownItems.push({

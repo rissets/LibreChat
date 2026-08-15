@@ -1,9 +1,8 @@
 import { useState, useId, useRef, memo, useCallback, useMemo } from 'react';
 import * as Ariakit from '@ariakit/react';
-import { useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DropdownPopup, Spinner, useToastContext } from '@librechat/client';
-import { QueryKeys, PermissionTypes, Permissions } from 'librechat-data-provider';
+import { PermissionTypes, Permissions } from 'librechat-data-provider';
 import {
   Ellipsis,
   Share2,
@@ -15,7 +14,6 @@ import {
   Pin,
   Trash,
 } from 'lucide-react';
-import type { TMessage } from 'librechat-data-provider';
 import type { MouseEvent } from 'react';
 import {
   useDuplicateConversationMutation,
@@ -57,7 +55,6 @@ function ConvoOptions({
   isShiftHeld?: boolean;
 }) {
   const localize = useLocalize();
-  const queryClient = useQueryClient();
   const { index } = useChatContext();
   const { data: startupConfig } = useGetStartupConfig();
   const { navigateToConvo } = useNavigateToConvo(index);
@@ -133,7 +130,6 @@ function ConvoOptions({
   const isDuplicateLoading = duplicateConversation.isLoading;
   const isArchiveLoading = archiveConvoMutation.isLoading;
   const isPinLoading = pinConvoMutation.isLoading;
-  const isDeleteLoading = deleteMutation.isLoading;
 
   const shareHandler = useCallback(() => {
     setShowShareDialog(true);
@@ -174,20 +170,6 @@ function ConvoOptions({
     );
   }, [assignConversationToProject, conversationId, localize, setIsPopoverActive, showToast]);
 
-  const handleInstantDelete = useCallback(
-    (e: MouseEvent) => {
-      e.stopPropagation();
-      const convoId = conversationId ?? '';
-      if (!convoId) {
-        return;
-      }
-      const messages = queryClient.getQueryData<TMessage[]>([QueryKeys.messages, convoId]);
-      const thread_id = messages?.[messages.length - 1]?.thread_id;
-      const endpoint = messages?.[messages.length - 1]?.endpoint;
-      deleteMutation.mutate({ conversationId: convoId, thread_id, endpoint, source: 'button' });
-    },
-    [conversationId, deleteMutation, queryClient],
-  );
 
   const handleArchiveClick = useCallback(
     async (e?: MouseEvent) => {
@@ -370,37 +352,6 @@ function ConvoOptions({
       ? 'opacity-100'
       : 'opacity-0 focus:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100 data-[open]:opacity-100',
   );
-
-  if (isShiftHeld && isActiveConvo && !isPopoverActive && !showShareDialog && !showDeleteDialog) {
-    return (
-      <div className="flex items-center gap-0.5">
-        <button
-          aria-label={localize('com_ui_archive')}
-          className={cn(buttonClassName, 'hover:bg-surface-hover')}
-          onClick={handleArchiveClick}
-          disabled={isArchiveLoading}
-        >
-          {isArchiveLoading ? (
-            <Spinner className="size-4" />
-          ) : (
-            <Archive className="icon-md text-text-secondary" aria-hidden={true} />
-          )}
-        </button>
-        <button
-          aria-label={localize('com_ui_delete')}
-          className={cn(buttonClassName, 'hover:bg-surface-hover')}
-          onClick={handleInstantDelete}
-          disabled={isDeleteLoading}
-        >
-          {isDeleteLoading ? (
-            <Spinner className="size-4" />
-          ) : (
-            <Trash className="icon-md text-text-secondary" aria-hidden={true} />
-          )}
-        </button>
-      </div>
-    );
-  }
 
   return (
     <>

@@ -222,7 +222,7 @@ describe('useRum', () => {
     );
   });
 
-  it('initializes proxy RUM with the LibreChat bearer token for same-origin ingest', async () => {
+  it('initializes proxy RUM with the BP Batam AI bearer token for same-origin ingest', async () => {
     const fetchMock = jest.fn(
       (_input: RequestInfo | URL, _init?: RequestInit): Promise<Response> =>
         Promise.resolve({ ok: true, status: 200 } as Response),

@@ -910,6 +910,16 @@ async function setupOpenId() {
   try {
     const usePKCE = isEnabled(process.env.OPENID_USE_PKCE);
     const shouldGenerateNonce = isEnabled(process.env.OPENID_GENERATE_NONCE);
+    const issuer = new URL(process.env.OPENID_ISSUER);
+    const allowInsecureHttp = isEnabled(process.env.OPENID_ALLOW_INSECURE_HTTP);
+    const localDevelopmentIssuer =
+      issuer.hostname === 'localhost' ||
+      issuer.hostname === '127.0.0.1' ||
+      issuer.hostname.endsWith('.bpai.localhost');
+
+    if (allowInsecureHttp && !localDevelopmentIssuer) {
+      throw new Error('OPENID_ALLOW_INSECURE_HTTP is restricted to local BP Batam development hosts');
+    }
 
     /** @type {ClientMetadata} */
     const clientMetadata = {
@@ -930,14 +940,17 @@ async function setupOpenId() {
     }
 
     /** @type {Configuration} */
+    const discoveryOptions = {
+      [client.customFetch]: customFetch,
+      ...(allowInsecureHttp ? { execute: [client.allowInsecureRequests] } : {}),
+    };
+
     openidConfig = await client.discovery(
-      new URL(process.env.OPENID_ISSUER),
+      issuer,
       process.env.OPENID_CLIENT_ID,
       clientMetadata,
       undefined,
-      {
-        [client.customFetch]: customFetch,
-      },
+      discoveryOptions,
     );
 
     logger.info(`[openidStrategy] OpenID authentication configuration`, {

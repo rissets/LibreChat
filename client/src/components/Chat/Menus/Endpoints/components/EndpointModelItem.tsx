@@ -8,6 +8,7 @@ import { CustomMenuItem as MenuItem } from '../CustomMenu';
 import useActiveItem from '../useActiveItem';
 import { useLocalize } from '~/hooks';
 import { cn } from '~/utils';
+import { getBPModelLabel } from '~/utils/bpModelLabels';
 
 interface EndpointModelItemProps {
   modelId: string | null;
@@ -47,7 +48,7 @@ function EndpointModelItemComponent({
 
   const { ref: itemRef, isActive } = useActiveItem<HTMLDivElement>();
 
-  let modelName = modelId;
+  let modelName = getBPModelLabel(modelId);
   const avatarUrl = endpoint?.modelIcons?.[modelId ?? ''] || null;
 
   // Use custom names if available

@@ -40,6 +40,7 @@ import { showThinkingAtom } from '~/store/showThinking';
 import ProviderKeys from '../SettingsTabs/ProviderKeys';
 import Avatar from '../SettingsTabs/Account/Avatar';
 import About from '../SettingsTabs/About/About';
+import AIUsage from '../SettingsTabs/Account/AIUsage';
 import ApiKeys from '../SettingsTabs/ApiKeys';
 import MemoryToggle from './MemoryToggle';
 import { TTSEndpoints } from '~/common';
@@ -626,5 +627,13 @@ export const registry: SettingEntry[] = [
     keywords: ['version', 'build', 'diagnostics'],
     show: (ctx) => ctx.aboutEnabled,
     Component: About,
+  },
+  {
+    id: 'bpAIUsage',
+    tab: ACCOUNT,
+    section: 'billing',
+    labelKey: 'com_nav_bp_usage',
+    keywords: ['usage', 'token', 'quota', '5 jam', 'mingguan', 'bulanan'],
+    Component: AIUsage,
   },
 ];

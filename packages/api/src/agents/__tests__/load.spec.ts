@@ -129,6 +129,38 @@ describe('loadAgent', () => {
     }
   });
 
+  test('should equip private model spec tools on an ephemeral chat agent', async () => {
+    const { EPHEMERAL_AGENT_ID } = Constants;
+    const result = await loadAgent(
+      {
+        req: {
+          user: { id: 'user123' },
+          config: {
+            modelSpecs: {
+              list: [
+                {
+                  name: 'bp-image-chat',
+                  label: 'BP Image Chat',
+                  tools: ['image_gen_oai'],
+                  preset: { endpoint: 'BP Batam AI', model: 'bp/gpt-5.6-sol-medium' },
+                },
+              ],
+            },
+          } as AppConfig,
+        },
+        spec: 'bp-image-chat',
+        agent_id: EPHEMERAL_AGENT_ID as string,
+        endpoint: 'BP Batam AI',
+        model_parameters: {
+          model: 'bp/gpt-5.6-sol-medium',
+        } as unknown as AgentModelParameters,
+      },
+      deps,
+    );
+
+    expect(result?.tools).toContain('image_gen_oai');
+  });
+
   test('should skip cached tools for servers made request-scoped by a config overlay', async () => {
     const { EPHEMERAL_AGENT_ID } = Constants;
 

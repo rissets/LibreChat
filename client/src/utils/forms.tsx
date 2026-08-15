@@ -48,14 +48,23 @@ export const createProviderOption = (provider: string) => ({
  * Gets default agent form values with localStorage values for model and provider.
  * This is used to initialize agent forms with the last used model and provider.
  **/
-export const getDefaultAgentFormValues = () => ({
-  ...defaultAgentFormValues,
-  model: localStorage.getItem(LocalStorageKeys.LAST_AGENT_MODEL) ?? '',
-  provider: createProviderOption(localStorage.getItem(LocalStorageKeys.LAST_AGENT_PROVIDER) ?? ''),
-  avatar_file: null,
-  avatar_preview: '',
-  avatar_action: null,
-});
+export const getDefaultAgentFormValues = () => {
+  const storedModel = localStorage.getItem(LocalStorageKeys.LAST_AGENT_MODEL) ?? '';
+  const storedProvider = localStorage.getItem(LocalStorageKeys.LAST_AGENT_PROVIDER) ?? '';
+  const isCuratedSelection = storedProvider === 'BP Batam AI' && storedModel.startsWith('bp/');
+
+  return {
+    ...defaultAgentFormValues,
+    // Old browser state may reference an upstream model which is no longer in
+    // the curated catalog. Starting from a valid pair prevents an agent from
+    // being created with an invisible or empty model.
+    model: isCuratedSelection ? storedModel : 'bp/gpt-5.6-sol-medium',
+    provider: createProviderOption(isCuratedSelection ? storedProvider : 'BP Batam AI'),
+    avatar_file: null,
+    avatar_preview: '',
+    avatar_action: null,
+  };
+};
 
 export const processAgentOption = ({
   agent: _agent,
