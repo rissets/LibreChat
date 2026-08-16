@@ -129,6 +129,33 @@ describe('OpenAIImageTools - IMAGE_GEN_OAI_MODEL environment variable', () => {
     );
   });
 
+  it('passes authenticated user ID to the workload broker when email is unavailable', async () => {
+    process.env.IMAGE_GEN_OAI_WORKLOAD_MODE = 'true';
+    process.env.IMAGE_GEN_OAI_BASEURL = 'http://access-broker:8010/v1';
+
+    const mockGenerate = jest.fn().mockResolvedValue({
+      data: [{ b64_json: 'base64-encoded-image-data' }],
+    });
+    OpenAI.mockImplementation(() => ({ images: { generate: mockGenerate } }));
+
+    const [imageGenTool] = createOpenAIImageTools({
+      isAgent: true,
+      override: false,
+      req: { user: { id: 'test-user' } },
+    });
+    await imageGenTool.func({ prompt: 'test prompt' });
+
+    expect(OpenAI).toHaveBeenCalledWith(
+      expect.objectContaining({
+        defaultHeaders: expect.objectContaining({
+          'X-BP-Workload-Token': 'test-api-key',
+          'X-BP-User-ID': 'test-user',
+        }),
+      }),
+    );
+    expect(OpenAI.mock.calls[0][0].defaultHeaders).not.toHaveProperty('X-BP-User-Email');
+  });
+
   it('should use custom model name from IMAGE_GEN_OAI_MODEL environment variable', async () => {
     process.env.IMAGE_GEN_OAI_MODEL = 'custom-image-model';
 

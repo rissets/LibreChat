@@ -1254,7 +1254,15 @@ function base64ToBuffer(base64String) {
 
 async function saveBase64Image(
   url,
-  { req, file_id: _file_id, filename: _filename, endpoint, context, resolution },
+  {
+    req,
+    file_id: _file_id,
+    filename: _filename,
+    endpoint,
+    context,
+    resolution,
+    conversationId,
+  },
 ) {
   const appConfig = req.config;
   const effectiveResolution = resolution ?? appConfig.fileConfig?.imageGeneration ?? 'high';
@@ -1290,6 +1298,7 @@ async function saveBase64Image(
       ...storageMetadata,
       filename,
       user: req.user.id,
+      ...(conversationId ? { conversationId } : {}),
       bytes: image.bytes,
       width: image.width,
       ...(await getRetentionExpiry(req)),

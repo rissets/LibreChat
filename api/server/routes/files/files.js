@@ -1,5 +1,8 @@
 const fs = require('fs').promises;
+const crypto = require('crypto');
+const path = require('path');
 const express = require('express');
+const JSZip = require('jszip');
 const { logger, SystemCapabilities } = require('@librechat/data-schemas');
 const {
   logAxiosError,
@@ -38,6 +41,7 @@ const { cleanFileName, getContentDisposition } = require('~/server/utils/files')
 const { getLogStores } = require('~/cache');
 const { Readable } = require('stream');
 const db = require('~/models');
+const { v4: uuid } = require('uuid');
 
 const router = express.Router();
 const AGENT_TOOL_RESOURCE_KEYS = new Set([
@@ -50,6 +54,97 @@ const AGENT_TOOL_RESOURCE_KEYS = new Set([
 
 const isAgentToolResourceKey = (toolResource) =>
   typeof toolResource === 'string' && AGENT_TOOL_RESOURCE_KEYS.has(toolResource);
+
+/* Internal callback is deliberately exported to index.js, where it is mounted
+ * before JWT middleware at a private, narrowly scoped path. It still requires
+ * both the callback secret and a signed workload assertion. */
+const verifyArtifactAssertion = (req) => {
+  const secret = process.env.BROKER_WORKLOAD_SECRET;
+  const encoded = req.get('X-BP-Identity-Assertion');
+  if (!secret || !encoded) return null;
+  const [payload, signature] = encoded.split('.');
+  if (!payload || !signature || !/^[A-Za-z0-9_-]+$/.test(payload)) return null;
+  const expected = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+  const actual = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+  if (actual.length !== expectedBuffer.length || !crypto.timingSafeEqual(actual, expectedBuffer)) return null;
+  try {
+    const claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    if (!claims.user_id || !claims.tenant_id || !claims.conversation_id ||
+        claims.exp < Math.floor(Date.now() / 1000)) return null;
+    return claims;
+  } catch (_) { return null; }
+};
+
+const registerMcpArtifact = async (req, res) => {
+  const suppliedSecret = Buffer.from(req.get('X-BP-Artifact-Secret') || '');
+  const configuredSecret = Buffer.from(process.env.LIBRECHAT_ARTIFACT_SECRET || '');
+  if (!configuredSecret.length || suppliedSecret.length !== configuredSecret.length ||
+      !crypto.timingSafeEqual(suppliedSecret, configuredSecret)) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const claims = verifyArtifactAssertion(req);
+  const body = req.body || {};
+  if (!claims || body.user_id !== claims.user_id || body.tenant_id !== claims.tenant_id ||
+      body.conversation_id !== claims.conversation_id) return res.status(401).json({ error: 'Invalid identity assertion' });
+  const filename = body.filename;
+  if (body.mime !== 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+      typeof filename !== 'string' || filename !== path.basename(filename) ||
+      !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.xlsx$/.test(filename) ||
+      typeof body.bytes !== 'string' || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(body.bytes)) {
+    return res.status(400).json({ error: 'Invalid XLSX artifact' });
+  }
+  let buffer;
+  try {
+    // Buffer.from is permissive; require canonical RFC 4648 base64 before decoding.
+    buffer = Buffer.from(body.bytes, 'base64');
+    if (!buffer.length || buffer.toString('base64') !== body.bytes) throw new Error('non-canonical base64');
+  } catch (_) { return res.status(400).json({ error: 'Invalid base64' }); }
+  if (buffer.length > 50 * 1024 * 1024 || !buffer.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04]))) {
+    return res.status(400).json({ error: 'Invalid XLSX artifact' });
+  }
+  try {
+    const zip = await JSZip.loadAsync(buffer, { checkCRC32: true, createFolders: false });
+    const names = Object.keys(zip.files);
+    const required = ['[Content_Types].xml', 'xl/workbook.xml'];
+    if (!required.every((name) => zip.files[name] && !zip.files[name].dir) || names.length > 1000) {
+      return res.status(400).json({ error: 'Invalid XLSX artifact' });
+    }
+    let uncompressed = 0;
+    for (const name of names) {
+      const entry = zip.files[name];
+      if (entry.dir || name.includes('\\0') || name.startsWith('/') || name.split('/').includes('..')) {
+        return res.status(400).json({ error: 'Invalid XLSX artifact' });
+      }
+      // Reading each entry enforces decompression and catches malformed ZIP data.
+      const data = await entry.async('uint8array');
+      uncompressed += data.byteLength;
+      if (uncompressed > 50 * 1024 * 1024) return res.status(400).json({ error: 'Invalid XLSX artifact' });
+    }
+  } catch (_) {
+    return res.status(400).json({ error: 'Invalid XLSX artifact' });
+  }
+  try {
+    const file_id = uuid();
+    const source = req.config?.fileStrategy;
+    if (!source) {
+      logger.error('[MCP ARTIFACT] Missing file strategy configuration');
+      return res.status(503).json({ error: 'File storage is not configured' });
+    }
+    const { saveBuffer } = getStrategyFunctions(source);
+    if (!saveBuffer) return res.status(503).json({ error: 'Storage strategy cannot save buffers' });
+    const filepath = await saveBuffer({ userId: claims.user_id, fileName: `${file_id}-${filename}`, buffer, tenantId: claims.tenant_id });
+    const file = await db.createFile({ user: claims.user_id, file_id, bytes: buffer.length, filepath,
+      filename, source, type: body.mime, context: 'message_attachment', conversationId: claims.conversation_id,
+      tenantId: claims.tenant_id }, true);
+    return res.status(201).json({ file_id, filename, download_reference: `/api/files/download/${encodeURIComponent(claims.user_id)}/${file_id}`, metadata: file });
+  } catch (error) {
+    logger.error('[MCP ARTIFACT] registration failed:', error);
+    return res.status(500).json({ error: 'Artifact registration failed' });
+  }
+};
+
+router.post('/mcp-artifacts', registerMcpArtifact);
 
 router.get('/', async (req, res) => {
   try {
@@ -725,4 +820,8 @@ router.post('/', async (req, res) => {
   }
 });
 
+// Preserve the router export while exposing the internal artifact handler to the
+// parent router. Assign this after creating the final export so it cannot be
+// overwritten by module.exports = router.
+router.registerMcpArtifact = registerMcpArtifact;
 module.exports = router;

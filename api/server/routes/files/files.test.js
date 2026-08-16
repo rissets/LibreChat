@@ -1,5 +1,7 @@
 const express = require('express');
 const request = require('supertest');
+const crypto = require('crypto');
+const JSZip = require('jszip');
 const mongoose = require('mongoose');
 const { Readable } = require('stream');
 const { v4: uuidv4 } = require('uuid');
@@ -110,6 +112,10 @@ describe('File Routes - Delete with Agent Access', () => {
 
     app = express();
     app.use(express.json());
+    app.use((req, res, next) => {
+      req.config = { fileStrategy: FileSources.local };
+      next();
+    });
 
     app.use((req, res, next) => {
       req.user = {
@@ -1087,5 +1093,42 @@ describe('File Routes - Delete with Agent Access', () => {
         .send({ file_ids: [fileId] });
       expect(response.status).toBe(401);
     });
+  });
+
+  describe('MCP XLSX artifact callback', () => {
+    const oldSecrets = {
+      artifact: process.env.LIBRECHAT_ARTIFACT_SECRET,
+      workload: process.env.BROKER_WORKLOAD_SECRET,
+    };
+
+    afterEach(() => {
+      process.env.LIBRECHAT_ARTIFACT_SECRET = oldSecrets.artifact;
+      process.env.BROKER_WORKLOAD_SECRET = oldSecrets.workload;
+    });
+
+    it('stores an authenticated XLSX and returns metadata/download reference', async () => {
+      process.env.LIBRECHAT_ARTIFACT_SECRET = 'artifact-secret';
+      process.env.BROKER_WORKLOAD_SECRET = 'workload-secret';
+      const bytes = await new JSZip()
+        .file('[Content_Types].xml', '<types/>')
+        .file('xl/workbook.xml', '<workbook/>')
+        .generateAsync({ type: 'nodebuffer' });
+      const claims = { user_id: otherUserId.toString(), tenant_id: 'tenant-a', conversation_id: 'conversation-a', exp: Math.floor(Date.now() / 1000) + 60 };
+      const payload = Buffer.from(JSON.stringify(claims)).toString('base64url');
+      const signature = crypto.createHmac('sha256', process.env.BROKER_WORKLOAD_SECRET).update(payload).digest('base64url');
+      const saveBuffer = jest.fn().mockResolvedValue('/tmp/stored.xlsx');
+      getStrategyFunctions.mockReturnValue({ saveBuffer });
+
+      const response = await request(app).post('/files/mcp-artifacts')
+        .set('X-BP-Artifact-Secret', process.env.LIBRECHAT_ARTIFACT_SECRET)
+        .set('X-BP-Identity-Assertion', `${payload}.${signature}`)
+        .send({ ...claims, filename: 'report.xlsx', mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', bytes: bytes.toString('base64') });
+
+      expect(response.status).toBe(201);
+      expect(saveBuffer).toHaveBeenCalled();
+      expect(response.body.metadata.filename).toBe('report.xlsx');
+      expect(response.body.download_reference).toContain(response.body.file_id);
+    });
+
   });
 });

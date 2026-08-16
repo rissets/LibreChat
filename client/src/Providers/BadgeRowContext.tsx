@@ -22,6 +22,7 @@ interface BadgeRowContextType {
   artifacts: ReturnType<typeof useToolToggle>;
   fileSearch: ReturnType<typeof useToolToggle>;
   codeInterpreter: ReturnType<typeof useToolToggle>;
+  imageGeneration: ReturnType<typeof useToolToggle>;
   searchApiKeyForm: ReturnType<typeof useSearchApiKeyForm>;
   mcpServerManager: ReturnType<typeof useMCPServerManager>;
 }
@@ -102,6 +103,7 @@ export default function BadgeRowProvider({
       const artifactsToggleKey = `${LocalStorageKeys.LAST_ARTIFACTS_TOGGLE_}${storageSuffix}`;
       const skillsToggleKey = `${LocalStorageKeys.LAST_SKILLS_TOGGLE_}${storageSuffix}`;
       const memoryToggleKey = `${LocalStorageKeys.LAST_MEMORY_TOGGLE_}${storageSuffix}`;
+      const imageGenerationToggleKey = `${LocalStorageKeys.LAST_IMAGE_GENERATION_TOGGLE_}${storageSuffix}`;
 
       const codeToggleValue = getTimestampedValue(codeToggleKey);
       const webSearchToggleValue = getTimestampedValue(webSearchToggleKey);
@@ -109,6 +111,7 @@ export default function BadgeRowProvider({
       const artifactsToggleValue = getTimestampedValue(artifactsToggleKey);
       const skillsToggleValue = getTimestampedValue(skillsToggleKey);
       const memoryToggleValue = getTimestampedValue(memoryToggleKey);
+      const imageGenerationToggleValue = getTimestampedValue(imageGenerationToggleKey);
 
       const initialValues: Record<string, boolean | string> = {};
 
@@ -151,6 +154,11 @@ export default function BadgeRowProvider({
           console.error('Failed to parse skills toggle value:', e);
         }
       }
+
+      // Image generation is an automatic BP Chat capability. Do not let an
+      // old localStorage=false value from the former manual-only behavior
+      // disable it for a newly loaded conversation.
+      initialValues['image_gen_oai'] = true;
 
       if (memoryToggleValue !== null) {
         try {
@@ -270,6 +278,14 @@ export default function BadgeRowProvider({
     isAuthenticated: true,
   });
 
+  const imageGeneration = useToolToggle({
+    conversationId,
+    storageContextKey,
+    toolKey: 'image_gen_oai',
+    localStorageKey: LocalStorageKeys.LAST_IMAGE_GENERATION_TOGGLE_,
+    isAuthenticated: true,
+  });
+
   const mcpServerManager = useMCPServerManager({ conversationId, storageContextKey });
 
   const value: BadgeRowContextType = {
@@ -282,6 +298,7 @@ export default function BadgeRowProvider({
     conversationId,
     storageContextKey,
     codeInterpreter,
+    imageGeneration,
     searchApiKeyForm,
     mcpServerManager,
   };

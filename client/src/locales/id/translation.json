@@ -12,6 +12,8 @@
   "com_ui_artifacts_options": "Opsi Canvas",
   "com_ui_artifacts_subtext": "Buat dan pratinjau React, HTML, SVG, Markdown, dan Mermaid di panel interaktif.",
   "com_ui_tool_name_image_gen": "Pembuatan Gambar",
+  "com_ui_image_created": "Gambar berhasil dibuat.",
+  "com_ui_image_edited": "Gambar berhasil diedit.",
   "com_ui_automatic": "Otomatis",
   "chat_direction_left_to_right": "Ada yang perlu diisi di sini. Masih kosong.",
   "chat_direction_right_to_left": "Ada yang perlu diisi di sini. Masih kosong",

@@ -28,6 +28,7 @@ services:
       - http_proxy=${http_proxy:-}
       - https_proxy=${https_proxy:-}
       - no_proxy=${no_proxy:-localhost,127.0.0.1,::1},${NO_PROXY:-},mongodb,chat-mongodb,meilisearch,chat-meilisearch,rag_api,vectordb,host.docker.internal
+      - DEPLOYMENT_SKILLS_DIR=/app/skills
     volumes:
       - type: bind
         source: ./.env
@@ -35,7 +36,8 @@ services:
       - ./images:/app/client/public/images
       - ./uploads:/app/uploads
       - ./logs:/app/logs
-      - ./skill:/app/skill
+      # BP Chat application skills only; Codex/operator skill directories are not mounted.
+      - ./../../skill:/app/skills:ro
       - librechat-data:/app/data
   admin-panel:
     container_name: admin-panel

@@ -7,6 +7,10 @@
   </h1>
 </p>
 
+## BP Chat E2E
+
+Run `npm run e2e:bp` from this directory. It sets `BP_CHAT_E2E=1` and fails when real provider preflights are unavailable. Set `BP_E2E_PROVIDER_URL`, `BP_E2E_SEARCH_URL`, and `BP_E2E_ACCESS_BROKER_URL` to host-reachable URLs. Defaults assume forwards for access-broker `127.0.0.1:8010`, SearXNG `127.0.0.1:8081`, and department-tools `127.0.0.1:8090`; the stock compose publishes only access-broker, so establish the other forwards (or an equivalent host gateway) first. Docker DNS names are not valid host preflight URLs.
+
 <p align="center">
   <strong>English</strong> ·
   <a href="README.zh.md">中文</a>

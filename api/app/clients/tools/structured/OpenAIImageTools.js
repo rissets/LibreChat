@@ -87,14 +87,19 @@ function createOpenAIImageTools(fields = {}) {
   }
 
   if (!override && process.env.IMAGE_GEN_OAI_WORKLOAD_MODE === 'true') {
+    // OIDC-backed users should have both fields, but email is not guaranteed on
+    // every persisted LibreChat user. The broker can resolve either identity;
+    // send both when available so image generation does not fail after login.
+    const userId = req?.user?.id || req?.user?._id;
     const userEmail = req?.user?.email;
-    if (!userEmail) {
-      throw new Error('Authenticated user email is required for image generation.');
+    if (!userId && !userEmail) {
+      throw new Error('Authenticated user identity is required for image generation.');
     }
     closureConfig.defaultHeaders = {
       ...(closureConfig.defaultHeaders || {}),
       'X-BP-Workload-Token': apiKey,
-      'X-BP-User-Email': userEmail,
+      ...(userId ? { 'X-BP-User-ID': userId } : {}),
+      ...(userEmail ? { 'X-BP-User-Email': userEmail } : {}),
     };
   }
 

@@ -13,12 +13,18 @@ const { avatar: agentAvatarRouter } = require('~/server/routes/agents/v1');
 const { createMulterInstance } = require('./multer');
 
 const files = require('./files');
+const { registerMcpArtifact } = files;
 const images = require('./images');
 const avatar = require('./avatar');
 const speech = require('./speech');
 
 const initialize = async () => {
   const router = express.Router();
+  // Private workload callback only; all ordinary file routes remain JWT protected.
+  // The callback bypasses JWT but still needs the same app-config initialization as
+  // normal file handlers. Its HMAC, workload assertion, and tenant/ACL checks remain
+  // in registerMcpArtifact; ordinary routes stay behind JWT below.
+  router.post('/internal/mcp-artifacts', configMiddleware, registerMcpArtifact);
   router.use(requireJwtAuth);
   router.use(configMiddleware);
   router.use(checkBan);

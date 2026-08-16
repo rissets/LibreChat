@@ -489,8 +489,12 @@ export async function loadDeploymentSkillsFromDirectory(
   }
 
   const skillDirectories = await findSkillDirectories(directory, options.projectRoot ?? directory);
+  const allowedPaths = await readDeploymentSkillManifest(directory);
+  const filteredSkillDirectories = allowedPaths
+    ? skillDirectories.filter((entry) => allowedPaths.has(path.resolve(entry.directory, SKILL_MD)))
+    : skillDirectories;
   const skills = await Promise.all(
-    skillDirectories.map((skillDirectory) => loadSkillFromDirectory(skillDirectory, directory)),
+    filteredSkillDirectories.map((skillDirectory) => loadSkillFromDirectory(skillDirectory, directory)),
   );
   validateUniqueNames(skills);
   const merged = [...skills, ...appendPluginSkills(skills, additionalSkills)];
@@ -627,6 +631,35 @@ export function createDeploymentSkillMethods<T extends DeploymentSkillBaseMethod
     },
   };
   return methods as T & Required<Pick<DeploymentSkillBaseMethods, 'getSkillById'>>;
+}
+
+async function readDeploymentSkillManifest(directory: string): Promise<Set<string> | null> {
+  const manifestPath = path.join(directory, 'manifest.yaml');
+  if (!(await fileExists(manifestPath))) return null;
+  let parsed: unknown;
+  try {
+    parsed = yaml.load(await fs.promises.readFile(manifestPath, 'utf8'));
+  } catch (error) {
+    throw new Error(`Invalid deployment skill manifest: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (!parsed || typeof parsed !== 'object' || !Array.isArray((parsed as { skills?: unknown }).skills)) {
+    throw new Error(`Invalid deployment skill manifest: ${manifestPath}`);
+  }
+  const paths = new Set<string>();
+  for (const entry of (parsed as { skills: unknown[] }).skills) {
+    if (!entry || typeof entry !== 'object' || typeof (entry as { path?: unknown }).path !== 'string') {
+      throw new Error(`Invalid deployment skill manifest entry: ${manifestPath}`);
+    }
+    const relative = (entry as { path: string }).path;
+    const resolved = path.resolve(directory, relative);
+    if (path.isAbsolute(relative) || relative.split(/[\\\\/]+/).includes('..') ||
+        path.dirname(resolved) === directory || !resolved.startsWith(`${directory}${path.sep}`) ||
+        path.basename(resolved) !== SKILL_MD) {
+      throw new Error(`Unsafe deployment skill manifest path: ${relative}`);
+    }
+    paths.add(resolved);
+  }
+  return paths;
 }
 
 async function findSkillDirectories(

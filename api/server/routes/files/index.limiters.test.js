@@ -49,6 +49,7 @@ jest.mock('./files', () => {
   const router = express.Router();
   router.post('/', (req, res) => res.status(200).json({ ok: true }));
   router.post('/usage', (req, res) => res.status(200).json({ ok: true }));
+  router.registerMcpArtifact = (req, res) => res.status(201).json({ ok: true });
   return router;
 });
 
@@ -77,6 +78,18 @@ describe('file route limiter wiring', () => {
     hits.uploadIp = 0;
     hits.uploadUser = 0;
     hits.usage = 0;
+  });
+
+  it('receives a callable artifact handler and registers the internal route', async () => {
+    const files = require('./files');
+    expect(typeof files.registerMcpArtifact).toBe('function');
+
+    const response = await request(app)
+      .post('/api/files/internal/mcp-artifacts')
+      .send({});
+
+    expect(response.status).toBe(201);
+    expect(response.body).toEqual({ ok: true });
   });
 
   it('meters POST /usage with the usage limiter, never leaving it unlimited', async () => {

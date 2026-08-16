@@ -9,6 +9,31 @@ import { useToolCallIntent } from '../intent';
 import ProgressText from './ProgressText';
 import { scaleImage } from '~/utils';
 
+export function getImageGenLiveAnnouncement({
+  progress,
+  cancelled,
+  hasError,
+  toolName,
+  localize,
+}: {
+  progress: number;
+  cancelled: boolean;
+  hasError: boolean;
+  toolName?: string;
+  localize: (key: string) => string;
+}): string {
+  if (progress < 1 && !cancelled) {
+    return '';
+  }
+  if (cancelled && hasError) {
+    return localize('com_ui_image_gen_failed');
+  }
+  if (cancelled) {
+    return localize('com_ui_cancelled');
+  }
+  return localize(toolName === 'image_edit_oai' ? 'com_ui_image_edited' : 'com_ui_image_created');
+}
+
 function computeCancelled(
   isSubmitting: boolean | undefined,
   initialProgress: number,
@@ -215,18 +240,13 @@ export default function OpenAIImageGen({
   return (
     <>
       <span className="sr-only" aria-live="polite" aria-atomic="true">
-        {(() => {
-          if (progress < 1 && !cancelled) {
-            return '';
-          }
-          if (cancelled && hasError) {
-            return localize('com_ui_image_gen_failed');
-          }
-          if (cancelled) {
-            return localize('com_ui_cancelled');
-          }
-          return intent ?? localize('com_ui_image_created');
-        })()}
+        {getImageGenLiveAnnouncement({
+          progress,
+          cancelled,
+          hasError,
+          toolName,
+          localize,
+        })}
       </span>
       <div className="relative my-1 flex h-5 shrink-0 items-center gap-2">
         <ToolIcon type="image_gen" isAnimating={isInProgress} />

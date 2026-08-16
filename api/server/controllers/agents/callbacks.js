@@ -854,6 +854,7 @@ function createToolEndCallback({ req, res, artifactPromises, streamId = null, jo
               filename,
               endpoint: metadata.provider,
               context: FileContext.image_generation,
+              conversationId: metadata.thread_id,
             });
             const fileMetadata = Object.assign(file, {
               messageId: metadata.run_id,
@@ -1168,6 +1169,7 @@ function createResponsesToolEndCallback({ req, res, tracker, artifactPromises })
               filename,
               endpoint: metadata.provider,
               context: FileContext.image_generation,
+              conversationId: metadata.thread_id,
             });
             const fileMetadata = Object.assign(file, {
               toolCallId: output.tool_call_id,

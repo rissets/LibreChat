@@ -3140,6 +3140,7 @@ export enum LocalStorageKeys {
   LAST_SKILLS_TOGGLE_ = 'LAST_SKILLS_TOGGLE_',
   /** Last checked toggle for Memory per conversation ID */
   LAST_MEMORY_TOGGLE_ = 'LAST_MEMORY_TOGGLE_',
+  LAST_IMAGE_GENERATION_TOGGLE_ = 'LAST_IMAGE_GENERATION_TOGGLE_',
   /** Key for the last selected agent provider */
   LAST_AGENT_PROVIDER = 'lastAgentProvider',
   /** Key for the last selected agent model */

@@ -20,14 +20,15 @@ export default function ProgressText({
     if (error) {
       return localize('com_ui_image_gen_failed');
     }
+    // Keep successful output concise; model-authored intent is only useful while running.
+    if (progress >= 1) {
+      return localize(toolName === 'image_edit_oai' ? 'com_ui_image_edited' : 'com_ui_image_created');
+    }
     if (intent != null) {
       return intent;
     }
 
     if (toolName === 'image_edit_oai') {
-      if (progress >= 1) {
-        return localize('com_ui_image_edited');
-      }
       if (progress >= 0.7) {
         return localize('com_ui_final_touch');
       }
@@ -41,9 +42,6 @@ export default function ProgressText({
     }
 
     if (toolName === 'gemini_image_gen') {
-      if (progress >= 1) {
-        return localize('com_ui_image_created');
-      }
       if (progress >= 0.7) {
         return localize('com_ui_final_touch');
       }
@@ -57,9 +55,6 @@ export default function ProgressText({
     }
 
     if (AGENT_STYLE_TOOLS.has(toolName)) {
-      if (progress >= 1) {
-        return localize('com_ui_image_created');
-      }
       if (progress >= 0.7) {
         return localize('com_ui_final_touch');
       }
@@ -72,9 +67,6 @@ export default function ProgressText({
       return localize('com_ui_getting_started');
     }
 
-    if (progress >= 1) {
-      return localize('com_ui_image_created');
-    }
     return localize('com_ui_generating_image');
   };
 

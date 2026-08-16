@@ -88,6 +88,7 @@ const ToolsDropdown = ({ disabled }: ToolsDropdownProps) => {
     fileSearch,
     mcpServerManager,
     codeInterpreter,
+    imageGeneration,
     searchApiKeyForm,
   } = context ?? {};
 
@@ -163,28 +164,46 @@ const ToolsDropdown = ({ disabled }: ToolsDropdownProps) => {
   }, [memory]);
 
   const mcpPlaceholder = startupConfig?.interface?.mcpServers?.placeholder;
-  const imageGenerationEnabled =
-    startupConfig?.interface?.defaultPinnedTools?.includes('image_gen_oai') === true;
+  const { isPinned: isImageGenerationPinned, setIsPinned: setIsImageGenerationPinned } =
+    imageGeneration ?? {};
 
   const dropdownItems: MenuItemProps[] = [];
 
-  if (imageGenerationEnabled) {
-    dropdownItems.push({
-      onClick: () => undefined,
-      hideOnClick: false,
-      render: (props) => (
-        <div {...props} data-testid="tools-menu-image-generation" aria-disabled="true">
-          <div className="flex items-center gap-2">
-            <ImageIcon className="icon-md" aria-hidden="true" />
-            <span>{localize('com_ui_tool_name_image_gen')}</span>
-          </div>
-          <span className="rounded-full bg-surface-active px-2 py-0.5 text-xs font-medium text-text-secondary">
-            {localize('com_ui_automatic')}
-          </span>
+  // Image generation is an automatic capability, not a per-turn switch. Keep
+  // the menu entry visible so users can see its status, matching the upstream
+  // LibreChat behavior; pinning only controls whether it appears in the row.
+  dropdownItems.push({
+    onClick: () => undefined,
+    hideOnClick: false,
+    render: (props) => (
+      <div {...props} data-testid="tools-menu-image-generation" aria-disabled="true">
+        <div className="flex items-center gap-2">
+          <ImageIcon className="icon-md" aria-hidden="true" />
+          <span>{localize('com_ui_tool_name_image_gen')}</span>
         </div>
-      ),
-    });
-  }
+        <span className="rounded-full bg-surface-active px-2 py-0.5 text-xs font-medium text-text-secondary">
+          {localize('com_ui_automatic')}
+        </span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsImageGenerationPinned?.(!isImageGenerationPinned);
+          }}
+          className={cn(
+            'rounded p-1 transition-all duration-200',
+            'hover:bg-surface-secondary hover:shadow-sm',
+            !isImageGenerationPinned && 'text-text-secondary hover:text-text-primary',
+          )}
+          aria-label={isImageGenerationPinned ? 'Unpin' : 'Pin'}
+        >
+          <div className="h-4 w-4">
+            <PinIcon unpin={isImageGenerationPinned} />
+          </div>
+        </button>
+      </div>
+    ),
+  });
 
   if (fileSearchEnabled && canUseFileSearch) {
     dropdownItems.push({
