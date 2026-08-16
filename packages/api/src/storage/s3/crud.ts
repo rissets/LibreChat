@@ -286,6 +286,32 @@ export function resolveStoredS3Key(
   return file.storageKey || extractKeyFromS3Url(file.filepath);
 }
 
+/**
+ * Keep S3/MinIO traffic on the private container endpoint while exposing a
+ * browser-resolvable origin for presigned downloads. The gateway restores the
+ * original signing Host header before proxying the request to object storage,
+ * so the signature and query string must remain unchanged.
+ */
+export function getBrowserSafeS3URL(signedURL: string): string {
+  const publicEndpoint = process.env.S3_PUBLIC_ENDPOINT_URL?.trim();
+  if (!publicEndpoint) {
+    return signedURL;
+  }
+
+  try {
+    const signed = new URL(signedURL);
+    const publicBase = new URL(publicEndpoint);
+    const publicPrefix = publicBase.pathname.replace(/\/$/, '');
+    publicBase.pathname = `${publicPrefix}${signed.pathname}`;
+    publicBase.search = signed.search;
+    publicBase.hash = signed.hash;
+    return publicBase.toString();
+  } catch (error) {
+    logger.warn('[getBrowserSafeS3URL] Unable to rewrite S3 URL:', (error as Error).message);
+    return signedURL;
+  }
+}
+
 async function getS3URLForKey({
   key,
   customFilename = null,
@@ -311,7 +337,10 @@ async function getS3URLForKey({
       throw new Error('[getS3URL] S3 not initialized');
     }
 
-    return await getSignedUrl(s3, new GetObjectCommand(params), { expiresIn: s3UrlExpirySeconds });
+    const signedURL = await getSignedUrl(s3, new GetObjectCommand(params), {
+      expiresIn: s3UrlExpirySeconds,
+    });
+    return getBrowserSafeS3URL(signedURL);
   } catch (error) {
     logger.error('[getS3URL] Error getting signed URL from S3:', (error as Error).message);
     throw error;
@@ -651,6 +680,29 @@ export function extractKeyFromS3Url(fileUrlOrKey: string): string {
     const url = new URL(fileUrlOrKey);
     const hostname = url.hostname;
     const pathname = url.pathname.substring(1);
+
+    // Presigned browser URLs are exposed through the application gateway
+    // (for example /storage/<bucket>/<key>). Decode that public prefix before
+    // considering the private object-storage endpoint; otherwise the offset
+    // calculation truncates the bucket name and produces a bogus key.
+    const publicEndpoint = process.env.S3_PUBLIC_ENDPOINT_URL?.trim();
+    if (publicEndpoint) {
+      try {
+        const publicUrl = new URL(publicEndpoint);
+        const publicPrefix = publicUrl.pathname.replace(/^\/+|\/+$/g, '');
+        const publicPathPrefix = [publicPrefix, bucketName].filter(Boolean).join('/');
+        if (
+          url.origin === publicUrl.origin &&
+          (pathname === publicPathPrefix || pathname.startsWith(`${publicPathPrefix}/`))
+        ) {
+          return pathname.slice(publicPathPrefix.length).replace(/^\/+/, '');
+        }
+      } catch (error) {
+        logger.warn(
+          `[extractKeyFromS3Url] Invalid S3_PUBLIC_ENDPOINT_URL: ${(error as Error).message}`,
+        );
+      }
+    }
 
     if (endpoint && forcePathStyle) {
       const endpointUrl = new URL(endpoint);

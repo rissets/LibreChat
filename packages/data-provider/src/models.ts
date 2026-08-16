@@ -77,6 +77,8 @@ export type TModelSpec = {
    */
   describeIntent?: boolean | string[];
   artifacts?: string | boolean;
+  /** Built-in structured tools that are always available to the ephemeral agent. */
+  tools?: string[];
   mcpServers?: string[];
   skills?: boolean | string[];
   subagents?: AgentSubagentsConfig;
@@ -114,6 +116,7 @@ export const tModelSpecSchema = z.object({
   runInBackground: z.union([z.boolean(), z.array(z.string())]).optional(),
   describeIntent: z.union([z.boolean(), z.array(z.string())]).optional(),
   artifacts: z.union([z.string(), z.boolean()]).optional(),
+  tools: z.array(z.string()).optional(),
   mcpServers: z.array(z.string()).optional(),
   skills: z.union([z.boolean(), z.array(z.string())]).optional(),
   subagents: modelSpecSubagentsSchema.optional(),

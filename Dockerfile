@@ -10,14 +10,28 @@ RUN apk add --no-cache python3 py3-pip uv
 # Set environment variable to use jemalloc
 ENV LD_PRELOAD=/usr/lib/libjemalloc.so.2
 
-# Add `uv` for extended MCP support
-COPY --from=ghcr.io/astral-sh/uv:0.9.5-python3.12-alpine /usr/local/bin/uv /usr/local/bin/uvx /bin/
+# `uv` and `uvx` are installed by Alpine above for extended MCP support.
+# Keeping them in the base package set avoids a redundant GHCR build stage.
 RUN uv --version
 
 # Set configurable max-old-space-size with default
 ARG NODE_MAX_OLD_SPACE_SIZE=6144
 ARG NPM_CI_TIMEOUT_SECONDS=1500
 ARG NPM_CI_ATTEMPTS=2
+ARG REACT_APP_THEME_BRAND_PURPLE="30 64 175"
+ARG REACT_APP_THEME_SURFACE_SUBMIT="30 64 175"
+ARG REACT_APP_THEME_SURFACE_SUBMIT_HOVER="29 78 216"
+ARG REACT_APP_THEME_LINK="37 99 235"
+ARG REACT_APP_THEME_LINK_HOVER="29 78 216"
+ARG REACT_APP_THEME_ACCENT_PRIMARY="234 179 8"
+ARG REACT_APP_THEME_ACCENT_PRIMARY_HOVER="250 204 21"
+ENV REACT_APP_THEME_BRAND_PURPLE=${REACT_APP_THEME_BRAND_PURPLE}
+ENV REACT_APP_THEME_SURFACE_SUBMIT=${REACT_APP_THEME_SURFACE_SUBMIT}
+ENV REACT_APP_THEME_SURFACE_SUBMIT_HOVER=${REACT_APP_THEME_SURFACE_SUBMIT_HOVER}
+ENV REACT_APP_THEME_LINK=${REACT_APP_THEME_LINK}
+ENV REACT_APP_THEME_LINK_HOVER=${REACT_APP_THEME_LINK_HOVER}
+ENV REACT_APP_THEME_ACCENT_PRIMARY=${REACT_APP_THEME_ACCENT_PRIMARY}
+ENV REACT_APP_THEME_ACCENT_PRIMARY_HOVER=${REACT_APP_THEME_ACCENT_PRIMARY_HOVER}
 
 RUN mkdir -p /app && chown node:node /app
 WORKDIR /app
@@ -55,6 +69,7 @@ RUN \
 COPY --chown=node:node . .
 
 RUN \
+    node scripts/patch-internal-web-search.mjs; \
     # React client build with configurable memory
     NODE_OPTIONS="--max-old-space-size=${NODE_MAX_OLD_SPACE_SIZE}" npm run frontend; \
     npm prune --production; \

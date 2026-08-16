@@ -501,6 +501,19 @@ describe('S3 CRUD', () => {
       expect(result).toContain('signed=true');
     });
 
+    it('rewrites a private object-storage URL to the browser endpoint', async () => {
+      process.env.S3_PUBLIC_ENDPOINT_URL = 'http://app.bpai.localhost:8080/storage';
+      const { getBrowserSafeS3URL } = await import('../crud');
+      const result = getBrowserSafeS3URL(
+        'http://minio:9000/bpai-media/images/user123/test.png?X-Amz-Signature=test',
+      );
+
+      expect(result).toBe(
+        'http://app.bpai.localhost:8080/storage/bpai-media/images/user123/test.png?X-Amz-Signature=test',
+      );
+      delete process.env.S3_PUBLIC_ENDPOINT_URL;
+    });
+
     it('adds custom filename to Content-Disposition header', async () => {
       const { getS3URL } = await import('../crud');
       await getS3URL({
@@ -1438,6 +1451,16 @@ describe('S3 CRUD', () => {
   });
 
   describe('extractKeyFromS3Url', () => {
+    it('extracts key from the browser-facing storage gateway URL', async () => {
+      process.env.S3_PUBLIC_ENDPOINT_URL = 'http://app.bpai.localhost:8080/storage';
+      const { extractKeyFromS3Url } = await import('../crud');
+      const key = extractKeyFromS3Url(
+        'http://app.bpai.localhost:8080/storage/test-bucket/images/user123/file.png?X-Amz-Signature=abc',
+      );
+      expect(key).toBe('images/user123/file.png');
+      delete process.env.S3_PUBLIC_ENDPOINT_URL;
+    });
+
     it('extracts key from virtual-hosted-style URL', async () => {
       const { extractKeyFromS3Url } = await import('../crud');
       const key = extractKeyFromS3Url('https://bucket.s3.amazonaws.com/images/user123/file.png');

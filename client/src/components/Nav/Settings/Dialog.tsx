@@ -13,11 +13,15 @@ import Content from './Content';
 import { TABS } from './types';
 import { cn } from '~/utils';
 
-export default function SettingsDialog({ open, onOpenChange }: TDialogProps) {
+export default function SettingsDialog({
+  open,
+  onOpenChange,
+  initialTab = SettingsTabValues.GENERAL,
+}: TDialogProps & { initialTab?: SettingsTab }) {
   const localize = useLocalize();
   const ctx = useSettingsContext();
   const isSmallScreen = useMediaQuery('(max-width: 767px)');
-  const [activeTab, setActiveTab] = useState<SettingsTab>(SettingsTabValues.GENERAL);
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const [query, setQuery] = useState('');
   const [mobileDetail, setMobileDetail] = useState(false);
 

@@ -4,6 +4,7 @@ import * as Menu from '@ariakit/react/menu';
 import { GearIcon, DropdownMenuSeparator, Avatar } from '@librechat/client';
 import {
   Archive,
+  BarChart3,
   ChevronRight,
   CircleHelp,
   FileText,
@@ -12,10 +13,13 @@ import {
   LogOut,
   Scale,
   ShieldCheck,
+  UserRound,
 } from 'lucide-react';
+import { SettingsTabValues } from 'librechat-data-provider';
+import type { SettingsTab } from './Settings/types';
 import { ArchivedChatsModal } from '~/components/Nav/SettingsTabs/General/ArchivedChatsModal';
 import { MyFilesModal } from '~/components/Chat/Input/Files/MyFilesModal';
-import { useGetStartupConfig, useGetUserBalance } from '~/data-provider';
+import { useBPAccessSnapshot, useGetStartupConfig, useGetUserBalance } from '~/data-provider';
 import { useAuthContext } from '~/hooks/AuthContext';
 import { useLocalize } from '~/hooks';
 import Settings from './Settings';
@@ -99,7 +103,16 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
   const balanceQuery = useGetUserBalance({
     enabled: !!isAuthenticated && startupConfig?.balance?.enabled,
   });
+  const accessQuery = useBPAccessSnapshot({ enabled: !!isAuthenticated });
+  const fiveHourWindow = accessQuery.data?.quota?.windows?.['5h'];
+  const remainingPercent = fiveHourWindow?.limit_tokens
+    ? Math.max(
+        0,
+        Math.min(100, Math.round(((fiveHourWindow.remaining_tokens ?? 0) / fiveHourWindow.limit_tokens) * 100)),
+      )
+    : null;
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>(SettingsTabValues.GENERAL);
   const [showFiles, setShowFiles] = useState(false);
   const setShowShortcutsDialog = useSetRecoilState(store.showShortcutsDialog);
   const [showArchived, setShowArchived] = useState(false);
@@ -141,9 +154,33 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
           translate: collapsed ? '4px 0' : '0 -4px',
         }}
       >
-        <div className="text-token-text-secondary ml-3 mr-2 py-2 text-sm" role="note">
-          {user?.email ?? localize('com_nav_user')}
+        <div className="mx-3 flex items-center gap-3 py-2" role="note">
+          <img
+            src="/assets/logo.svg"
+            alt="Logo BP Batam"
+            className="h-10 w-10 rounded-lg object-contain"
+          />
+          <div className="min-w-0">
+            <div className="font-semibold text-text-primary">BP Batam AI</div>
+            <div className="truncate text-sm text-text-secondary">
+              {user?.email ?? localize('com_nav_user')}
+            </div>
+          </div>
         </div>
+        {remainingPercent != null && (
+          <div className="mx-3 mb-3 rounded-lg border border-border-light p-3" role="status">
+            <div className="mb-2 flex items-center justify-between text-sm">
+              <span className="font-medium text-text-primary">Kapasitas AI 5 jam</span>
+              <span className="text-text-secondary">{remainingPercent}% tersisa</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-surface-active-alt">
+              <div
+                className="h-full rounded-full bg-blue-600 transition-[width] duration-300"
+                style={{ width: `${remainingPercent}%` }}
+              />
+            </div>
+          </div>
+        )}
         <DropdownMenuSeparator />
         {startupConfig?.balance?.enabled === true && balanceQuery.data != null && (
           <>
@@ -169,7 +206,30 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
           {localize('com_nav_archived_chats')}
         </Menu.MenuItem>
         <Menu.MenuItem
-          onClick={() => setShowSettings(true)}
+          onClick={() => {
+            setSettingsTab(SettingsTabValues.ACCOUNT);
+            setShowSettings(true);
+          }}
+          className="select-item text-sm"
+        >
+          <BarChart3 className="icon-md" aria-hidden="true" />
+          Penggunaan
+        </Menu.MenuItem>
+        <Menu.MenuItem
+          onClick={() => {
+            setSettingsTab(SettingsTabValues.ACCOUNT);
+            setShowSettings(true);
+          }}
+          className="select-item text-sm"
+        >
+          <UserRound className="icon-md" aria-hidden="true" />
+          Pengaturan akun
+        </Menu.MenuItem>
+        <Menu.MenuItem
+          onClick={() => {
+            setSettingsTab(SettingsTabValues.GENERAL);
+            setShowSettings(true);
+          }}
           className="select-item text-sm"
           data-testid="nav-settings"
         >
@@ -196,7 +256,9 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
           triggerRef={accountSettingsButtonRef}
         />
       )}
-      {showSettings && <Settings open={showSettings} onOpenChange={setShowSettings} />}
+      {showSettings && (
+        <Settings open={showSettings} onOpenChange={setShowSettings} initialTab={settingsTab} />
+      )}
     </Menu.MenuProvider>
   );
 }

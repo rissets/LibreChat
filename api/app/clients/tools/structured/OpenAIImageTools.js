@@ -82,6 +82,20 @@ function createOpenAIImageTools(fields = {}) {
   let apiKey = fields.IMAGE_GEN_OAI_API_KEY ?? getApiKey();
   const closureConfig = { apiKey };
 
+  /**
+   * A private OpenAI-compatible gateway needs both a workload credential and
+   * the signed-in user's identity.  Keep this opt-in so the upstream default
+   * OpenAI integration remains unchanged for every other deployment.
+   */
+  const workloadHeaders = {};
+  if (process.env.IMAGE_GEN_OAI_WORKLOAD_MODE === 'true') {
+    workloadHeaders['X-BP-Workload-Token'] = apiKey;
+    if (req?.user?.email) {
+      workloadHeaders['X-BP-User-Email'] = req.user.email;
+    }
+    closureConfig.defaultHeaders = workloadHeaders;
+  }
+
   const imageModel = process.env.IMAGE_GEN_OAI_MODEL || 'gpt-image-1';
 
   let baseURL = 'https://api.openai.com/v1/';
@@ -172,7 +186,7 @@ function createOpenAIImageTools(fields = {}) {
               output_format === EImageOutputType.WEBP || output_format === EImageOutputType.JPEG
                 ? output_compression
                 : undefined,
-            quality,
+            quality: quality === 'standard' ? 'low' : quality,
             size,
           },
           {
@@ -250,7 +264,7 @@ Error Message: ${error.message}`);
       // TODO: `mask` support
       // TODO: more than 1 image support
       // formData.append('n', n.toString());
-      formData.append('quality', quality);
+      formData.append('quality', quality === 'standard' ? 'low' : quality);
       formData.append('size', size);
 
       /** @type {Record<FileSources, undefined | NodeStreamDownloader<File>>} */
@@ -325,6 +339,7 @@ Error Message: ${error.message}`);
       /** @type {import('axios').RawAxiosHeaders} */
       let headers = {
         ...formData.getHeaders(),
+        ...workloadHeaders,
       };
 
       if (process.env.IMAGE_GEN_OAI_AZURE_API_VERSION && process.env.IMAGE_GEN_OAI_BASEURL) {

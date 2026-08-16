@@ -195,7 +195,7 @@ export async function loadAddedAgent(
     }
   }
 
-  const tools: string[] = [];
+  const tools: string[] = [...(modelSpec?.tools ?? [])];
   if (ephemeralAgent?.execute_code === true || modelSpec?.executeCode === true) {
     tools.push(Tools.execute_code);
   }
@@ -281,7 +281,7 @@ export async function loadAddedAgent(
     provider: endpoint,
     model_parameters,
     model,
-    tools,
+    tools: [...new Set(tools)],
   };
 
   if (ephemeralAgent?.artifacts != null && ephemeralAgent.artifacts) {

@@ -1171,6 +1171,7 @@ describe('specsConfigSchema', () => {
           label: 'Spec 1',
           hideBadgeRow: true,
           softDefault: true,
+          tools: ['image_gen_oai'],
           preset: { endpoint: EModelEndpoint.openAI },
           subagents: { enabled: true, allowSelf: true, agent_ids: ['agent_researcher'] },
         },
@@ -1180,6 +1181,7 @@ describe('specsConfigSchema', () => {
     if (result.success) {
       expect(result.data.list[0].hideBadgeRow).toBe(true);
       expect(result.data.list[0].softDefault).toBe(true);
+      expect(result.data.list[0].tools).toEqual(['image_gen_oai']);
       expect(result.data.list[0].subagents).toEqual({
         enabled: true,
         allowSelf: true,

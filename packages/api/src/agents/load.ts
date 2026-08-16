@@ -70,7 +70,7 @@ export async function loadEphemeralAgent(
       mcpServers.add(mcpServer);
     }
   }
-  const tools: string[] = [];
+  const tools: string[] = [...(modelSpec?.tools ?? [])];
   if (ephemeralAgent?.execute_code === true || modelSpec?.executeCode === true) {
     tools.push(Tools.execute_code);
   }
@@ -155,7 +155,7 @@ export async function loadEphemeralAgent(
     provider: endpoint,
     model_parameters: safeModelParameters as AgentModelParameters,
     model,
-    tools,
+    tools: [...new Set(tools)],
   };
 
   const backgroundToolOptions: AgentToolOptions | undefined = synthesizeBackgroundToolOptions({

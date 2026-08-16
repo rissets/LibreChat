@@ -83,8 +83,9 @@ const imageGenOaiJsonSchema: ExtendedJsonSchema = {
     },
     quality: {
       type: 'string',
-      enum: ['auto', 'high', 'medium', 'low'],
-      description: 'The quality of the image. One of auto (default), high, medium, or low.',
+      enum: ['auto', 'standard', 'high', 'medium', 'low'],
+      description:
+        'The quality of the image. Prefer low for economical generation. Standard is accepted as a compatibility alias for low.',
     },
     size: {
       type: 'string',
@@ -117,9 +118,9 @@ Guidelines:
     },
     quality: {
       type: 'string',
-      enum: ['auto', 'high', 'medium', 'low'],
+      enum: ['auto', 'standard', 'high', 'medium', 'low'],
       description:
-        'The quality of the image. One of auto (default), high, medium, or low. High/medium/low only supported for gpt-image-1.',
+        'The quality of the image. Prefer low for economical edits. Standard is accepted as a compatibility alias for low.',
     },
     size: {
       type: 'string',

@@ -49,4 +49,35 @@ describe('loadEphemeralAgent ephemeral id stability (#14253 Bug 2)', () => {
     const b = await idFor({ model: 'claude-opus-4', modelLabel: 'My Opus' });
     expect(a).toEqual(b);
   });
+
+  test('equips model-spec structured tools without duplicating capability tools', async () => {
+    const req = {
+      user: { id: 'user-1' },
+      config: {
+        modelSpecs: {
+          list: [
+            {
+              name: 'bp-model',
+              label: 'BP Model',
+              tools: ['image_gen_oai', 'execute_code'],
+              executeCode: true,
+            },
+          ],
+        },
+      },
+      body: {},
+    } as unknown as Parameters<typeof loadEphemeralAgent>[0]['req'];
+
+    const agent = await loadEphemeralAgent(
+      {
+        req,
+        spec: 'bp-model',
+        endpoint: 'BP Batam AI',
+        model_parameters: { model: 'bp/gpt-5.6-sol-medium' } as never,
+      },
+      deps,
+    );
+
+    expect(agent?.tools).toEqual(['image_gen_oai', 'execute_code']);
+  });
 });

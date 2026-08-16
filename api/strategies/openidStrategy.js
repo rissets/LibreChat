@@ -930,14 +930,23 @@ async function setupOpenId() {
     }
 
     /** @type {Configuration} */
+    const discoveryOptions = {
+      [client.customFetch]: customFetch,
+    };
+
+    // openid-client v6 rejects plain HTTP issuers unless its explicit
+    // development extension is enabled. Keep the secure default and only
+    // opt in for the local bpai.localhost stack.
+    if (isEnabled(process.env.OPENID_ALLOW_INSECURE_HTTP)) {
+      discoveryOptions.execute = [client.allowInsecureRequests];
+    }
+
     openidConfig = await client.discovery(
       new URL(process.env.OPENID_ISSUER),
       process.env.OPENID_CLIENT_ID,
       clientMetadata,
       undefined,
-      {
-        [client.customFetch]: customFetch,
-      },
+      discoveryOptions,
     );
 
     logger.info(`[openidStrategy] OpenID authentication configuration`, {

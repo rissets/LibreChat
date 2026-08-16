@@ -161,4 +161,45 @@ describe('OpenAIImageTools - IMAGE_GEN_OAI_MODEL environment variable', () => {
       expect.any(Object),
     );
   });
+
+  it('forwards workload identity to a private image gateway when enabled', async () => {
+    process.env.IMAGE_GEN_OAI_WORKLOAD_MODE = 'true';
+
+    const [imageGenTool] = createOpenAIImageTools({
+      isAgent: true,
+      override: false,
+      req: { user: { id: 'test-user', email: 'operator@bpbatam.go.id' } },
+    });
+
+    await imageGenTool.func({ prompt: 'test prompt' });
+
+    expect(OpenAI).toHaveBeenCalledWith(
+      expect.objectContaining({
+        defaultHeaders: {
+          'X-BP-Workload-Token': 'test-api-key',
+          'X-BP-User-Email': 'operator@bpbatam.go.id',
+        },
+      }),
+    );
+  });
+
+  it('normalizes standard quality to the economical low tier', async () => {
+    const mockGenerate = jest.fn().mockResolvedValue({
+      data: [{ b64_json: 'base64-encoded-image-data' }],
+    });
+    OpenAI.mockImplementation(() => ({ images: { generate: mockGenerate } }));
+
+    const [imageGenTool] = createOpenAIImageTools({
+      isAgent: true,
+      override: false,
+      req: { user: { id: 'test-user' } },
+    });
+
+    await imageGenTool.func({ prompt: 'test prompt', quality: 'standard' });
+
+    expect(mockGenerate).toHaveBeenCalledWith(
+      expect.objectContaining({ quality: 'low' }),
+      expect.any(Object),
+    );
+  });
 });

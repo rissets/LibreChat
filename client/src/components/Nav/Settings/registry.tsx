@@ -39,6 +39,7 @@ import SharedLinks from '../SettingsTabs/Data/SharedLinks';
 import { showThinkingAtom } from '~/store/showThinking';
 import ProviderKeys from '../SettingsTabs/ProviderKeys';
 import Avatar from '../SettingsTabs/Account/Avatar';
+import BPUsageSummary from '../SettingsTabs/Account/BPUsageSummary';
 import About from '../SettingsTabs/About/About';
 import ApiKeys from '../SettingsTabs/ApiKeys';
 import MemoryToggle from './MemoryToggle';
@@ -591,6 +592,14 @@ export const registry: SettingEntry[] = [
     Component: BackupCodesItem,
   },
   // Account · Billing
+  {
+    id: 'bpUsage',
+    tab: ACCOUNT,
+    section: 'billing',
+    labelKey: 'com_ui_usage',
+    keywords: ['usage', 'penggunaan', 'quota', '5 jam', 'mingguan', 'bulanan'],
+    Component: BPUsageSummary,
+  },
   {
     id: 'tokenCredits',
     tab: ACCOUNT,

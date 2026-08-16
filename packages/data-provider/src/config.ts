@@ -1745,6 +1745,7 @@ export enum ScraperProviders {
   FIRECRAWL = 'firecrawl',
   SERPER = 'serper',
   TAVILY = 'tavily',
+  CRW = 'crw',
 }
 
 export enum RerankerTypes {
@@ -1770,6 +1771,8 @@ export const webSearchSchema = z.object({
   firecrawlApiKeyPreview: apiKeyPreviewSchema,
   firecrawlApiUrl: z.string().optional().default('${FIRECRAWL_API_URL}'),
   firecrawlVersion: z.string().optional().default('${FIRECRAWL_VERSION}'),
+  crwApiKey: z.string().optional().default('${CRW_API_KEY}'),
+  crwApiUrl: z.string().optional().default('${CRW_API_URL}'),
   tavilyApiKey: z.string().optional().default('${TAVILY_API_KEY}'),
   tavilyApiKeyPreview: apiKeyPreviewSchema,
   tavilySearchUrl: z.string().optional().default('${TAVILY_SEARCH_URL}'),

@@ -7,6 +7,8 @@ export type TWebSearchKeys =
   | 'firecrawlApiKey'
   | 'firecrawlApiUrl'
   | 'firecrawlVersion'
+  | 'crwApiKey'
+  | 'crwApiUrl'
   | 'tavilyApiKey'
   | 'tavilySearchUrl'
   | 'tavilyExtractUrl'

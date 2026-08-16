@@ -44,18 +44,44 @@ export const createProviderOption = (provider: string) => ({
   value: provider,
 });
 
+const BP_MODEL_ALIASES = new Set([
+  'bp/gpt-5.6-sol-high',
+  'bp/gpt-5.6-sol-medium',
+  'bp/gpt-5.6-sol-low',
+  'bp/gpt-5.6-terra-high',
+  'bp/gpt-5.6-terra-medium',
+  'bp/gpt-5.6-terra-low',
+  'bp/gpt-5.6-luna-high',
+  'bp/gpt-5.6-luna-medium',
+  'bp/gpt-5.6-luna-low',
+  'bp/gpt-5.5-high',
+  'bp/gpt-5.5-medium',
+  'bp/gpt-5.5-low',
+  'bp/claude-haiku',
+  'bp/claude-sonnet',
+  'bp/claude-opus',
+]);
+
 /**
  * Gets default agent form values with localStorage values for model and provider.
  * This is used to initialize agent forms with the last used model and provider.
  **/
-export const getDefaultAgentFormValues = () => ({
-  ...defaultAgentFormValues,
-  model: localStorage.getItem(LocalStorageKeys.LAST_AGENT_MODEL) ?? '',
-  provider: createProviderOption(localStorage.getItem(LocalStorageKeys.LAST_AGENT_PROVIDER) ?? ''),
-  avatar_file: null,
-  avatar_preview: '',
-  avatar_action: null,
-});
+export const getDefaultAgentFormValues = () => {
+  const storedModel = localStorage.getItem(LocalStorageKeys.LAST_AGENT_MODEL);
+  const provider = 'BP Batam AI';
+  const model = storedModel && BP_MODEL_ALIASES.has(storedModel)
+    ? storedModel
+    : 'bp/gpt-5.6-sol-medium';
+
+  return {
+    ...defaultAgentFormValues,
+    model,
+    provider: createProviderOption(provider),
+    avatar_file: null,
+    avatar_preview: '',
+    avatar_action: null,
+  };
+};
 
 export const processAgentOption = ({
   agent: _agent,

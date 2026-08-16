@@ -185,6 +185,31 @@ export default function ChatRoute() {
       }
     });
     const querySettings = processValidSettings(queryParams);
+    const rawModelSpec =
+      !querySettings.spec &&
+      typeof querySettings.model === 'string' &&
+      startupConfig?.modelSpecs?.list?.find(
+        (spec) =>
+          spec.preset?.endpoint === querySettings.endpoint &&
+          spec.preset?.model === querySettings.model,
+      );
+
+    /** Normalize old/raw broker links to a curated model spec. This prevents
+     * private `bp/...` IDs from leaking into the header and ensures the same
+     * tools/capabilities are attached regardless of how the chat was opened. */
+    if (isNewConvo && rawModelSpec) {
+      setSearchParams(
+        (params) => {
+          const next = new URLSearchParams(params);
+          next.delete('endpoint');
+          next.delete('model');
+          next.set('spec', rawModelSpec.name);
+          return next;
+        },
+        { replace: true },
+      );
+      return;
+    }
 
     const notFoundConvo =
       Boolean(conversationId) &&

@@ -140,11 +140,11 @@ export default defineConfig(({ command }) => ({
       },
       includeAssets: [],
       manifest: {
-        name: 'LibreChat',
-        short_name: 'LibreChat',
+        name: 'BP Batam AI',
+        short_name: 'BP Batam AI',
         display: 'standalone',
-        background_color: '#000000',
-        theme_color: '#009688',
+        background_color: '#0f172a',
+        theme_color: '#1e40af',
         icons: [
           {
             src: 'assets/favicon-32x32.png',

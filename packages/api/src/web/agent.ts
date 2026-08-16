@@ -13,6 +13,7 @@ export interface WebSearchSSRFAgents {
 const WEB_SEARCH_URL_KEYS = [
   'searxngInstanceUrl',
   'firecrawlApiUrl',
+  'crwApiUrl',
   'jinaApiUrl',
   'tavilySearchUrl',
   'tavilyExtractUrl',

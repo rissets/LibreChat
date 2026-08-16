@@ -31,6 +31,10 @@ export const webSearchAuth = {
       tavilyApiKey: 1 as const,
       tavilyExtractUrl: 0 as const,
     },
+    crw: {
+      crwApiUrl: 1 as const,
+      crwApiKey: 0 as const,
+    },
   },
   rerankers: {
     jina: {
@@ -77,6 +81,8 @@ export function loadWebSearchConfig(
   const firecrawlApiKey = config?.firecrawlApiKey ?? '${FIRECRAWL_API_KEY}';
   const firecrawlApiUrl = config?.firecrawlApiUrl ?? '${FIRECRAWL_API_URL}';
   const firecrawlVersion = config?.firecrawlVersion ?? '${FIRECRAWL_VERSION}';
+  const crwApiKey = config?.crwApiKey ?? '${CRW_API_KEY}';
+  const crwApiUrl = config?.crwApiUrl ?? '${CRW_API_URL}';
   const tavilyApiKey = config?.tavilyApiKey ?? '${TAVILY_API_KEY}';
   const tavilySearchUrl = config?.tavilySearchUrl ?? '${TAVILY_SEARCH_URL}';
   const tavilyExtractUrl = config?.tavilyExtractUrl ?? '${TAVILY_EXTRACT_URL}';
@@ -100,6 +106,8 @@ export function loadWebSearchConfig(
     firecrawlApiKey,
     firecrawlApiUrl,
     firecrawlVersion,
+    crwApiKey,
+    crwApiUrl,
     searxngInstanceUrl,
     rerankerType,
   };

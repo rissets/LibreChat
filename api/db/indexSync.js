@@ -295,14 +295,11 @@ async function performSync(flowManager, flowId, flowType) {
   } finally {
     if (indexingDisabled === true) {
       logger.info('[indexSync] Indexing is disabled, skipping cleanup...');
-    } else if (flowManager && flowId && flowType) {
-      try {
-        await flowManager.deleteFlow(flowId, flowType);
-        logger.debug('[indexSync] Flow state cleaned up');
-      } catch (cleanupErr) {
-        logger.debug('[indexSync] Could not clean up flow state:', cleanupErr.message);
-      }
     }
+    // Do not delete the PENDING state here. createFlowWithHandler() completes
+    // the flow only after this handler returns; deleting it in this finally
+    // block makes completeFlow() report a false "flow not found" warning and
+    // defeats the cross-instance lock. The configured flow TTL owns cleanup.
   }
 }
 

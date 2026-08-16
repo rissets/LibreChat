@@ -1,4 +1,5 @@
 export * from './Auth';
+export * from './BPAccess';
 export * from './Agents';
 export * from './Endpoints';
 export * from './Skills';
