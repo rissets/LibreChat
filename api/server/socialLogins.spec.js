@@ -140,4 +140,20 @@ describe('configureSocialLogins OpenID session expiry', () => {
     );
     expect(mockPassportUse).not.toHaveBeenCalled();
   });
+
+  it('retries OpenID discovery when the issuer is temporarily unavailable', async () => {
+    process.env.OPENID_REUSE_TOKENS = 'true';
+    process.env.OPENID_SETUP_RETRIES = '3';
+    process.env.OPENID_SETUP_RETRY_DELAY_MS = '0';
+    mockSetupOpenId
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ issuer: 'https://issuer.example.com' });
+    const app = { use: jest.fn() };
+
+    await configureSocialLogins(app);
+
+    expect(mockSetupOpenId).toHaveBeenCalledTimes(2);
+    expect(mockOpenIdJwtLogin).toHaveBeenCalledWith({ issuer: 'https://issuer.example.com' });
+    expect(mockPassportUse).toHaveBeenCalledWith('openidJwt', 'openid-jwt-strategy');
+  });
 });

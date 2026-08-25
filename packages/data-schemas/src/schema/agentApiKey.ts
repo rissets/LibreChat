@@ -6,6 +6,13 @@ export interface IAgentApiKey extends Document {
   keyHash: string;
   keyPrefix: string;
   lastUsedAt?: Date;
+  totalRequests: number;
+  successfulRequests: number;
+  failedRequests: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  lastStatusCode?: number;
   expiresAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -40,6 +47,13 @@ const agentApiKeySchema: Schema<IAgentApiKey> = new Schema(
     lastUsedAt: {
       type: Date,
     },
+    totalRequests: { type: Number, default: 0 },
+    successfulRequests: { type: Number, default: 0 },
+    failedRequests: { type: Number, default: 0 },
+    inputTokens: { type: Number, default: 0 },
+    outputTokens: { type: Number, default: 0 },
+    totalTokens: { type: Number, default: 0 },
+    lastStatusCode: { type: Number },
     expiresAt: {
       type: Date,
     },

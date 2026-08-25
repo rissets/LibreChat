@@ -34,6 +34,9 @@ const {
 const { logViolation } = require('~/cache');
 const { saveMessage, getMessages, getConvo } = require('~/models');
 const {
+  syncMessageArtifactsToControlPlane,
+} = require('~/server/services/ControlPlaneResourceSync');
+const {
   GENERATION_PROTOCOL_HEADER,
   GENERATION_PROTOCOL_V2,
   negotiateNewGenerationProtocol,
@@ -1612,6 +1615,7 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
               : 'Response message could not be persisted before terminal publication',
           );
         }
+        void syncMessageArtifactsToControlPlane({ req, message: savedResponseMessage });
 
         // If the user stopped this turn — or an empty preempt boundary truncated
         // it, which persists under the same honest `unfinished` contract — cancel

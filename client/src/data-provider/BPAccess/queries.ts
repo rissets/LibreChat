@@ -29,6 +29,11 @@ export const useBPAccessSnapshot = (
 ): QueryObserverResult<BPAccessSnapshot> =>
   useQuery<BPAccessSnapshot>(['bp-ai-access'], getBPAccessSnapshot, {
     staleTime: 30_000,
+    // A share/reset is performed from the operator plane, so there is no
+    // mutation in this browser tab that can invalidate the query. Always
+    // re-read the source-backed quota when the account panel/settings opens
+    // instead of showing the previous 30-second snapshot.
+    refetchOnMount: 'always',
     refetchOnWindowFocus: true,
     retry: 1,
     ...config,

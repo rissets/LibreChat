@@ -41,9 +41,41 @@ function useTextToSpeechExternal({
   const globalIsFetching = useRecoilValue(store.globalAudioFetchingFamily(index));
   const globalIsPlaying = useRecoilValue(store.globalAudioPlayingFamily(index));
 
-  const autoPlayAudio = (blobUrl: string) => {
+  const autoPlayAudio = async (blobUrl: string) => {
     const newAudio = new Audio(blobUrl);
+    if (playbackRate != null && playbackRate !== 1 && playbackRate > 0) {
+      newAudio.playbackRate = playbackRate;
+    }
     audioRef.current = newAudio;
+    promiseAudioRef.current = newAudio;
+    newAudio.onended = () => {
+      URL.revokeObjectURL(blobUrl);
+      audioRef.current = null;
+      promiseAudioRef.current = null;
+      setIsSpeaking(false);
+    };
+    newAudio.onerror = () => {
+      setIsSpeaking(false);
+      showToast({
+        message: localize('com_nav_audio_play_error', { 0: 'Audio tidak dapat diputar.' }),
+        status: 'error',
+      });
+    };
+
+    // The previous implementation only assigned the blob URL to a ref. No
+    // play() call was made, so external TTS appeared to finish successfully
+    // but users heard nothing. Start playback immediately and keep the audio
+    // reference available for the stop button and autoplay-policy fallback.
+    try {
+      await newAudio.play();
+      setIsSpeaking(true);
+    } catch (error) {
+      setIsSpeaking(false);
+      showToast({
+        message: localize('com_nav_audio_play_error', { 0: (error as Error).message }),
+        status: 'error',
+      });
+    }
   };
 
   const playAudioPromise = (blobUrl: string) => {
@@ -55,6 +87,7 @@ function useTextToSpeechExternal({
     };
 
     initializeAudio();
+    audioRef.current = newAudio;
     const playPromise = () => newAudio.play().then(() => setIsSpeaking(true));
 
     playPromise().catch((error: Error) => {
@@ -76,6 +109,8 @@ function useTextToSpeechExternal({
     newAudio.onended = () => {
       console.log('Cached message audio ended');
       URL.revokeObjectURL(blobUrl);
+      audioRef.current = null;
+      promiseAudioRef.current = null;
       setIsSpeaking(false);
     };
 
@@ -116,7 +151,7 @@ function useTextToSpeechExternal({
         if (downloadFile) {
           downloadAudio(blobUrl);
         }
-        autoPlayAudio(blobUrl);
+        await autoPlayAudio(blobUrl);
       } catch (error) {
         showToast({
           message: `Error processing audio: ${(error as Error).message}`,

@@ -10,6 +10,7 @@ const {
   mergeQuotedTextForCount,
 } = require('@librechat/api');
 const { findAllArtifacts, replaceArtifactContent } = require('~/server/services/Artifacts/update');
+const { syncResourceToControlPlane } = require('~/server/services/ControlPlaneResourceSync');
 const {
   requireJwtAuth,
   validateMessageReq,
@@ -265,6 +266,22 @@ router.post('/artifact/:messageId', async (req, res) => {
       },
       { context: 'POST /api/messages/artifact/:messageId' },
     );
+
+    const artifactMeta = String(targetArtifact.prefix || '');
+    const title = artifactMeta.match(/title="([^"]+)"/)?.[1] || `Artifact ${index + 1}`;
+    const type = artifactMeta.match(/type="([^"]+)"/)?.[1] || 'text/plain';
+    void syncResourceToControlPlane({
+      req,
+      resourceType: 'artifact',
+      externalId: `${messageId}:${index}`,
+      resource: {
+        messageId,
+        conversationId: savedMessage.conversationId,
+        title,
+        type,
+        artifact_index: index,
+      },
+    });
 
     res.status(200).json({
       conversationId: savedMessage.conversationId,

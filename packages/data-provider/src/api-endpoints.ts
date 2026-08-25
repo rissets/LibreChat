@@ -106,6 +106,7 @@ const apiKeysEndpoint = `${BASE_URL}/api/api-keys`;
 export const apiKeys = () => apiKeysEndpoint;
 
 export const apiKeyById = (id: string) => `${apiKeysEndpoint}/${id}`;
+export const bpApiKeyUsage = () => `${BASE_URL}/api/bp-ai/api-keys/usage`;
 
 export const conversationsRoot = `${BASE_URL}/api/convos`;
 

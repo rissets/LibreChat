@@ -70,11 +70,13 @@ describe('getOpenIdIssuer', () => {
 describe('findOpenIDUser', () => {
   let mockFindUser: jest.MockedFunction<UserMethods['findUser']>;
   const originalOpenIdIssuer = process.env.OPENID_ISSUER;
+  const originalIssuerMigrationFrom = process.env.OPENID_ISSUER_MIGRATION_FROM;
   const issuer = 'https://issuer.example.com';
 
   beforeEach(() => {
     mockFindUser = jest.fn();
     delete process.env.OPENID_ISSUER;
+    delete process.env.OPENID_ISSUER_MIGRATION_FROM;
     jest.clearAllMocks();
     (logger.warn as jest.Mock).mockClear();
     (logger.info as jest.Mock).mockClear();
@@ -83,9 +85,14 @@ describe('findOpenIDUser', () => {
   afterAll(() => {
     if (originalOpenIdIssuer == null) {
       delete process.env.OPENID_ISSUER;
-      return;
+    } else {
+      process.env.OPENID_ISSUER = originalOpenIdIssuer;
     }
-    process.env.OPENID_ISSUER = originalOpenIdIssuer;
+    if (originalIssuerMigrationFrom == null) {
+      delete process.env.OPENID_ISSUER_MIGRATION_FROM;
+    } else {
+      process.env.OPENID_ISSUER_MIGRATION_FROM = originalIssuerMigrationFrom;
+    }
   });
 
   describe('Primary condition searches', () => {
@@ -482,6 +489,30 @@ describe('findOpenIDUser', () => {
       });
     });
 
+    it('should migrate an explicitly configured legacy issuer when the token sub matches', async () => {
+      process.env.OPENID_ISSUER_MIGRATION_FROM = 'http://accounts.bpai.localhost:8080/o';
+      const mockUser: IUser = {
+        _id: newId(),
+        provider: 'openid',
+        openidId: 'openid_123',
+        openidIssuer: 'http://accounts.bpai.localhost:8080/o',
+        email: 'user@example.com',
+        username: 'testuser',
+      } as IUser;
+
+      mockFindUser.mockResolvedValueOnce(null).mockResolvedValueOnce(mockUser);
+
+      const result = await findOpenIDUser({
+        openidId: 'openid_123',
+        openidIssuer: issuer,
+        findUser: mockFindUser,
+        email: 'user@example.com',
+      });
+
+      expect(result).toEqual({ user: mockUser, error: null, migration: true });
+      expect(mockUser.openidIssuer).toBe(issuer);
+    });
+
     it('should reject legacy email fallback when token issuer is not the configured OpenID login issuer', async () => {
       process.env.OPENID_ISSUER = 'https://issuer-a.example.com';
       const mockUser: IUser = {
@@ -723,7 +754,9 @@ describe('findOpenIDUser', () => {
         email: 'User@Example.COM',
       });
 
-      expect(mockFindUser).toHaveBeenNthCalledWith(2, { email: 'User@Example.COM' });
+      expect(mockFindUser).toHaveBeenNthCalledWith(2, {
+        email: 'User@Example.COM',
+      });
       expect(result).toEqual({
         user: mockUser,
         error: null,

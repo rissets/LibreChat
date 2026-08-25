@@ -6,6 +6,7 @@
  * @import { MCPServerDocument } from 'librechat-data-provider'
  */
 const { randomUUID } = require('crypto');
+const axios = require('axios');
 const { logger, SystemCapabilities } = require('@librechat/data-schemas');
 const {
   checkAccess,
@@ -45,6 +46,136 @@ const { getResourcePermissionsMap } = require('~/server/services/PermissionServi
 const { hasCapability } = require('~/server/middleware/roles/capabilities');
 const { getMCPManager, getMCPServersRegistry } = require('~/config');
 const db = require('~/models');
+
+/**
+ * Mirror MCP lifecycle metadata to the operator catalog. The catalog never
+ * receives credentials; each user's native MCP record remains authoritative
+ * for private secrets and OAuth state.
+ */
+function sanitizeMCPForControlPlane(value) {
+  const secretWords = [
+    'secret', 'token', 'password', 'credential', 'apikey', 'api_key', 'private',
+    'authorization', 'cookie', 'session', 'headers',
+  ];
+  const clean = (item, key = '') => {
+    if (item == null || typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean') {
+      return secretWords.some((word) => key.toLowerCase().replace(/-/g, '_').includes(word)) ? undefined : item;
+    }
+    if (Array.isArray(item)) return item.slice(0, 100).map((entry) => clean(entry, key)).filter((entry) => entry !== undefined);
+    if (typeof item === 'object') {
+      return Object.fromEntries(
+        Object.entries(item)
+          .map(([childKey, childValue]) => [childKey, clean(childValue, childKey)])
+          .filter(([, childValue]) => childValue !== undefined),
+      );
+    }
+    return undefined;
+  };
+  return clean(value) || {};
+}
+
+async function syncMCPToControlPlane({ req, serverName, config, deleted = false }) {
+  const controlPlaneUrl = process.env.CONTROL_PLANE_URL;
+  const internalServiceToken = process.env.INTERNAL_SERVICE_TOKEN;
+  if (!controlPlaneUrl || !internalServiceToken || !serverName) {
+    logger.warn('[MCP] Operator catalog synchronization skipped', {
+      serverName,
+      reason: 'control-plane-not-configured',
+    });
+    return false;
+  }
+
+  const externalUserId = String(req.user?.id || req.user?._id || '');
+  let email = typeof req.user?.email === 'string' ? req.user.email.trim() : '';
+  // Some auth strategies attach only the Mongo user id to req.user. Resolve
+  // the email from the authoritative user collection before giving up; the
+  // operator catalog resolves by email as a safe cross-system identity key.
+  if (!email && externalUserId) {
+    try {
+      const persistedUser = await db.findUser({ _id: externalUserId }, 'email');
+      email = typeof persistedUser?.email === 'string' ? persistedUser.email.trim() : '';
+    } catch (error) {
+      logger.warn('[MCP] Failed to resolve authenticated user email', {
+        externalUserId,
+        message: error.message,
+      });
+    }
+  }
+  if (!email) {
+    logger.warn('[MCP] Operator catalog synchronization skipped', {
+      serverName,
+      externalUserId,
+      reason: 'authenticated-email-missing',
+    });
+    return false;
+  }
+
+  try {
+    await axios.post(
+      `${controlPlaneUrl.replace(/\/$/, '')}/api/platform/internal/mcp/sync/`,
+      {
+        external_user_id: externalUserId,
+        email,
+        server_name: serverName,
+        config: sanitizeMCPForControlPlane(config),
+        deleted,
+      },
+      { timeout: 3000, headers: { 'X-BP-Internal-Token': internalServiceToken } },
+    );
+    return true;
+  } catch (error) {
+    // MCP CRUD must remain available when the operator dashboard is being
+    // restarted; a later access refresh can reconcile the catalog.
+    logger.warn('[MCP] Operator catalog synchronization failed', {
+      serverName,
+      status: error.response?.status,
+      message: error.message,
+    });
+    return false;
+  }
+}
+
+/**
+ * Reconcile existing user-owned MCP records on every catalog refresh. This
+ * repairs records created before the operator mirror was enabled and also
+ * makes the mirror self-healing after a control-plane restart.
+ */
+async function reconcileOwnedMCPServers(req) {
+  const userId = req.user?.id || req.user?._id;
+  if (!userId || typeof db.findMCPServersByAuthor !== 'function') return;
+
+  try {
+    const servers = await db.findMCPServersByAuthor(String(userId));
+    // Records materialized from an operator-published asset are projections,
+    // not user-created connectors. Do not mirror them back as a second
+    // private asset or the catalog would grow once per recipient user.
+    const ownedServers = servers.filter((server) => !server?.config?._bpManaged);
+    const results = await Promise.all(
+      ownedServers.map((server) =>
+        syncMCPToControlPlane({
+          req,
+          serverName: server.serverName,
+          config: server.config,
+        }),
+      ),
+    );
+    const failed = results.filter((result) => result === false).length;
+    if (failed > 0) {
+      logger.warn('[MCP] Existing MCP reconciliation had failures', {
+        userId: String(userId),
+        total: ownedServers.length,
+        failed,
+      });
+    }
+  } catch (error) {
+    // Listing MCP servers must remain available when the mirror is degraded;
+    // the next refresh retries reconciliation.
+    logger.warn('[MCP] Existing MCP reconciliation failed', {
+      userId: String(userId),
+      message: error.message,
+    });
+  }
+}
 
 /**
  * Handles MCP-specific errors and sends appropriate HTTP responses.
@@ -384,6 +515,7 @@ const getMCPServersList = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
+    await reconcileOwnedMCPServers(req);
     const serverConfigs = await resolveAllMcpConfigs(userId, req.user);
     const canEditByServer = await computeCanEditByServer(req, serverConfigs, {
       skipCapabilityWithoutDbIds: true,
@@ -392,6 +524,72 @@ const getMCPServersList = async (req, res) => {
   } catch (error) {
     logger.error('[getMCPServersList]', error);
     res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Test one MCP connection using the exact config and user-scoped credentials
+ * that the chat runtime resolves. Credentials are never returned or mirrored
+ * to the operator plane; only connectivity, latency and tool count leave this
+ * endpoint.
+ * @route POST /api/mcp/:serverName/test
+ */
+const testMCPServerConnection = async (req, res) => {
+  const startedAt = Date.now();
+  const userId = req.user?.id;
+  const serverName = req.params.serverName;
+  if (!userId) return res.status(401).json({ success: false, message: 'Unauthorized' });
+  if (!serverName) return res.status(400).json({ success: false, message: 'Server name is required' });
+
+  try {
+    const configServers = await resolveConfigServers(req);
+    const serverConfig = await getMCPServersRegistry().getServerConfig(
+      serverName,
+      userId,
+      configServers,
+    );
+    if (!serverConfig) {
+      return res.status(404).json({
+        success: false,
+        serverName,
+        connectionState: 'not_found',
+        message: `MCP server '${serverName}' not found`,
+      });
+    }
+
+    // Bypass the retained catalog so this action is a real connectivity test,
+    // while preserving the live connection for the next chat request.
+    await invalidateCachedTools({ userId, serverName });
+    const mcpManager = getMCPManager(userId);
+    const result = await mcpManager.getServerToolFunctionsSnapshot(
+      userId,
+      serverName,
+      serverConfig,
+    );
+    const tools = result?.tools && typeof result.tools === 'object' ? result.tools : null;
+    if (!tools) throw new Error('MCP server returned no tool catalog');
+
+    return res.status(200).json({
+      success: true,
+      serverName,
+      connectionState: 'connected',
+      toolCount: Object.keys(tools).length,
+      latencyMs: Date.now() - startedAt,
+      publicationGeneration: result?.publicationGeneration,
+    });
+  } catch (error) {
+    logger.warn('[testMCPServerConnection] Connection test failed', {
+      userId,
+      serverName,
+      message: error.message,
+    });
+    return res.status(502).json({
+      success: false,
+      serverName,
+      connectionState: 'error',
+      latencyMs: Date.now() - startedAt,
+      message: error.message || 'MCP connection test failed',
+    });
   }
 };
 
@@ -496,6 +694,7 @@ const createMCPServerController = async (req, res) => {
     } finally {
       MCPConnection.clearCooldown(inspectionServerName);
     }
+    await syncMCPToControlPlane({ req, serverName: result.serverName, config: result.config });
     res.status(201).json({
       serverName: result.serverName,
       ...redactServerSecrets(result.config, { canEdit: true }),
@@ -612,6 +811,7 @@ const updateMCPServerController = async (req, res) => {
     await fenceCommittedMCPMutation({ userId, serverName });
     await disconnectLocalMCPServer(userId, serverName);
 
+    await syncMCPToControlPlane({ req, serverName, config: parsedConfig });
     res.status(200).json(redactServerSecrets(parsedConfig, { canEdit: true }));
   } catch (error) {
     logger.error('[updateMCPServer]', error);
@@ -649,6 +849,7 @@ const deleteMCPServerController = async (req, res) => {
     /** Fence connections another replica could have created before deletion committed. */
     await fenceCommittedMCPMutation({ userId, serverName });
     await disconnectLocalMCPServer(userId, serverName);
+    await syncMCPToControlPlane({ req, serverName, config: existingConfig, deleted: true });
     res.status(200).json({ message: 'MCP server deleted successfully' });
   } catch (error) {
     logger.error('[deleteMCPServer]', error);
@@ -659,6 +860,8 @@ const deleteMCPServerController = async (req, res) => {
 module.exports = {
   getMCPTools,
   getMCPServersList,
+  reconcileOwnedMCPServers,
+  testMCPServerConnection,
   createMCPServerController,
   getMCPServerById,
   updateMCPServerController,

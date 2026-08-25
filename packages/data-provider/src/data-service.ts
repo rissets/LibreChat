@@ -148,6 +148,10 @@ export function deleteAgentApiKey(id: string): Promise<void> {
   return request.delete(endpoints.apiKeyById(id));
 }
 
+export function getBPApiKeyUsage(): Promise<t.TAgentApiKeyUsageResponse> {
+  return request.get(endpoints.bpApiKeyUsage());
+}
+
 export function getPresets(): Promise<s.TPreset[]> {
   return request.get(endpoints.presets());
 }

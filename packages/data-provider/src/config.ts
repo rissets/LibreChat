@@ -2801,6 +2801,10 @@ export enum SettingsTabValues {
    */
   DATA = 'data',
   /**
+   * Tab for BP Chat API keys and endpoint access
+   */
+  API_KEYS = 'apiKeys',
+  /**
    * Tab for Balance Settings
    */
   BALANCE = 'balance',

@@ -58,6 +58,7 @@ const { attachOwnerContacts } = require('~/server/services/Agents/ownerContact')
 const { getMCPServersRegistry } = require('~/config');
 const { getLogStores } = require('~/cache');
 const db = require('~/models');
+const { syncAssetToControlPlane } = require('~/server/services/ControlPlaneAssetSync');
 
 const systemTools = {
   [Tools.execute_code]: true,
@@ -506,6 +507,15 @@ const createAgentHandler = async (req, res) => {
 
     const agent = await db.createAgent(agentData);
 
+    // Keep the operator catalog aware of user-created agents without making
+    // catalog availability a prerequisite for the chat request.
+    await syncAssetToControlPlane({
+      req,
+      assetType: 'agent',
+      externalId: agent.id,
+      asset: agent,
+    }).catch(() => false);
+
     try {
       await Promise.all([
         grantPermission({
@@ -871,6 +881,13 @@ const updateAgentHandler = async (req, res) => {
           })
         : existingAgent;
 
+    await syncAssetToControlPlane({
+      req,
+      assetType: 'agent',
+      externalId: updatedAgent.id || id,
+      asset: updatedAgent,
+    }).catch(() => false);
+
     // Add version count to the response
     updatedAgent.version = updatedAgent.versions ? updatedAgent.versions.length : 0;
 
@@ -1081,6 +1098,13 @@ const duplicateAgentHandler = async (req, res) => {
 
     const newAgent = await db.createAgent(newAgentData);
 
+    await syncAssetToControlPlane({
+      req,
+      assetType: 'agent',
+      externalId: newAgent.id,
+      asset: newAgent,
+    }).catch(() => false);
+
     try {
       await Promise.all([
         grantPermission({
@@ -1137,6 +1161,13 @@ const deleteAgentHandler = async (req, res) => {
       return res.status(404).json({ error: 'Agent not found' });
     }
     await db.deleteAgent({ id });
+    await syncAssetToControlPlane({
+      req,
+      assetType: 'agent',
+      externalId: id,
+      asset: agent,
+      deleted: true,
+    }).catch(() => false);
     return res.json({ message: 'Agent deleted' });
   } catch (error) {
     logger.error('[/Agents/:id] Error deleting Agent', error);

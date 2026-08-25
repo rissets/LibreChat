@@ -97,6 +97,8 @@ const SteerPart = memo(function SteerPart({
                   height={file.height ?? 1920}
                   width={file.width ?? 1080}
                   altText={file.filename ?? localize('com_ui_attached_image')}
+                  fileId={file.file_id}
+                  source={file.source}
                 />
               ))}
             </div>

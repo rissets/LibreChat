@@ -1,12 +1,10 @@
 const express = require('express');
-const { generateCheckAccess, createApiKeyHandlers } = require('@librechat/api');
-const { PermissionTypes, Permissions } = require('librechat-data-provider');
+const { createApiKeyHandlers } = require('@librechat/api');
 const {
   getAgentApiKeyById,
   createAgentApiKey,
   deleteAgentApiKey,
   listAgentApiKeys,
-  getRoleByName,
 } = require('~/models');
 const { requireJwtAuth } = require('~/server/middleware');
 
@@ -19,18 +17,14 @@ const handlers = createApiKeyHandlers({
   getAgentApiKeyById,
 });
 
-const checkRemoteAgentsUse = generateCheckAccess({
-  permissionType: PermissionTypes.REMOTE_AGENTS,
-  permissions: [Permissions.USE],
-  getRoleByName,
-});
+// These are BP Chat user credentials, not a remote-agent-only feature. The
+// public BP API still applies the user's source-backed model and quota policy.
+router.post('/', requireJwtAuth, handlers.createApiKey);
 
-router.post('/', requireJwtAuth, checkRemoteAgentsUse, handlers.createApiKey);
+router.get('/', requireJwtAuth, handlers.listApiKeys);
 
-router.get('/', requireJwtAuth, checkRemoteAgentsUse, handlers.listApiKeys);
+router.get('/:id', requireJwtAuth, handlers.getApiKey);
 
-router.get('/:id', requireJwtAuth, checkRemoteAgentsUse, handlers.getApiKey);
-
-router.delete('/:id', requireJwtAuth, checkRemoteAgentsUse, handlers.deleteApiKey);
+router.delete('/:id', requireJwtAuth, handlers.deleteApiKey);
 
 module.exports = router;

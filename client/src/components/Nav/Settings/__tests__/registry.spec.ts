@@ -87,4 +87,17 @@ describe('settings registry', () => {
       ).toBe(true);
     });
   });
+
+  describe('BP Chat API key settings', () => {
+    it('places API key management in its own settings tab', () => {
+      const apiKeysTab = TABS.find((tab) => tab.id === SettingsTabValues.API_KEYS);
+      const apiKeyEntry = registry.find((entry) => entry.id === 'agentApiKeys');
+
+      expect(apiKeysTab).toBeDefined();
+      expect(apiKeyEntry).toMatchObject({
+        tab: SettingsTabValues.API_KEYS,
+        section: 'apiKeys',
+      });
+    });
+  });
 });

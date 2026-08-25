@@ -1,6 +1,9 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import axios from 'axios';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import Image, { _resetImageCaches } from '../Image';
+
+jest.mock('axios');
 
 jest.mock('~/utils', () => ({
   cn: (...classes: (string | boolean | undefined | null)[]) =>
@@ -152,6 +155,27 @@ describe('Image', () => {
   });
 
   describe('image URL resolution', () => {
+    it('refreshes an expired persisted storage URL from its stable file id', async () => {
+      const axiosGetMock = jest.mocked(axios.get);
+      axiosGetMock.mockResolvedValue({
+        data: { url: 'https://cdn.example.com/fresh.png' },
+      } as any);
+
+      render(
+        <Image
+          {...defaultProps}
+          imagePath="https://storage.example.com/storage/bpai-media/images/expired.png?X-Amz-Signature=old"
+          fileId="file-123"
+        />,
+      );
+
+      await waitFor(() => expect(screen.getByRole('img')).toHaveAttribute('src', 'https://cdn.example.com/fresh.png'));
+      expect(axiosGetMock).toHaveBeenCalledWith(
+        '/api/files/download-url/file-123',
+        expect.objectContaining({ headers: { Accept: 'application/json' } }),
+      );
+    });
+
     it('passes /images/ paths through with base URL', () => {
       render(<Image {...defaultProps} imagePath="/images/test.png" />);
       const img = screen.getByRole('img');

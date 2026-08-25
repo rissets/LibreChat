@@ -507,9 +507,8 @@ const getDownloadFileMetadata = (file) => {
   }, {});
 };
 
-router.get('/download-url/:userId/:file_id', fileAccess, async (req, res) => {
+const handleDownloadURLRequest = async (req, res, userId, file_id) => {
   try {
-    const { userId, file_id } = req.params;
     logger.debug(`File download URL requested by user ${userId}: ${file_id}`);
 
     const file = req.fileAccess.file;
@@ -543,6 +542,23 @@ router.get('/download-url/:userId/:file_id', fileAccess, async (req, res) => {
     logger.error('[DOWNLOAD URL ROUTE] Error generating file download URL:', error);
     res.status(500).send('Error generating file download URL');
   }
+};
+
+/**
+ * Refresh a file URL using the authenticated user as the owner context.
+ *
+ * Conversation messages intentionally store only a compact file reference
+ * (file_id + the original filepath), not the owner id. Presigned object-store
+ * URLs expire, so the client needs a safe owner-independent route to mint a
+ * fresh URL when it renders an older message. `fileAccess` still enforces the
+ * normal ownership/agent ACL before this handler runs.
+ */
+router.get('/download-url/:file_id', fileAccess, async (req, res) => {
+  await handleDownloadURLRequest(req, res, req.user.id, req.params.file_id);
+});
+
+router.get('/download-url/:userId/:file_id', fileAccess, async (req, res) => {
+  await handleDownloadURLRequest(req, res, req.params.userId, req.params.file_id);
 });
 
 router.get('/download/:userId/:file_id', fileAccess, async (req, res) => {

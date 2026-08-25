@@ -44,6 +44,7 @@ const { getRetentionExpiry, getAgentFileRetentionExpiry } = require('./retention
 const { getStrategyFunctions } = require('./strategies');
 const { determineFileType } = require('~/server/utils');
 const { STTService } = require('./Audio/STTService');
+const { syncResourceToControlPlane } = require('../ControlPlaneResourceSync');
 const db = require('~/models');
 
 /**
@@ -486,6 +487,8 @@ const processImageFile = async ({ req, res, metadata, returnFile = false, sseStr
     true,
   );
 
+  void syncResourceToControlPlane({ req, resourceType: 'image', resource: result });
+
   if (returnFile) {
     return result;
   }
@@ -652,6 +655,7 @@ const processFileUpload = async ({ req, res, metadata, sseStream }) => {
     },
     true,
   );
+  void syncResourceToControlPlane({ req, resourceType: 'file', resource: result });
   sendUploadSuccess(res, sseStream, 'File uploaded and processed successfully', result);
 };
 
@@ -791,6 +795,7 @@ const processAgentFileUpload = async ({ req, res, metadata, sseStream }) => {
         });
       }
       const result = await db.createFile(fileInfo, true);
+      void syncResourceToControlPlane({ req, resourceType: 'file', resource: result });
       sendUploadSuccess(res, sseStream, 'Agent file uploaded and processed successfully', result);
     };
 
@@ -1036,6 +1041,8 @@ const processAgentFileUpload = async ({ req, res, metadata, sseStream }) => {
   };
 
   const result = await db.createFile(fileInfo, true);
+
+  void syncResourceToControlPlane({ req, resourceType: 'file', resource: result });
 
   sendUploadSuccess(res, sseStream, 'Agent file uploaded and processed successfully', result);
 };

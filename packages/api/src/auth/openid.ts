@@ -19,7 +19,11 @@ export type OpenIdIssuerSource = {
 };
 
 type OpenIdLookupField = 'openidId' | 'idOnTheSource';
-type OpenIdUserResolution = { user: IUser | null; error: string | null; migration: boolean };
+type OpenIdUserResolution = {
+  user: IUser | null;
+  error: string | null;
+  migration: boolean;
+};
 
 const OPENID_DISCOVERY_PATH = '/.well-known/openid-configuration';
 const LEGACY_ISSUER_FILTERS: Array<FilterQuery<IUser>['openidIssuer']> = [
@@ -61,6 +65,34 @@ export function getOpenIdIssuer(
 function isLegacyOpenIdIssuer(openidIssuer: string | undefined): boolean {
   const loginIssuer = normalizeOpenIdIssuer(process.env.OPENID_ISSUER);
   return openidIssuer != null && loginIssuer != null && openidIssuer === loginIssuer;
+}
+
+/**
+ * Allows a deployment to migrate identities from an explicitly configured
+ * previous issuer (for example a local development hostname) to the current
+ * public issuer. This is deliberately opt-in: an arbitrary issuer mismatch
+ * must remain an authentication failure.
+ */
+function isConfiguredLegacyIssuer(
+  userIssuer: string | undefined,
+  currentIssuer: string | undefined,
+): boolean {
+  const normalizedUserIssuer = normalizeOpenIdIssuer(userIssuer);
+  const normalizedCurrentIssuer = normalizeOpenIdIssuer(currentIssuer);
+  if (
+    !normalizedUserIssuer ||
+    !normalizedCurrentIssuer ||
+    normalizedUserIssuer === normalizedCurrentIssuer
+  ) {
+    return false;
+  }
+
+  const configuredLegacyIssuers = (process.env.OPENID_ISSUER_MIGRATION_FROM ?? '')
+    .split(',')
+    .map((issuer) => normalizeOpenIdIssuer(issuer))
+    .filter((issuer): issuer is string => Boolean(issuer));
+
+  return configuredLegacyIssuers.includes(normalizedUserIssuer);
 }
 
 function hasOpenIdLookupValue(value: string | undefined): value is string {
@@ -142,7 +174,9 @@ export function isUserIssuerAllowed(user: IUser, openidIssuer: string | undefine
   if (!openidIssuer) return true;
 
   const userIssuer = normalizeOpenIdIssuer(user.openidIssuer);
-  if (userIssuer) return userIssuer === openidIssuer;
+  if (userIssuer) {
+    return userIssuer === openidIssuer || isConfiguredLegacyIssuer(userIssuer, openidIssuer);
+  }
 
   return isLegacyOpenIdIssuer(openidIssuer);
 }
@@ -162,7 +196,11 @@ function resolveIssuerBoundUser(
     return { user: null, error: ErrorTypes.AUTH_FAILED, migration: false };
   }
 
-  if (normalizedIssuer && !normalizeOpenIdIssuer(user.openidIssuer)) {
+  const storedIssuer = normalizeOpenIdIssuer(user.openidIssuer);
+  if (
+    normalizedIssuer &&
+    (!storedIssuer || isConfiguredLegacyIssuer(storedIssuer, normalizedIssuer))
+  ) {
     user.openidIssuer = normalizedIssuer;
     return { user, error: null, migration: true };
   }
@@ -260,14 +298,22 @@ export async function findOpenIDUser({
         logger.warn(
           `[${strategyName}] Attempted OpenID login by user ${user.email}, was registered with "${user.provider}" provider`,
         );
-        return finish({ user: null, error: ErrorTypes.AUTH_FAILED, migration: false });
+        return finish({
+          user: null,
+          error: ErrorTypes.AUTH_FAILED,
+          migration: false,
+        });
       }
 
       if (user?.openidId && user.openidId !== openidId) {
         logger.warn(
           `[${strategyName}] Rejected email fallback for ${user.email}: stored openidId does not match token sub`,
         );
-        return finish({ user: null, error: ErrorTypes.AUTH_FAILED, migration: false });
+        return finish({
+          user: null,
+          error: ErrorTypes.AUTH_FAILED,
+          migration: false,
+        });
       }
 
       const emailIssuerResolution = resolveIssuerBoundUser(

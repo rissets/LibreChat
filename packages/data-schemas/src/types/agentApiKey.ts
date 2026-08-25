@@ -6,6 +6,13 @@ export interface IAgentApiKey extends Document {
   keyHash: string;
   keyPrefix: string;
   lastUsedAt?: Date;
+  totalRequests: number;
+  successfulRequests: number;
+  failedRequests: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  lastStatusCode?: number;
   expiresAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -27,6 +34,13 @@ export interface AgentApiKeyCreateResult {
   expiresAt?: Date;
 }
 
+export interface AgentApiKeyUsage {
+  statusCode: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+}
+
 export interface AgentApiKeyListItem {
   id: string;
   name: string;
@@ -34,6 +48,13 @@ export interface AgentApiKeyListItem {
   lastUsedAt?: Date;
   expiresAt?: Date;
   createdAt: Date;
+  totalRequests: number;
+  successfulRequests: number;
+  failedRequests: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  lastStatusCode?: number;
 }
 
 export interface AgentApiKeyQuery {

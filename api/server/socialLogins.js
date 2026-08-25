@@ -21,6 +21,8 @@ const {
 const { getLogStores } = require('~/cache');
 
 const DEFAULT_OPENID_REUSE_MAX_SESSION_AGE_MS = 15 * 60 * 1000;
+const DEFAULT_OPENID_SETUP_RETRIES = 5;
+const DEFAULT_OPENID_SETUP_RETRY_DELAY_MS = 750;
 
 const getSessionExpiry = () => math(process.env.SESSION_EXPIRY, DEFAULT_SESSION_EXPIRY);
 
@@ -36,6 +38,23 @@ const getOpenIdSessionExpiry = () => {
   );
   return Math.max(sessionExpiry, reuseMaxSessionAge);
 };
+
+const getOpenIdSetupRetries = () =>
+  Math.max(
+    1,
+    math(process.env.OPENID_SETUP_RETRIES, DEFAULT_OPENID_SETUP_RETRIES),
+  );
+
+const getOpenIdSetupRetryDelay = () =>
+  Math.max(
+    0,
+    math(process.env.OPENID_SETUP_RETRY_DELAY_MS, DEFAULT_OPENID_SETUP_RETRY_DELAY_MS),
+  );
+
+const waitForOpenIdSetupRetry = (delayMs) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, delayMs);
+  });
 
 /**
  * Configures OpenID Connect for the application.
@@ -58,7 +77,26 @@ async function configureOpenId(app) {
   app.use(session(sessionOptions));
   app.use(passport.session());
 
-  const config = await setupOpenId();
+  const retries = getOpenIdSetupRetries();
+  const retryDelayMs = getOpenIdSetupRetryDelay();
+  let config = null;
+
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
+    config = await setupOpenId();
+    if (config) {
+      break;
+    }
+
+    if (attempt < retries) {
+      const delay = retryDelayMs * attempt;
+      logger.warn(
+        `[openidStrategy] OpenID discovery unavailable; retrying in ${delay}ms ` +
+          `(attempt ${attempt + 1}/${retries})`,
+      );
+      await waitForOpenIdSetupRetry(delay);
+    }
+  }
+
   if (!config) {
     logger.error('OpenID Connect configuration failed - strategy not registered.');
     return;

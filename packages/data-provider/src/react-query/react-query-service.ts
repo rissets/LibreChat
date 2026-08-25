@@ -540,6 +540,21 @@ export const useGetAgentApiKeysQuery = (
   );
 };
 
+export const useGetBPApiKeyUsageQuery = (
+  config?: UseQueryOptions<t.TAgentApiKeyUsageResponse>,
+): QueryObserverResult<t.TAgentApiKeyUsageResponse> => {
+  return useQuery<t.TAgentApiKeyUsageResponse>(
+    [QueryKeys.bpApiKeyUsage],
+    () => dataService.getBPApiKeyUsage(),
+    {
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
+      staleTime: 15000,
+      ...config,
+    },
+  );
+};
+
 export const useCreateAgentApiKeyMutation = (): UseMutationResult<
   t.TAgentApiKeyCreateResponse,
   unknown,
@@ -551,6 +566,7 @@ export const useCreateAgentApiKeyMutation = (): UseMutationResult<
     {
       onSuccess: () => {
         queryClient.invalidateQueries([QueryKeys.agentApiKeys]);
+        queryClient.invalidateQueries([QueryKeys.bpApiKeyUsage]);
       },
     },
   );
@@ -561,6 +577,7 @@ export const useDeleteAgentApiKeyMutation = (): UseMutationResult<void, unknown,
   return useMutation((id: string) => dataService.deleteAgentApiKey(id), {
     onSuccess: () => {
       queryClient.invalidateQueries([QueryKeys.agentApiKeys]);
+      queryClient.invalidateQueries([QueryKeys.bpApiKeyUsage]);
     },
   });
 };

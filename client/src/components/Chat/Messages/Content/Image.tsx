@@ -1,4 +1,5 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
+import axios from 'axios';
 import { Skeleton } from '@librechat/client';
 import { apiBaseUrl } from 'librechat-data-provider';
 import DialogImage from './DialogImage';
@@ -31,6 +32,8 @@ const Image = ({
   args,
   width,
   height,
+  fileId,
+  source,
 }: {
   imagePath: string;
   altText: string;
@@ -44,9 +47,15 @@ const Image = ({
   };
   width?: number;
   height?: number;
+  /** Stable file id used to mint a fresh object-store URL for old messages. */
+  fileId?: string;
+  /** Storage source, when present in a live attachment. */
+  source?: string;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [freshImageUrl, setFreshImageUrl] = useState<string>();
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const refreshAttempts = useRef(0);
 
   const absoluteImageUrl = useMemo(() => {
     if (!imagePath) return imagePath;
@@ -64,9 +73,61 @@ const Image = ({
     return imagePath;
   }, [imagePath]);
 
+  /**
+   * S3 paths in persisted messages are presigned URLs. They are valid for a
+   * limited time and therefore cannot be treated as permanent image srcs.
+   * Use the authenticated file route to mint a new URL from the stable
+   * `file_id`; the server performs the normal file ACL check before signing.
+   */
+  const shouldRefreshImageUrl = Boolean(
+    fileId &&
+      absoluteImageUrl &&
+      !absoluteImageUrl.startsWith('data:') &&
+      !absoluteImageUrl.startsWith('blob:'),
+  );
+
+  const refreshImageUrl = useCallback(
+    async (force = false) => {
+      if (!shouldRefreshImageUrl || !fileId) {
+        return;
+      }
+      if (!force && refreshAttempts.current > 0) {
+        return;
+      }
+      if (refreshAttempts.current >= 2) {
+        return;
+      }
+
+      refreshAttempts.current += 1;
+      try {
+        const response = await axios.get<{ url?: string }>(
+          `${apiBaseUrl()}/api/files/download-url/${encodeURIComponent(fileId)}`,
+          { headers: { Accept: 'application/json' } },
+        );
+        if (response.data.url) {
+          setFreshImageUrl(response.data.url);
+        }
+      } catch (error) {
+        // Keep the original URL as a fallback. This preserves local/share
+        // images while allowing the next image error to retry once.
+        console.warn('[Image] Unable to refresh persisted image URL', error);
+      }
+    },
+    [absoluteImageUrl, fileId, shouldRefreshImageUrl, source],
+  );
+
+  useEffect(() => {
+    if (!shouldRefreshImageUrl) {
+      return;
+    }
+    void refreshImageUrl();
+  }, [refreshImageUrl, shouldRefreshImageUrl]);
+
+  const renderedImageUrl = freshImageUrl || absoluteImageUrl;
+
   const downloadImage = async () => {
     try {
-      const response = await fetch(absoluteImageUrl);
+      const response = await fetch(renderedImageUrl, { credentials: 'include' });
       if (!response.ok) {
         throw new Error(`Failed to fetch image: ${response.status}`);
       }
@@ -85,7 +146,7 @@ const Image = ({
     } catch (error) {
       console.error('Download failed:', error);
       const link = document.createElement('a');
-      link.href = absoluteImageUrl;
+      link.href = renderedImageUrl;
       link.download = altText || 'image.png';
       document.body.appendChild(link);
       link.click();
@@ -94,15 +155,15 @@ const Image = ({
   };
 
   useEffect(() => {
-    if (width && height && absoluteImageUrl) {
-      dimensionCache.set(absoluteImageUrl, { width, height });
+    if (width && height && renderedImageUrl) {
+      dimensionCache.set(renderedImageUrl, { width, height });
     }
-  }, [absoluteImageUrl, width, height]);
+  }, [renderedImageUrl, width, height]);
 
-  const dims = width && height ? { width, height } : dimensionCache.get(absoluteImageUrl);
+  const dims = width && height ? { width, height } : dimensionCache.get(renderedImageUrl);
   const hasDimensions = !!(dims?.width && dims?.height);
   const heightStyle = hasDimensions ? computeHeightStyle(dims.width, dims.height) : undefined;
-  const showSkeleton = hasDimensions && !paintedUrls.has(absoluteImageUrl);
+  const showSkeleton = hasDimensions && !paintedUrls.has(renderedImageUrl);
 
   return (
     <div>
@@ -122,8 +183,13 @@ const Image = ({
         {showSkeleton && <Skeleton className="absolute inset-0" aria-hidden="true" />}
         <img
           alt={altText}
-          src={absoluteImageUrl}
-          onLoad={() => paintedUrls.add(absoluteImageUrl)}
+          src={renderedImageUrl}
+          onLoad={() => paintedUrls.add(renderedImageUrl)}
+          onError={() => {
+            // A conversation can outlive its signed URL. Retry with a newly
+            // signed URL instead of leaving a broken-image card in history.
+            void refreshImageUrl(true);
+          }}
           className={cn(
             'relative block text-transparent',
             hasDimensions
@@ -135,7 +201,7 @@ const Image = ({
       <DialogImage
         isOpen={isOpen}
         onOpenChange={setIsOpen}
-        src={absoluteImageUrl}
+        src={renderedImageUrl}
         downloadImage={downloadImage}
         args={args}
         triggerRef={triggerRef}

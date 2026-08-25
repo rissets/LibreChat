@@ -32,6 +32,7 @@ const {
   getMCPServersList,
   getMCPServerById,
   getMCPTools,
+  testMCPServerConnection,
 } = require('~/server/controllers/mcp');
 const {
   getOAuthReconnectionManager,
@@ -885,6 +886,18 @@ router.post(
       res.status(500).json({ error: 'Internal server error' });
     }
   },
+);
+
+/**
+ * Explicit, user-scoped MCP connection test. This intentionally lives beside
+ * reinitialize so the UI can validate a connector without enabling it by
+ * default or exposing credentials to the operator dashboard.
+ */
+router.post(
+  '/:serverName/test',
+  requireJwtAuth,
+  checkMCPUsePermissions,
+  testMCPServerConnection,
 );
 
 /**

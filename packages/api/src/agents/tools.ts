@@ -299,6 +299,8 @@ Use for new files and full rewrites where the change is larger than half the fil
 
 Targets code-execution sandbox paths. Prefer /mnt/data/{file} for files that should remain available to later sandbox calls.
 
+Office output guard: do not use create_file to write DOCX, XLSX, PPTX, or other binary Office files. For those formats, use execute_code with the installed native library (python-docx for DOCX, openpyxl/xlsxwriter for XLSX, python-pptx for PPTX), save the binary under /mnt/data/, reopen it to validate it, and then return that generated file. Plain text with an Office extension is invalid and must never be returned.
+
 Very long content can exceed the streamed tool-argument limit (64 KB by default) and fail the call. For large files, create the file with its first section, then extend it with edit_file.`;
 
 const SKILL_EDIT_FILE_DESCRIPTION = `Apply targeted text replacements to an existing file.

@@ -20,6 +20,7 @@ const prompts = require('./prompts');
 const skills = require('./skills');
 const balance = require('./balance');
 const bpAccess = require('./bpAccess');
+const bpApi = require('./bpApi');
 const actions = require('./actions');
 const apiKeys = require('./apiKeys');
 const banner = require('./banner');
@@ -73,6 +74,7 @@ module.exports = {
   presets,
   balance,
   bpAccess,
+  bpApi,
   messages,
   memories,
   endpoints,

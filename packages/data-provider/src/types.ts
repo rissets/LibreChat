@@ -346,10 +346,37 @@ export type TAgentApiKeyListItem = {
   lastUsedAt?: string;
   expiresAt?: string;
   createdAt: string;
+  totalRequests: number;
+  successfulRequests: number;
+  failedRequests: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  lastStatusCode?: number;
 };
 
 export type TAgentApiKeyListResponse = {
   keys: TAgentApiKeyListItem[];
+};
+
+export type TAgentApiKeyUsageResponse = {
+  endpoint: string;
+  models: Array<{
+    id: string;
+    object: 'model';
+    created: number;
+    owned_by: string;
+    name: string;
+  }>;
+  keys: TAgentApiKeyListItem[];
+  totals: Omit<TAgentApiKeyListItem, 'id' | 'name' | 'keyPrefix' | 'lastUsedAt' | 'expiresAt' | 'createdAt' | 'lastStatusCode'> & {
+    totalRequests: number;
+    successfulRequests: number;
+    failedRequests: number;
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+  };
 };
 
 export type TUpdateConversationRequest = {

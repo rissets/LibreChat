@@ -39,6 +39,8 @@ const Files = ({ message }: { message?: TMessage }) => {
             height={file.height ?? 1920}
             width={file.width ?? 1080}
             altText={file.filename ?? 'Uploaded Image'}
+            fileId={file.file_id}
+            source={file.source}
           />
         ))}
       <FilePreviewDialog

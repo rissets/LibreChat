@@ -45,6 +45,7 @@ const {
   withDeploymentSkillIds,
   getSkillStrategyFunctions,
 } = require('~/server/services/Endpoints/agents/skillDeps');
+const { syncAssetToControlPlane } = require('~/server/services/ControlPlaneAssetSync');
 
 const router = express.Router();
 
@@ -139,6 +140,46 @@ const handlers = createSkillsHandlers({
   grantPermission,
   isValidObjectIdString,
 });
+
+/**
+ * Wrap a skill mutation without changing the upstream handler contract. The
+ * response is already the canonical skill representation, so syncing after
+ * the status code is known avoids mirroring rejected requests.
+ */
+function withSkillSync(handler, { deleted = false } = {}) {
+  return async (req, res, next) => {
+    const sendJson = res.json.bind(res);
+    let responseBody;
+    let syncPromise;
+    res.json = (body) => {
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        const externalId = String(body?._id || body?.id || req.params?.id || '');
+        // Operator-managed skills are materialized into the native catalog
+        // during the access handshake. Their writes must not be mirrored back
+        // as user-owned assets, otherwise every access refresh creates a loop.
+        const isManaged = Boolean(body?.frontmatter?._bpManaged || body?.frontmatter?._bpSourceId);
+        if (externalId && !isManaged) {
+          syncPromise = syncAssetToControlPlane({
+            req,
+            assetType: 'skill',
+            externalId,
+            asset: body,
+            deleted,
+          }).catch(() => false);
+        }
+      }
+      // Hold the response until the best-effort projection has completed. The
+      // operator dashboard can therefore show a newly-created skill as soon
+      // as the mutation returns, without changing the native chat contract.
+      responseBody = body;
+      return res;
+    };
+    const result = await handler(req, res, next);
+    if (syncPromise) await syncPromise;
+    if (responseBody !== undefined && !res.headersSent) return sendJson(responseBody);
+    return result;
+  };
+}
 
 // ---------------------------------------------------------------------------
 // File storage helper: resolve the active strategy's saveBuffer
@@ -303,11 +344,11 @@ router.post(
   fileUploadUserLimiter,
   skillUpload,
   restoreTenantContextFromReq,
-  importHandler,
+  withSkillSync(importHandler),
 );
 
 router.get('/', maybeStartRequestSkillSync, handlers.list);
-router.post('/', checkSkillCreate, handlers.create);
+router.post('/', checkSkillCreate, withSkillSync(handlers.create));
 
 router.get(
   '/:id',
@@ -319,14 +360,14 @@ router.patch(
   '/:id',
   checkSkillCreate,
   canAccessSkillResource({ requiredPermission: PermissionBits.EDIT }),
-  handlers.patch,
+  withSkillSync(handlers.patch),
 );
 
 router.delete(
   '/:id',
   checkSkillCreate,
   canAccessSkillResource({ requiredPermission: PermissionBits.DELETE }),
-  handlers.delete,
+  withSkillSync(handlers.delete, { deleted: true }),
 );
 
 router.get(

@@ -682,6 +682,34 @@ describe('File Routes - Delete with Agent Access', () => {
   });
 
   describe('GET /files/download-url/:userId/:file_id', () => {
+    it('refreshes a signed URL using the authenticated user route', async () => {
+      const userFileId = uuidv4();
+      const getDownloadURL = jest.fn().mockResolvedValue('https://cdn.example.com/refreshed.png');
+      getStrategyFunctions.mockReturnValue({ getDownloadURL });
+
+      await createFile({
+        user: otherUserId,
+        file_id: userFileId,
+        filename: 'expired.png',
+        filepath: 'expired-signed-url',
+        storageKey: 'images/user/expired.png',
+        bytes: 200,
+        type: 'image/png',
+        source: FileSources.s3,
+      });
+
+      const response = await request(app).get(`/files/download-url/${userFileId}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body.url).toBe('https://cdn.example.com/refreshed.png');
+      expect(getDownloadURL).toHaveBeenCalledWith(
+        expect.objectContaining({
+          req: expect.any(Object),
+          file: expect.objectContaining({ file_id: userFileId }),
+        }),
+      );
+    });
+
     it('returns a direct signed download URL when the strategy supports it', async () => {
       const userFileId = uuidv4();
       const getDownloadURL = jest.fn().mockResolvedValue('https://cdn.example.com/file.pdf?signed');

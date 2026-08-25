@@ -23,6 +23,7 @@ const {
 const { encryptMetadata, domainParser } = require('~/server/services/ActionService');
 const { findAccessibleResources } = require('~/server/services/PermissionService');
 const { attachOwnerContacts } = require('~/server/services/Agents/ownerContact');
+const { syncAssetToControlPlane } = require('~/server/services/ControlPlaneAssetSync');
 const db = require('~/models');
 const { canAccessAgentResource } = require('~/server/middleware');
 
@@ -236,6 +237,32 @@ router.post(
         }
       }
 
+      await syncAssetToControlPlane({
+        req,
+        assetType: 'tool',
+        externalId: updatedAction.action_id || action_id,
+        asset: {
+          ...updatedAction,
+          // Native actions store their OpenAPI operation schema outside the
+          // Action document. Include the submitted functions in the redacted
+          // operator projection so the dashboard can render the same tool
+          // contract as BP Chat instead of an empty generic JSON record.
+          functions,
+          tool_name:
+            functions?.[0]?.function?.name ||
+            updatedAction.metadata?.name ||
+            updatedAction.action_id ||
+            action_id,
+          name:
+            updatedAction.metadata?.name ||
+            functions?.[0]?.function?.name ||
+            updatedAction.action_id ||
+            action_id,
+          description: updatedAction.metadata?.description || '',
+          agent_id,
+        },
+      }).catch(() => false);
+
       res.json([updatedAgent, updatedAction]);
     } catch (error) {
       const message = 'Trouble updating the Agent Action';
@@ -301,6 +328,13 @@ router.delete(
           agent_id,
         });
       }
+      await syncAssetToControlPlane({
+        req,
+        assetType: 'tool',
+        externalId: action_id,
+        asset: { name: action_id, agent_id },
+        deleted: true,
+      }).catch(() => false);
       res.status(200).json({ message: 'Action deleted successfully' });
     } catch (error) {
       const message = 'Trouble deleting the Agent Action';

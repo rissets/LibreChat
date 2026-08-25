@@ -4,6 +4,7 @@ import type {
   AgentApiKeyCreateData,
   AgentApiKeyListItem,
   IAgentApiKey,
+  AgentApiKeyUsage,
 } from '~/types';
 import { hashToken, getRandomValues } from '~/crypto';
 import logger from '~/config/winston';
@@ -16,6 +17,10 @@ export function createAgentApiKeyMethods(mongoose: typeof import('mongoose')): {
   validateAgentApiKey: (
     apiKey: string,
   ) => Promise<{ userId: Types.ObjectId; keyId: Types.ObjectId } | null>;
+  recordAgentApiKeyUsage: (
+    keyId: string | Types.ObjectId,
+    usage: AgentApiKeyUsage,
+  ) => Promise<void>;
   listAgentApiKeys: (userId: string | Types.ObjectId) => Promise<AgentApiKeyListItem[]>;
   deleteAgentApiKey: (
     keyId: string | Types.ObjectId,
@@ -62,6 +67,39 @@ export function createAgentApiKeyMethods(mongoose: typeof import('mongoose')): {
     }
   }
 
+  async function recordAgentApiKeyUsage(
+    keyId: string | Types.ObjectId,
+    usage: AgentApiKeyUsage,
+  ): Promise<void> {
+    try {
+      const AgentApiKey = mongoose.models.AgentApiKey;
+      const inputTokens = Math.max(0, Number(usage.inputTokens || 0));
+      const outputTokens = Math.max(0, Number(usage.outputTokens || 0));
+      const totalTokens = Math.max(
+        0,
+        Number(usage.totalTokens ?? inputTokens + outputTokens),
+      );
+      const statusCode = Number(usage.statusCode || 0);
+      await AgentApiKey.updateOne(
+        { _id: keyId },
+        {
+          $inc: {
+            totalRequests: 1,
+            successfulRequests: statusCode >= 200 && statusCode < 400 ? 1 : 0,
+            failedRequests: statusCode >= 400 || statusCode === 0 ? 1 : 0,
+            inputTokens,
+            outputTokens,
+            totalTokens,
+          },
+          $set: { lastUsedAt: new Date(), lastStatusCode: statusCode || undefined },
+        },
+      );
+    } catch (error) {
+      // Usage telemetry must never turn a successful API response into a failure.
+      logger.warn('[recordAgentApiKeyUsage] Unable to persist usage:', error);
+    }
+  }
+
   async function validateAgentApiKey(
     apiKey: string,
   ): Promise<{ userId: Types.ObjectId; keyId: Types.ObjectId } | null> {
@@ -105,6 +143,13 @@ export function createAgentApiKeyMethods(mongoose: typeof import('mongoose')): {
         lastUsedAt: key.lastUsedAt,
         expiresAt: key.expiresAt,
         createdAt: key.createdAt,
+        totalRequests: key.totalRequests || 0,
+        successfulRequests: key.successfulRequests || 0,
+        failedRequests: key.failedRequests || 0,
+        inputTokens: key.inputTokens || 0,
+        outputTokens: key.outputTokens || 0,
+        totalTokens: key.totalTokens || 0,
+        lastStatusCode: key.lastStatusCode,
       }));
     } catch (error) {
       logger.error('[listAgentApiKeys] Error listing API keys:', error);
@@ -159,6 +204,13 @@ export function createAgentApiKeyMethods(mongoose: typeof import('mongoose')): {
         lastUsedAt: keyDoc.lastUsedAt,
         expiresAt: keyDoc.expiresAt,
         createdAt: keyDoc.createdAt,
+        totalRequests: keyDoc.totalRequests || 0,
+        successfulRequests: keyDoc.successfulRequests || 0,
+        failedRequests: keyDoc.failedRequests || 0,
+        inputTokens: keyDoc.inputTokens || 0,
+        outputTokens: keyDoc.outputTokens || 0,
+        totalTokens: keyDoc.totalTokens || 0,
+        lastStatusCode: keyDoc.lastStatusCode,
       };
     } catch (error) {
       logger.error('[getAgentApiKeyById] Error getting API key:', error);
@@ -169,6 +221,7 @@ export function createAgentApiKeyMethods(mongoose: typeof import('mongoose')): {
   return {
     createAgentApiKey,
     validateAgentApiKey,
+    recordAgentApiKeyUsage,
     listAgentApiKeys,
     deleteAgentApiKey,
     deleteAllAgentApiKeys,

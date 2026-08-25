@@ -14,6 +14,7 @@ import CreateKeyDialog from './CreateKeyDialog';
 import { useLocalize } from '~/hooks';
 import Admin from './Admin';
 import List from './List';
+import Usage from './Usage';
 
 export default function ApiKeys() {
   const localize = useLocalize();
@@ -39,6 +40,7 @@ export default function ApiKeys() {
               <InfoHoverCard text={localize('com_ui_api_keys_description')} />
             </div>
           </OGDialogHeader>
+          <Usage />
           <List onCreate={() => setCreateOpen(true)} />
           <div className="flex items-center gap-2">
             <Admin />

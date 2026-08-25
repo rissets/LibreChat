@@ -73,6 +73,7 @@ export enum QueryKeys {
   activeJobs = 'activeJobs',
   /* Agent API Keys */
   agentApiKeys = 'agentApiKeys',
+  bpApiKeyUsage = 'bpApiKeyUsage',
   /* Skills */
   skills = 'skills',
   skill = 'skill',

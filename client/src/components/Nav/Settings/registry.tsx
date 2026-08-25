@@ -46,7 +46,7 @@ import MemoryToggle from './MemoryToggle';
 import { TTSEndpoints } from '~/common';
 import store from '~/store';
 
-const { GENERAL, CHAT, SPEECH, DATA, ACCOUNT, ABOUT } = SettingsTabValues;
+const { GENERAL, CHAT, SPEECH, DATA, API_KEYS, ACCOUNT, ABOUT } = SettingsTabValues;
 
 export const registry: SettingEntry[] = [
   // General · Appearance
@@ -515,10 +515,10 @@ export const registry: SettingEntry[] = [
     labelKey: 'com_ui_settings_label_shared_links',
     Component: SharedLinks,
   },
-  // Data controls · API keys
+  // API keys · external access
   {
     id: 'providerApiKeys',
-    tab: DATA,
+    tab: API_KEYS,
     section: 'apiKeys',
     labelKey: 'com_ui_settings_label_provider_api_keys',
     keywords: ['api', 'key', 'keys', 'provider', 'endpoint', 'credentials'],
@@ -527,15 +527,15 @@ export const registry: SettingEntry[] = [
   },
   {
     id: 'agentApiKeys',
-    tab: DATA,
+    tab: API_KEYS,
     section: 'apiKeys',
     labelKey: 'com_ui_settings_label_agent_api_keys',
-    show: (ctx) => ctx.hasRemoteAgents,
+    keywords: ['api', 'key', 'keys', 'endpoint', 'usage', 'developer'],
     Component: ApiKeys,
   },
   {
     id: 'revokeKeys',
-    tab: DATA,
+    tab: API_KEYS,
     section: 'apiKeys',
     labelKey: 'com_ui_settings_label_revoke_keys',
     Component: RevokeKeys,
