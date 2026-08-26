@@ -17,6 +17,7 @@ import MessageRow from '~/components/Chat/Messages/ui/MessageRow';
 import MessageIcon from '~/components/Chat/Messages/MessageIcon';
 import SubRow from '~/components/Chat/Messages/SubRow';
 import { artifactTypeForAttachment } from '../Content/Parts/attachmentTypes';
+import { TOOL_ARTIFACT_TYPES } from '~/utils/artifacts';
 import { MessageContext } from '~/Providers';
 import store from '~/store';
 
@@ -132,7 +133,10 @@ const MessageRender = memo(function MessageRender({
     () =>
       !msg?.isCreatedByUser &&
       (/:{2,3}artifact(?:\{|:)/.test(JSON.stringify(msg?.content ?? [])) ||
-        (msg?.attachments ?? []).some((attachment) => artifactTypeForAttachment(attachment) != null)),
+        (msg?.attachments ?? []).some((attachment) => {
+          const type = artifactTypeForAttachment(attachment);
+          return type != null && type !== TOOL_ARTIFACT_TYPES.JSON;
+        })),
     [msg?.attachments, msg?.content, msg?.isCreatedByUser],
   );
   const messageId = msg?.messageId ?? '';

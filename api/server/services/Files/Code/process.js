@@ -1191,10 +1191,22 @@ async function readSandboxFile({ file_path, session_id, files, runtime_session_h
     }
     return { content: String(result.stdout) };
   } catch (error) {
-    logAxiosError({
-      message: `Error reading sandbox file "${file_path}"`,
-      error,
-    });
+    // `create_file`/authoring first probes for an existing file. A missing
+    // path is an expected branch of that flow, not an operational failure;
+    // keep throwing so the caller can fall back to its authoring registry,
+    // but avoid polluting runtime logs with a misleading error. Transport
+    // failures and all other command errors remain fully observable.
+    const message = String(error?.message ?? error).toLowerCase();
+    const missingFile =
+      message.includes('no such file or directory') ||
+      message.includes('cannot access') ||
+      /\bnot found\b/.test(message);
+    if (!missingFile) {
+      logAxiosError({
+        message: `Error reading sandbox file "${file_path}"`,
+        error,
+      });
+    }
     throw error;
   }
 }

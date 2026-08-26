@@ -93,6 +93,13 @@ const LogContent: React.FC<LogContentProps> = ({ output = '', renderImages, atta
         return;
       }
       const artType = artifactTypeForAttachment(attachment);
+      // JSON is a source/data deliverable, not a visual artifact. Keep it in
+      // the download-only bucket so a text-bearing JSON result never opens a
+      // side-panel preview or gets duplicated as an inline code block.
+      if (artType === TOOL_ARTIFACT_TYPES.JSON) {
+        otherAtts.push(attachment);
+        return;
+      }
       if (artType === TOOL_ARTIFACT_TYPES.MERMAID) {
         if (fileData.text) {
           mermaidAtts.push({

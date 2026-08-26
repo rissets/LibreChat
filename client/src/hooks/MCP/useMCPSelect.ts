@@ -11,6 +11,16 @@ import { setTimestamp } from '~/utils/timestamps';
 /** Sentinel in `interface.defaultPinnedTools` that pins the MCP dropdown to the prompt bar. */
 const MCP_PIN_KEYWORD = 'mcp';
 
+/** HelloDigi's read-only domain MCPs are always available to agent skills.
+ * The API intentionally omits the server-managed `startup` flag from the
+ * browser payload, so keep this small allow-list as a client-side fallback. */
+const HELLODIGI_AUTO_MCP_SERVERS = new Set([
+  'ahu-mariadb',
+  'ahu-postgresql',
+  'kkp-data',
+  'plane-utrack',
+]);
+
 export function useMCPSelect({
   conversationId,
   storageContextKey,
@@ -38,6 +48,7 @@ export function useMCPSelect({
   const [mcpValues, setMCPValuesRaw] = useAtom(mcpValuesAtomFamily(mcpAtomKey));
   const [ephemeralAgent, setEphemeralAgent] = useRecoilState(ephemeralAgentByConvoId(key));
   const hasAppliedDefaultPin = useRef(false);
+  const hasAppliedStartupSelection = useRef(false);
 
   /**
    * Seed the MCP dropdown's pinned state from the admin-configured `defaultPinnedTools`:
@@ -115,6 +126,49 @@ export function useMCPSelect({
     },
     [setMCPValuesRaw, setEphemeralAgent, storageContextKey],
   );
+
+  /**
+   * Local MCP servers marked `startup: true` are part of the HelloDigi agent
+   * runtime (AHU, KKP, Plane, and PostgreSQL). Attach them to a brand-new chat
+   * when the user has no saved selection, so skills can call their domain tools
+   * without requiring a second, hidden menu action. OAuth/request-scoped servers
+   * remain opt-in because they need per-user authorization or request variables.
+   */
+  useEffect(() => {
+    if (hasAppliedStartupSelection.current || !isNewConvo || servers.length === 0) {
+      return;
+    }
+
+    const mcpStorageKey = `${LocalStorageKeys.LAST_MCP_}${mcpAtomKey}`;
+    const persistedSelection = localStorage.getItem(mcpStorageKey);
+    let hasSavedSelection = false;
+    if (persistedSelection) {
+      try {
+        const parsed = JSON.parse(persistedSelection);
+        hasSavedSelection = Array.isArray(parsed) ? parsed.length > 0 : true;
+      } catch {
+        hasSavedSelection = true;
+      }
+    }
+    if (hasSavedSelection || mcpValues.length > 0) {
+      hasAppliedStartupSelection.current = true;
+      return;
+    }
+
+    const startupServers = servers
+      .filter(
+        (server) =>
+          !server.requestScoped &&
+          (server.config.startup === true || HELLODIGI_AUTO_MCP_SERVERS.has(server.serverName)),
+      )
+      .map((server) => server.serverName);
+    if (startupServers.length === 0) {
+      return;
+    }
+
+    hasAppliedStartupSelection.current = true;
+    setMCPValues(startupServers);
+  }, [isNewConvo, mcpAtomKey, mcpValues.length, servers, setMCPValues]);
 
   return {
     isPinned,

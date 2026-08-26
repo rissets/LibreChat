@@ -409,15 +409,17 @@ export default function CreationModes({ conversationId }: { conversationId?: str
 
   return (
     <section className="mt-4 w-full" aria-label="Mode pembuatan HelloDigi">
-      <div className="scrollbar-hide flex w-full gap-2 overflow-x-auto pb-1">
-        {PRIMARY_MODES.map((mode) => (
-          <ModeButton
-            key={mode.id}
-            mode={mode}
-            selected={selectedId === mode.id}
-            onSelect={selectMode}
-          />
-        ))}
+      <div className="relative flex w-full items-start gap-2">
+        <div className="scrollbar-hide flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1">
+          {PRIMARY_MODES.map((mode) => (
+            <ModeButton
+              key={mode.id}
+              mode={mode}
+              selected={selectedId === mode.id}
+              onSelect={selectMode}
+            />
+          ))}
+        </div>
         <div className="relative shrink-0">
           <button
             type="button"

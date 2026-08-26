@@ -1717,6 +1717,7 @@ describe('Code Process', () => {
       });
 
       it('throws when the command writes to stderr with no stdout (exposes the error to the caller)', async () => {
+        const { logAxiosError } = require('@librechat/api');
         mockAxios.mockResolvedValueOnce({
           data: { stdout: '', stderr: 'cat: /mnt/data/missing.txt: No such file or directory\n' },
         });
@@ -1724,6 +1725,7 @@ describe('Code Process', () => {
         await expect(readSandboxFile({ file_path: '/mnt/data/missing.txt' })).rejects.toThrow(
           'cat: /mnt/data/missing.txt: No such file or directory',
         );
+        expect(logAxiosError).not.toHaveBeenCalled();
       });
 
       it('returns stdout even when stderr is also present (stdout wins on partial-success)', async () => {

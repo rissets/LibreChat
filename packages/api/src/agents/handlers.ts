@@ -331,6 +331,7 @@ export interface ToolExecuteOptions {
 
 const MAX_READABLE_BYTES = 262_144;
 const MAX_BINARY_BYTES = 5 * 1024 * 1024;
+const SANDBOX_AUTHORING_CONTENT_TTL_MS = 10 * 60 * 1000;
 /**
  * Inline ceiling for images pulled out of the code-execution sandbox —
  * deliberately tighter than {@link MAX_BINARY_BYTES}, which governs the
@@ -567,7 +568,15 @@ type LoadedSandboxText = LoadedSkillText;
 
 type SandboxSessionContext = {
   session_id?: string;
-  files?: Array<{ id: string; name: string; session_id?: string; storage_session_id?: string }>;
+  files?: Array<{
+    id: string;
+    name: string;
+    session_id?: string;
+    storage_session_id?: string;
+    resource_id?: string;
+    kind?: string;
+    version?: number;
+  }>;
 };
 
 const MIME_MAP: Readonly<Record<string, string>> = Object.freeze({
@@ -1560,6 +1569,36 @@ async function handleSandboxFileFallback(
     };
   }
 
+  /* Host authoring may have just written this path through a stateless `/exec`
+   * request. Prefer the scoped authoring copy for the immediate `read_file`
+   * follow-up so the model sees the exact bytes it asked us to write. */
+  const cachedContent = lookupSandboxAuthoringContent(tc, filePath, req);
+  if (cachedContent !== undefined) {
+    if (looksBinary(cachedContent)) {
+      return {
+        toolCallId: tc.id,
+        status: 'error',
+        content: '',
+        errorMessage: `"${filePath}" appears to be a binary file and cannot be read as text. Use \`bash_tool\` to process it (e.g. \`file ${filePath}\` for metadata).`,
+      };
+    }
+    let payload = cachedContent;
+    let truncated = false;
+    if (payload.length > MAX_READABLE_BYTES) {
+      payload = payload.slice(0, MAX_READABLE_BYTES);
+      truncated = true;
+    }
+    let numbered = addLineNumbers(payload);
+    if (truncated) {
+      numbered += `\n\n[truncated at ${MAX_READABLE_BYTES} bytes — use \`bash_tool\` (e.g. \`head -c\` / \`tail\`) to read the rest of "${filePath}"]`;
+    }
+    return {
+      toolCallId: tc.id,
+      status: 'success',
+      content: numbered,
+    };
+  }
+
   const ctx = tc.codeSessionContext as SandboxSessionContext | undefined;
   try {
     const result = await readSandboxFile({
@@ -1665,6 +1704,9 @@ function mergeSandboxSessionArtifact(
       name?: unknown;
       session_id?: unknown;
       storage_session_id?: unknown;
+      resource_id?: unknown;
+      kind?: unknown;
+      version?: unknown;
     };
     if (typeof ref.id !== 'string' || typeof ref.name !== 'string') {
       continue;
@@ -1676,10 +1718,157 @@ function mergeSandboxSessionArtifact(
       ...(typeof ref.storage_session_id === 'string'
         ? { storage_session_id: ref.storage_session_id }
         : {}),
+      ...(typeof ref.resource_id === 'string' ? { resource_id: ref.resource_id } : {}),
+      ...(typeof ref.kind === 'string' ? { kind: ref.kind } : {}),
+      ...(typeof ref.version === 'number' ? { version: ref.version } : {}),
     });
   }
   if (files.length > 0) {
     context.files = files;
+  }
+}
+
+type SandboxAuthoringContentEntry = {
+  content: string;
+  expiresAt: number;
+};
+
+/**
+ * Host-side file authoring runs through `/exec`, whose HTTP backend is
+ * intentionally stateless.  A subsequent `read_file` therefore cannot see a
+ * file written by `create_file` unless the generated file was also returned as
+ * a storage reference.  Keep a short-lived, conversation-scoped copy of text
+ * authoring content as a safety net.  This is not a durable file store and it
+ * never stores credentials; it only bridges the authoring/read round-trip
+ * while the same chat is active.  Durable generated files continue to use the
+ * normal code-output attachment path.
+ */
+function sandboxAuthoringContentRegistry(): Map<string, SandboxAuthoringContentEntry> {
+  const root = globalThis as unknown as Record<string, unknown>;
+  const key = '__hellodigi_sandbox_authoring_content_registry__';
+  const registry =
+    (root[key] as Map<string, SandboxAuthoringContentEntry> | undefined) ?? new Map();
+  root[key] = registry;
+  const now = Date.now();
+  for (const [entryKey, entry] of registry.entries()) {
+    if (!entry || entry.expiresAt <= now) {
+      registry.delete(entryKey);
+    }
+  }
+  return registry;
+}
+
+function sandboxAuthoringContentKeys(
+  tc: ToolCallRequest,
+  filePath: string,
+  req?: ServerRequest,
+): string[] {
+  const requestBody = req?.body as { conversationId?: unknown } | undefined;
+  const context = tc.codeSessionContext as SandboxSessionContext | undefined;
+  const scopes = [
+    tc.runtimeSessionHint,
+    requestBody?.conversationId,
+    context?.session_id,
+  ].filter((scope): scope is string => typeof scope === 'string' && scope.length > 0);
+  const userId = req?.user?.id ?? 'anonymous';
+  return [...new Set(scopes)].map((scope) => `${userId}:${scope}:${filePath}`);
+}
+
+function rememberSandboxAuthoringContent(
+  tc: ToolCallRequest,
+  filePath: string,
+  content: string,
+  req?: ServerRequest,
+): void {
+  const keys = sandboxAuthoringContentKeys(tc, filePath, req);
+  if (keys.length === 0) return;
+  const registry = sandboxAuthoringContentRegistry();
+  const entry = { content, expiresAt: Date.now() + SANDBOX_AUTHORING_CONTENT_TTL_MS };
+  for (const key of keys) registry.set(key, entry);
+}
+
+function lookupSandboxAuthoringContent(
+  tc: ToolCallRequest,
+  filePath: string,
+  req?: ServerRequest,
+): string | undefined {
+  const registry = sandboxAuthoringContentRegistry();
+  for (const key of sandboxAuthoringContentKeys(tc, filePath, req)) {
+    const entry = registry.get(key);
+    if (entry) return entry.content;
+  }
+  return undefined;
+}
+
+/**
+ * Keep output files available to the next code/sandbox tool call in the same
+ * run. The SDK normally carries this context through ToolNode, but a tool
+ * result can arrive after a graph boundary (or from a detached background
+ * task), where the next call only has the runtime hint. Store opaque file
+ * references briefly under the same process-local registry used by image
+ * handoff; never store file bytes or user credentials here.
+ */
+function registerSandboxArtifact(
+  tc: ToolCallRequest,
+  configurable: Record<string, unknown> | undefined,
+  artifact: ToolExecuteResult['artifact'] | unknown,
+): void {
+  if (!artifact || typeof artifact !== 'object') {
+    return;
+  }
+  const context = cloneSandboxSessionContext(tc.codeSessionContext as SandboxSessionContext);
+  mergeSandboxSessionArtifact(context, artifact as ToolExecuteResult['artifact']);
+  if (!context.files || context.files.length === 0) {
+    return;
+  }
+
+  const root = globalThis as unknown as Record<string, unknown>;
+  const registryKey = '__hellodigi_code_image_registry__';
+  const registry =
+    (root[registryKey] as
+      | Map<
+          string,
+          { session_id?: string; files?: Array<Record<string, unknown>>; expiresAt?: number }
+        >
+      | undefined) ?? new Map();
+  root[registryKey] = registry;
+  const now = Date.now();
+  for (const [key, entry] of registry.entries()) {
+    if (!entry || (entry.expiresAt ?? 0) <= now) {
+      registry.delete(key);
+    }
+  }
+  const requestBody = configurable?.requestBody as Record<string, unknown> | undefined;
+  const keys = [
+    tc.runtimeSessionHint,
+    configurable?.runtimeSessionHint,
+    configurable?.thread_id,
+    requestBody?.conversationId,
+  ].filter((key): key is string => typeof key === 'string' && key.length > 0);
+  if (keys.length === 0) {
+    return;
+  }
+
+  const refs = context.files.map((file) => ({
+    id: file.id,
+    name: file.name,
+    ...(file.session_id ? { session_id: file.session_id } : {}),
+    ...(file.storage_session_id ? { storage_session_id: file.storage_session_id } : {}),
+    ...(file.resource_id ? { resource_id: file.resource_id } : {}),
+    ...(file.kind ? { kind: file.kind } : {}),
+    ...(typeof file.version === 'number' ? { version: file.version } : {}),
+  }));
+  for (const key of keys) {
+    const previous = registry.get(key);
+    const merged = [...(previous?.files ?? []), ...refs].filter(
+      (file, index, all) =>
+        typeof file?.id !== 'string' || all.findIndex((candidate) => candidate?.id === file.id) === index,
+    );
+    registry.set(key, {
+      session_id: context.session_id ?? previous?.session_id,
+      files: merged,
+      expiresAt: now + 10 * 60 * 1000,
+    });
   }
 }
 
@@ -1726,6 +1915,29 @@ async function loadSandboxTextForAuthoring({
     return {
       status: 'error',
       message: `Sandbox file reading is not configured. Use \`bash_tool\` to inspect "${filePath}".`,
+    };
+  }
+
+  /* The local HTTP sandbox is stateless between `/exec` requests. If a
+   * preceding host `create_file`/`edit_file` wrote this path but the worker
+   * could not return a storage reference, use the scoped authoring cache
+   * before issuing a doomed `cat`. This also avoids polluting the log with a
+   * misleading missing-file error for an otherwise valid authoring flow. */
+  const cachedContent = lookupSandboxAuthoringContent(tc, filePath, req);
+  if (cachedContent !== undefined) {
+    if (Buffer.byteLength(cachedContent, 'utf8') > MAX_AUTHORING_BYTES) {
+      return {
+        status: 'error',
+        message: `File "${filePath}" is too large to edit directly (${Buffer.byteLength(
+          cachedContent,
+          'utf8',
+        )} bytes, limit: ${MAX_AUTHORING_BYTES}).`,
+      };
+    }
+    return {
+      status: 'loaded',
+      content: cachedContent,
+      bytes: Buffer.byteLength(cachedContent, 'utf8'),
     };
   }
 
@@ -1829,6 +2041,7 @@ async function writeSandboxTextForAuthoring({
     oldContent !== undefined ? createUnifiedDiff(filePath, oldContent, content) : undefined;
   const action = created ? 'Created' : 'Updated';
   const summary = `${action} ${filePath} (${content.length} chars).`;
+  rememberSandboxAuthoringContent(tc, filePath, content, req);
   return successResult(tc, diff ? `${summary}\n\n${diff}` : summary, {
     path: filePath,
     [HOST_FILE_AUTHORING_ARTIFACT_KEY]: true,
@@ -3934,6 +4147,9 @@ export function createToolExecuteHandler(options: ToolExecuteOptions): EventHand
                       configurable: mergedConfigurable,
                       metadata,
                     } as Record<string, unknown>)) as { content?: unknown; artifact?: unknown };
+                    if (isCodeCall) {
+                      registerSandboxArtifact(tc, mergedConfigurable, result.artifact);
+                    }
                     if (tc.runtimeSessionHint != null && tc.runtimeSessionHint !== '') {
                       void markSandboxReady(tc.runtimeSessionHint);
                     }
@@ -4228,6 +4444,9 @@ export function createToolExecuteHandler(options: ToolExecuteOptions): EventHand
                       sandboxContext
                     ) {
                       mergeSandboxSessionArtifact(sandboxContext, handlerResult.artifact);
+                    }
+                    if (isCodeSessionAwareToolCall(tc.name, mergedConfigurable)) {
+                      registerSandboxArtifact(tc, mergedConfigurable, handlerResult.artifact);
                     }
 
                     if (toolEndCallback && handlerResult.artifact) {

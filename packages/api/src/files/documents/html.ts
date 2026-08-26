@@ -151,14 +151,28 @@ export async function sanitizeOfficeHtml(html: string): Promise<string> {
  * the iframe inherits dark/light from its parent (Sandpack iframes inherit
  * the prefers-color-scheme media query from the host document).
  */
-function wrapAsDocument(bodyHtml: string, extraHeadHtml = ''): string {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Preview</title>
-<style>
+function wrapAsDocument(
+  bodyHtml: string,
+  extraHeadHtml = '',
+  options: { forceLight?: boolean } = {},
+): string {
+  const forceLight = options.forceLight === true;
+  const palette = forceLight
+    ? `
+:root {
+  color-scheme: light;
+  --bg: #f8fafc;
+  --fg: #0f172a;
+  --muted: #64748b;
+  --border: #cbd5e1;
+  --row-alt: #f8fafc;
+  --row-hover: #e0f2fe;
+  --header-bg: #e2e8f0;
+  --tab-active-bg: #dbeafe;
+  --tab-bg: transparent;
+  --link: #2563eb;
+}`
+    : `
 :root {
   color-scheme: light dark;
   --bg: #ffffff;
@@ -171,7 +185,10 @@ function wrapAsDocument(bodyHtml: string, extraHeadHtml = ''): string {
   --tab-active-bg: rgba(229, 231, 235, 0.95);
   --tab-bg: transparent;
   --link: #2563eb;
-}
+}`;
+  const darkMode = forceLight
+    ? ''
+    : `
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #1a1a2e;
@@ -184,7 +201,16 @@ function wrapAsDocument(bodyHtml: string, extraHeadHtml = ''): string {
     --tab-active-bg: rgba(55, 65, 81, 0.95);
     --link: #60a5fa;
   }
-}
+}`;
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Preview</title>
+<style>
+${palette}
+${darkMode}
 * { box-sizing: border-box; }
 html, body {
   margin: 0;
@@ -230,7 +256,10 @@ tbody tr:hover { background: var(--row-hover); }
   font-size: 0.8rem;
   color: var(--muted);
 }
-.lc-table-scroll { overflow-x: auto; max-width: 100%; }
+.lc-table-scroll { overflow-x: auto; max-width: 100%; border: 1px solid var(--border); border-radius: 10px; background: #ffffff; }
+.lc-table-scroll table { min-width: max-content; width: 100%; }
+.lc-table-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.lc-table-scroll::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 999px; }
 ${extraHeadHtml}
 </style>
 </head>
@@ -555,7 +584,9 @@ async function wordDocToHtmlViaCdn(buffer: Buffer, mammothFallbackBody: string):
 
 async function wordDocToHtmlViaMammoth(buffer: Buffer): Promise<string> {
   const sanitized = await renderMammothBody(buffer);
-  return wrapAsDocument(`<article class="lc-docx">${sanitized}</article>`, DOCX_EXTRA_CSS);
+  return wrapAsDocument(`<article class="lc-docx">${sanitized}</article>`, DOCX_EXTRA_CSS, {
+    forceLight: true,
+  });
 }
 
 /**
@@ -633,7 +664,9 @@ export async function wordDocToHtml(buffer: Buffer): Promise<string> {
   const mammothBody = await renderMammothBody(buffer);
   const cdnDoc = await wordDocToHtmlViaCdn(buffer, mammothBody);
   if (Buffer.byteLength(cdnDoc, 'utf-8') > OFFICE_HTML_OUTPUT_CAP) {
-    return wrapAsDocument(`<article class="lc-docx">${mammothBody}</article>`, DOCX_EXTRA_CSS);
+    return wrapAsDocument(`<article class="lc-docx">${mammothBody}</article>`, DOCX_EXTRA_CSS, {
+      forceLight: true,
+    });
   }
   return cdnDoc;
 }
@@ -685,7 +718,9 @@ async function renderWorkbookSheets(
  */
 function renderSpreadsheetHtml(sheets: RenderedSheet[]): string {
   if (sheets.length === 0) {
-    return wrapAsDocument('<p class="lc-banner">This workbook contains no sheets.</p>');
+    return wrapAsDocument('<p class="lc-banner">This workbook contains no sheets.</p>', '', {
+      forceLight: true,
+    });
   }
 
   const tabStripCss = `
@@ -738,7 +773,7 @@ ${sheets
     })
     .join('\n');
 
-  return wrapAsDocument(`${radios}\n${tabs}\n${panels}`, tabStripCss);
+  return wrapAsDocument(`${radios}\n${tabs}\n${panels}`, tabStripCss, { forceLight: true });
 }
 
 function escapeHtml(input: string): string {
@@ -1004,7 +1039,7 @@ function renderPptxSlidesBody(slides: PptxSlide[]): string {
 }
 
 function renderPptxSlidesHtml(slides: PptxSlide[]): string {
-  return wrapAsDocument(renderPptxSlidesBody(slides), PPTX_SLIDE_LIST_CSS);
+  return wrapAsDocument(renderPptxSlidesBody(slides), PPTX_SLIDE_LIST_CSS, { forceLight: true });
 }
 
 /**

@@ -474,20 +474,31 @@ const createMeiliMongooseModel = ({
       const object = this.preprocessObjectForIndex!();
       const maxRetries = 3;
       let retryCount = 0;
+      let indexed = false;
 
       while (retryCount < maxRetries) {
         try {
           await index.addDocuments([object], { primaryKey });
+          indexed = true;
           break;
         } catch (error) {
           retryCount++;
           if (retryCount >= maxRetries) {
-            logger.error('[addObjectToMeili] Error adding document to Meili after retries:', error);
+            /* Keep `_meiliIndex=false` so the next scheduled sync can retry.
+             * Marking a failed write as indexed permanently lost the document
+             * from search and made transient Meili restarts look like data loss. */
+            logger.warn('[addObjectToMeili] Meili unavailable after retries; queued for next sync', {
+              message: error instanceof Error ? error.message : String(error),
+            });
             return next();
           }
           // Exponential backoff
           await new Promise((resolve) => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
         }
+      }
+
+      if (!indexed) {
+        return next();
       }
 
       try {

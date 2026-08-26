@@ -779,6 +779,9 @@ describe('AttachmentGroup routing', () => {
 
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getAllByTestId('file-container').map((chip) => chip.textContent)).toEqual(
+      expect.arrayContaining(['c.json']),
+    );
     expect(container.querySelector('pre')).toBeNull();
   });
 
@@ -880,12 +883,12 @@ describe('AttachmentGroup routing', () => {
     expect(screen.getByText('index.html')).toBeInTheDocument();
     // Mermaid render
     expect(screen.getByTestId('mermaid-render')).toBeInTheDocument();
-    // JSON has a structured artifact card; only the plain archive remains in
-    // the file bucket, so no collapsed file-group control is needed.
-    expect(screen.queryByRole('button', { name: 'com_ui_show_n_files' })).not.toBeInTheDocument();
+    // JSON is download-only and is grouped with the plain archive.
+    const fileToggle = screen.getByRole('button', { name: 'com_ui_show_n_files' });
+    fireEvent.click(fileToggle);
     const chipLabels = screen.getAllByTestId('file-container').map((chip) => chip.textContent);
     expect(chipLabels).toContain('archive.zip');
-    expect(screen.getByText('data.json')).toBeInTheDocument();
+    expect(chipLabels).toContain('data.json');
     expect(container.querySelector('pre')).toBeNull();
   });
 });

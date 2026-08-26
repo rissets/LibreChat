@@ -220,7 +220,12 @@ const FileAttachmentGroup = memo(({ attachments }: { attachments: TAttachment[] 
     const files: TAttachment[] = [];
     const textPreviews: TAttachment[] = [];
     for (const attachment of visibleAttachments) {
-      if (isTextAttachment(attachment)) {
+      // JSON is intentionally download-only. Even after a file group is
+      // expanded, never promote its raw text into the expandable <pre> view.
+      if (
+        artifactTypeForAttachment(attachment) !== TOOL_ARTIFACT_TYPES.JSON &&
+        isTextAttachment(attachment)
+      ) {
         textPreviews.push(attachment);
         continue;
       }
@@ -516,6 +521,12 @@ export default function Attachment({ attachment }: { attachment?: TAttachment })
   // `PanelArtifact` -> `fileToArtifact` so the panel path doesn't
   // re-run `detectArtifactTypeFromFile` a second time.
   const artType = artifactTypeForAttachment(attachment);
+  // JSON is a source/data deliverable, not a visual artifact. Keep it in the
+  // normal download card so a generated JSON file is never auto-opened in the
+  // artifact panel or rendered as a large code preview.
+  if (artType === TOOL_ARTIFACT_TYPES.JSON) {
+    return <FileAttachment attachment={attachment} />;
+  }
   if (artType === TOOL_ARTIFACT_TYPES.MERMAID) {
     return <MermaidArtifact attachment={attachment} />;
   }
@@ -562,6 +573,12 @@ export function AttachmentGroup({ attachments }: { attachments?: TAttachment[] }
       return;
     }
     const artType = artifactTypeForAttachment(attachment);
+    // JSON remains download-only; do not put it in the panel row even when
+    // the backend has already populated its text field.
+    if (artType === TOOL_ARTIFACT_TYPES.JSON) {
+      fileAttachments.push(attachment);
+      return;
+    }
     if (artType === TOOL_ARTIFACT_TYPES.MERMAID) {
       mermaidArtifacts.push(attachment);
       return;

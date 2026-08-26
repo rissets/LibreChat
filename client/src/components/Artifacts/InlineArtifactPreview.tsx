@@ -20,7 +20,6 @@ const INLINE_TYPES = new Set<string>([
   TOOL_ARTIFACT_TYPES.REACT,
   TOOL_ARTIFACT_TYPES.MERMAID,
   TOOL_ARTIFACT_TYPES.SVG,
-  TOOL_ARTIFACT_TYPES.JSON,
   TOOL_ARTIFACT_TYPES.MARKDOWN,
   TOOL_ARTIFACT_TYPES.PLAIN_TEXT,
   TOOL_ARTIFACT_TYPES.DOCX,
@@ -65,7 +64,23 @@ const canonicalInlineToken = (token: string): string => {
   return token;
 };
 
+function contentFingerprint(content: string): string {
+  // A small deterministic fingerprint is enough for render de-duplication and
+  // avoids pulling a crypto implementation into the browser bundle. The
+  // content itself remains the source of truth; this is only a Recoil key.
+  let hash = 2166136261;
+  for (let index = 0; index < content.length; index += 1) {
+    hash ^= content.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16);
+}
+
 export const logicalInlineArtifactIdentity = (artifact: Artifact): string => {
+  const content = artifact.content?.trim();
+  if (content) {
+    return `${artifact.type ?? 'unknown'}:content-${contentFingerprint(content)}`;
+  }
   const label = artifact.identifier ?? artifact.title ?? 'artifact';
   const tokens = label
     .normalize('NFKD')
@@ -129,7 +144,7 @@ export default function InlineArtifactPreview({ artifact }: { artifact: Artifact
     return (
       <section
         aria-label={artifact.title ?? 'HelloDigi SVG artifact'}
-        className="relative my-3 w-full max-w-none overflow-hidden rounded-2xl border border-border-light bg-surface-primary shadow-sm sm:-ml-9 sm:w-[calc(100%+36px)]"
+        className="hellodigi-artifact-scroll relative my-3 mx-auto w-fit max-w-full overflow-auto rounded-2xl border border-border-light bg-surface-primary shadow-sm"
       >
         {annotationControl}
         <SvgArtifactPreview content={artifact.content ?? ''} title={artifact.title} />
@@ -141,7 +156,7 @@ export default function InlineArtifactPreview({ artifact }: { artifact: Artifact
     return (
       <section
         aria-label={artifact.title ?? 'HelloDigi data artifact'}
-        className="relative my-3 w-full max-w-none overflow-hidden rounded-2xl border border-border-light bg-surface-primary shadow-sm sm:-ml-9 sm:w-[calc(100%+36px)]"
+        className="hellodigi-artifact-scroll relative my-3 w-full max-w-[1100px] overflow-hidden rounded-2xl border border-border-light bg-surface-primary shadow-sm"
       >
         {annotationControl}
         <InlineDataArtifactPreview artifact={artifact} />
@@ -152,10 +167,10 @@ export default function InlineArtifactPreview({ artifact }: { artifact: Artifact
   return (
     <section
       aria-label={artifact.title ?? 'HelloDigi artifact preview'}
-      className="relative my-3 w-full max-w-none overflow-hidden rounded-2xl border border-border-light bg-surface-primary shadow-sm sm:-ml-9 sm:w-[calc(100%+36px)]"
+      className="hellodigi-artifact-scroll relative my-3 w-full max-w-none overflow-hidden rounded-2xl border border-border-light bg-surface-primary shadow-sm sm:-ml-9 sm:w-[calc(100%+36px)]"
     >
       {annotationControl}
-      <div className="h-[min(78vh,820px)] min-h-[520px] w-full overflow-hidden bg-surface-primary sm:min-h-[560px]">
+      <div className="h-[min(64vh,680px)] min-h-[360px] w-full overflow-hidden bg-surface-primary sm:min-h-[420px]">
         <ArtifactPreview
           files={files}
           fileKey={fileKey}

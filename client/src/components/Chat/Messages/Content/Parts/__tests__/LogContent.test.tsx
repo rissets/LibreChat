@@ -117,7 +117,7 @@ describe('LogContent attachment routing', () => {
     expect(screen.queryByRole('button', { pressed: true })).not.toBeInTheDocument();
   });
 
-  it('routes text-bearing JSON through the structured Artifact card', () => {
+  it('keeps text-bearing JSON in the generated-files download list', () => {
     const json = baseAttachment({
       file_id: 'c',
       filename: 'data.json',
@@ -125,8 +125,9 @@ describe('LogContent attachment routing', () => {
     });
     const { container } = renderWith(<LogContent output="" attachments={[json]} />);
     expect(container.querySelector('pre')).toBeNull();
-    expect(screen.getByRole('button', { pressed: true })).toBeInTheDocument();
-    expect(screen.getByText('data.json')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { pressed: true })).not.toBeInTheDocument();
+    expect(screen.getByTestId('log-link')).toHaveAttribute('data-filename', 'data.json');
+    expect(screen.getByTestId('log-link')).toHaveTextContent('data.json');
     expect(screen.queryByTestId('mermaid-render')).not.toBeInTheDocument();
   });
 
@@ -213,8 +214,7 @@ describe('LogContent attachment routing', () => {
       } as Partial<TAttachment>),
       baseAttachment({
         file_id: 't',
-        /* JSON uses the structured Artifact card, like other rich data
-         * formats, instead of exposing raw source as the primary chat UI. */
+        /* JSON is a source/data deliverable, so it stays download-only. */
         filename: 'notes.json',
         text: '{"a":1,"b":2}',
       } as Partial<TAttachment>),
@@ -226,8 +226,8 @@ describe('LogContent attachment routing', () => {
     expect(screen.getByText('index.html')).toBeInTheDocument();
     // mermaid render present
     expect(screen.getByTestId('mermaid-render')).toBeInTheDocument();
-    // JSON is a separate structured artifact, not raw inline source.
-    expect(screen.getByText('notes.json')).toBeInTheDocument();
+    // JSON is listed as a download, never as a side-panel or raw source view.
+    expect(screen.getByTestId('log-link')).toHaveAttribute('data-filename', 'notes.json');
     expect(container.querySelector('pre')).toBeNull();
   });
 });

@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
-import { ArrowRight, Download, FileCode2, Files, MessageSquareText } from 'lucide-react';
-import { useRecoilValue, useSetRecoilState } from 'recoil';
+import { ArrowRight, Download, Files, MessageSquareText } from 'lucide-react';
+import { useSetRecoilState } from 'recoil';
 import { Tools } from 'librechat-data-provider';
 import type { TAttachment, TFile, TAttachmentMetadata } from 'librechat-data-provider';
-import type { Artifact, TAskFunction } from '~/common';
+import type { TAskFunction } from '~/common';
 import FilePreview from '~/components/Chat/Input/Files/FilePreview';
 import { useAttachmentLink } from './Content/Parts/LogLink';
 import { displayFilename } from './Content/Parts/attachmentTypes';
@@ -90,71 +90,6 @@ function GeneratedFileCard({ attachment }: { attachment: TAttachment }) {
   );
 }
 
-function artifactFilename(artifact: Artifact): string {
-  const title = artifact.title?.trim() || 'artifact';
-  if (/\.[a-z0-9]{1,8}$/i.test(title)) {
-    return title;
-  }
-  let extension = 'txt';
-  if (artifact.type === 'text/html') {
-    extension = 'html';
-  } else if (artifact.type === 'application/vnd.mermaid') {
-    extension = 'mmd';
-  } else if (artifact.type?.includes('react')) {
-    extension = 'tsx';
-  }
-  return `${title}.${extension}`;
-}
-
-function GeneratedArtifactCard({ artifact }: { artifact: Artifact }) {
-  const localize = useLocalize();
-  const setCurrentArtifactId = useSetRecoilState(store.currentArtifactId);
-  const setVisible = useSetRecoilState(store.artifactsVisibility);
-  const filename = artifactFilename(artifact);
-
-  const downloadSource = () => {
-    const blob = new Blob([artifact.content ?? ''], { type: artifact.type ?? 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = filename;
-    anchor.click();
-    URL.revokeObjectURL(url);
-  };
-
-  return (
-    <div className="group flex min-w-0 items-stretch overflow-hidden rounded-xl border border-border-light bg-surface-secondary transition-colors hover:bg-surface-hover">
-      <button
-        type="button"
-        onClick={() => {
-          setCurrentArtifactId(artifact.id);
-          setVisible(true);
-        }}
-        className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left"
-      >
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface-active-alt text-text-secondary">
-          <FileCode2 className="size-5" aria-hidden="true" />
-        </span>
-        <span className="min-w-0">
-          <span className="block truncate text-sm font-medium text-text-primary" title={filename}>
-            {filename}
-          </span>
-          <span className="block truncate text-xs text-text-secondary">
-            {localize('com_ui_artifact_editable')}
-          </span>
-        </span>
-      </button>
-      <button
-        type="button"
-        onClick={downloadSource}
-        className="flex w-11 shrink-0 items-center justify-center border-l border-border-light text-text-secondary hover:text-text-primary"
-        aria-label={`${localize('com_ui_download')} ${filename}`}
-      >
-        <Download className="size-4" aria-hidden="true" />
-      </button>
-    </div>
-  );
-}
 
 function suggestedPrompts(attachments: TAttachment[]): string[] {
   const extensions = attachments.map((item) =>
@@ -198,7 +133,6 @@ function suggestedPrompts(attachments: TAttachment[]): string[] {
 export default function ResponseCompletion({
   attachments,
   ask,
-  messageId,
   showSuggestions = false,
 }: {
   attachments: TAttachment[];
@@ -208,7 +142,6 @@ export default function ResponseCompletion({
   showSuggestions?: boolean;
 }) {
   const localize = useLocalize();
-  const artifactMap = useRecoilValue(store.artifactsState);
   const files = useMemo(() => {
     const seen = new Set<string>();
     return attachments.filter((attachment, index) => {
@@ -227,48 +160,18 @@ export default function ResponseCompletion({
       return true;
     });
   }, [attachments]);
-  const generatedArtifacts = useMemo(() => {
-    // Persisted message attachments are the durable source of truth. An
-    // artifact that is also attached to the saved message must render once
-    // from that attachment, so it survives leaving and reopening a chat
-    // without a duplicate card from ephemeral Recoil state.
-    const persistedArtifactIds = new Set(
-      files
-        .map((attachment) => fileToArtifact(attachment as TFile))
-        .filter((artifact): artifact is Artifact => artifact != null)
-        .map((artifact) => artifact.id),
-    );
-    return Object.values(artifactMap ?? {}).filter(
-      (artifact): artifact is Artifact =>
-        artifact != null &&
-        messageId != null &&
-        artifact.messageId === messageId &&
-        !persistedArtifactIds.has(artifact.id),
-    );
-  }, [artifactMap, files, messageId]);
   const prompts = useMemo(
-    () =>
-      suggestedPrompts([
-        ...files,
-        ...generatedArtifacts.map(
-          (artifact) =>
-            ({
-              filename: artifactFilename(artifact),
-              type: artifact.type,
-              filepath: `artifact:${artifact.id}`,
-            }) as TAttachment,
-        ),
-      ]),
-    [files, generatedArtifacts],
+    () => suggestedPrompts(files),
+    [files],
   );
 
-  if (files.length === 0 && generatedArtifacts.length === 0 && !showSuggestions) {
+  if (files.length === 0 && !showSuggestions) {
     return null;
   }
 
   return (
     <div className="mt-5 space-y-5">
-      {(files.length > 0 || generatedArtifacts.length > 0) && (
+      {files.length > 0 && (
         <section aria-label="File hasil">
           <div className="mb-2 flex items-center gap-2 text-sm font-medium text-text-primary">
             <Files className="size-4" aria-hidden="true" />
@@ -277,9 +180,6 @@ export default function ResponseCompletion({
           <div className="grid gap-2 md:grid-cols-2">
             {files.map((attachment, index) => (
               <GeneratedFileCard key={fileIdentity(attachment, index)} attachment={attachment} />
-            ))}
-            {generatedArtifacts.map((artifact) => (
-              <GeneratedArtifactCard key={artifact.id} artifact={artifact} />
             ))}
           </div>
         </section>

@@ -103,6 +103,37 @@
   @apply h-full w-full grow;
 }
 
+/* Artifact previews are intentionally compact and quiet. Keep the scroll
+ * affordance available for long pages, but avoid the browser-default rails
+ * dominating dashboards, games, and document previews. */
+.hellodigi-artifact-scroll,
+.hellodigi-artifact-scroll * {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.55) transparent;
+}
+
+.hellodigi-artifact-scroll::-webkit-scrollbar,
+.hellodigi-artifact-scroll *::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.hellodigi-artifact-scroll::-webkit-scrollbar-track,
+.hellodigi-artifact-scroll *::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.hellodigi-artifact-scroll::-webkit-scrollbar-thumb,
+.hellodigi-artifact-scroll *::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.55);
+  border-radius: 999px;
+}
+
+.hellodigi-artifact-scroll::-webkit-scrollbar-thumb:hover,
+.hellodigi-artifact-scroll *::-webkit-scrollbar-thumb:hover {
+  background: rgba(71, 85, 105, 0.8);
+}
+
 .sp-cm {
   @apply h-full w-full grow;
 }

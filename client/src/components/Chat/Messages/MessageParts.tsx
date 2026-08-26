@@ -11,6 +11,7 @@ import {
 import { useMessageHelpers, useLocalize, useAttachments, useContentMetadata } from '~/hooks';
 import AuthorHeader from '~/components/Chat/Messages/Content/Parts/AuthorHeader';
 import { artifactTypeForAttachment } from './Content/Parts/attachmentTypes';
+import { TOOL_ARTIFACT_TYPES } from '~/utils/artifacts';
 import { revealOnRowHoverClasses, messageFooterClasses } from './styles';
 import MessageRow from '~/components/Chat/Messages/ui/MessageRow';
 import MessageIcon from '~/components/Chat/Messages/MessageIcon';
@@ -97,7 +98,10 @@ function MessageParts(props: TMessageProps) {
     () =>
       !isCreatedByUser &&
       (/:{2,3}artifact(?:\{|:)/.test(JSON.stringify(message?.content ?? [])) ||
-        attachments.some((attachment) => artifactTypeForAttachment(attachment) != null)),
+        attachments.some((attachment) => {
+          const type = artifactTypeForAttachment(attachment);
+          return type != null && type !== TOOL_ARTIFACT_TYPES.JSON;
+        })),
     [attachments, isCreatedByUser, message?.content],
   );
 

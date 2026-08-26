@@ -30,11 +30,14 @@ describe('logicalInlineArtifactIdentity', () => {
 
   test.each([
     TOOL_ARTIFACT_TYPES.SVG,
-    TOOL_ARTIFACT_TYPES.JSON,
     TOOL_ARTIFACT_TYPES.PLAIN_TEXT,
     TOOL_ARTIFACT_TYPES.MARKDOWN,
     TOOL_ARTIFACT_TYPES.MERMAID,
   ])('supports %s for direct inline rendering', (type) => {
     expect(supportsInlineArtifact({ type, content: 'content' } as Artifact)).toBe(true);
+  });
+
+  test('does not treat JSON as an inline visual artifact', () => {
+    expect(supportsInlineArtifact({ type: TOOL_ARTIFACT_TYPES.JSON, content: '{"a":1}' } as Artifact)).toBe(false);
   });
 });

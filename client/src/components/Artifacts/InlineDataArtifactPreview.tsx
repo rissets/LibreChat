@@ -5,8 +5,7 @@ import { TOOL_ARTIFACT_TYPES } from '~/utils/artifacts';
 const JSON_TYPES = new Set<string>([TOOL_ARTIFACT_TYPES.JSON]);
 
 export const isInlineDataArtifact = (type: string | null | undefined): boolean =>
-  type === TOOL_ARTIFACT_TYPES.PLAIN_TEXT ||
-  JSON_TYPES.has(type ?? '');
+  type === TOOL_ARTIFACT_TYPES.PLAIN_TEXT;
 
 /**
  * Formats JSON only when it is valid. Invalid JSON remains visible exactly as
