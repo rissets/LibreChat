@@ -10,6 +10,9 @@ import {
 import type { TAttachment, TFile, TAttachmentMetadata } from 'librechat-data-provider';
 import type { Artifact } from '~/common';
 import FilePreview from '~/components/Chat/Input/Files/FilePreview';
+import InlineArtifactPreview, {
+  supportsInlineArtifact,
+} from '~/components/Artifacts/InlineArtifactPreview';
 import { isCodeOnlyArtifact } from '~/utils/artifacts';
 import { displayFilename } from './attachmentTypes';
 import { useAttachmentLink } from './LogLink';
@@ -78,6 +81,9 @@ const ToolArtifactCard = memo(({ attachment, artifact }: ToolArtifactCardProps) 
   const resetCurrentArtifactId = useResetRecoilState(store.currentArtifactId);
   const currentArtifactId = useRecoilValue(store.currentArtifactId);
   const existingEntry = useRecoilValue(store.artifactByIdSelector(artifact.id));
+  const isSubmittingAtMount = useRecoilValue(store.isSubmittingFamily(0));
+  const mountedDuringStreamRef = useRef(isSubmittingAtMount);
+  const autoFocusHandledRef = useRef(false);
   const [claim, setClaim] = useRecoilState(store.toolArtifactClaim(artifact.id));
   const isSelected = artifact.id === currentArtifactId;
   const isMyClaim = claim === claimKey;
@@ -97,31 +103,6 @@ const ToolArtifactCard = memo(({ attachment, artifact }: ToolArtifactCardProps) 
       },
     [],
   );
-  /**
-   * Captured at first render via a non-subscribing snapshot read so the
-   * downstream effect doesn't re-fire (and the component doesn't
-   * re-render) every time `isSubmittingFamily(0)` flips. Cards that mount
-   * mid-stream stay "fresh" for the rest of their lifetime; cards that
-   * mount post-stream stay "history" even if the user sends a new
-   * message while this card stays mounted.
-   */
-  const readInitialIsSubmitting = useRecoilCallback(
-    ({ snapshot }) =>
-      () =>
-        // `valueMaybe()` returns `undefined` if the atom is in an error
-        // or loading state instead of throwing — defensive against an
-        // upstream selector failure surfacing during card mount. The
-        // `?? false` default is correct because a card we can't classify
-        // as streaming is one we should treat as history (don't steal
-        // focus / open the panel).
-        snapshot.getLoadable(store.isSubmittingFamily(0)).valueMaybe() ?? false,
-    [],
-  );
-  const mountedDuringStreamRef = useRef<boolean | null>(null);
-  if (mountedDuringStreamRef.current === null) {
-    mountedDuringStreamRef.current = readInitialIsSubmitting();
-  }
-
   useLayoutEffect(() => {
     // Always (re)claim on mount — a later card for the same id displaces
     // an earlier one, so the chip migrates to the most recent mention.
@@ -154,42 +135,24 @@ const ToolArtifactCard = memo(({ attachment, artifact }: ToolArtifactCardProps) 
   }, [artifact, existingEntry, isMyClaim, setArtifacts]);
 
   useEffect(() => {
-    if (isCodeOnlyArtifact(artifact.type)) {
-      // Source-code artifacts (`.py`, `.js`, `.cpp`, `Dockerfile`, …) are
-      // click-to-open only. They're typically supporting scripts the
-      // agent emits alongside a richer deliverable; auto-opening them
-      // would shove the panel in front of the user every time a tool
-      // call writes a helper file. The rich-preview buckets (HTML,
-      // React, Markdown, plain text) keep the legacy auto-open UX so
-      // an HTML deliverable still surfaces immediately.
+    if (autoFocusHandledRef.current || !isMyClaim || isCodeOnlyArtifact(artifact.type)) {
       return;
     }
-    /* Two paths qualify the card for auto-open:
-     *   1. Streaming-time mount — ref captured `isSubmitting === true`
-     *      at first render. The card is part of the live response, so
-     *      the legacy "panel pops open as artifacts arrive" UX applies.
-     *   2. Just-resolved deferred preview — `useAttachmentPreviewSync`
-     *      sets a one-shot flag on the pending→ready edge. The
-     *      deferred render can complete *after* the SSE stream closes,
-     *      so checking only `isSubmitting` would miss this case (the
-     *      chip would render in place but never auto-open). Consuming
-     *      the flag also resets it, so subsequent re-mounts (panel
-     *      close/reopen, history scroll) do not re-steal focus.
-     * History mounts (file already resolved on page load) hit neither
-     * path, so the panel stays closed on navigation — no jarring
-     * auto-open just from scrolling past an old artifact. */
     const justResolved = fileId ? consumeJustResolved(fileId) : false;
-    if (!mountedDuringStreamRef.current && !justResolved) {
-      return;
+    autoFocusHandledRef.current = true;
+    if (mountedDuringStreamRef.current || justResolved) {
+      setCurrentArtifactId(artifact.id);
+      setVisible(true);
     }
-    // Streaming arrival or just-resolved preview: focus the new artifact
-    // AND force the panel visible. Without `setVisible(true)`, a session
-    // where the user had previously closed the panel (visibility=false)
-    // would surface the selection in the chip ("click to close") but
-    // never actually open — `Presentation` gates rendering on visibility.
-    setCurrentArtifactId(artifact.id);
-    setVisible(true);
-  }, [artifact.id, artifact.type, fileId, consumeJustResolved, setCurrentArtifactId, setVisible]);
+  }, [
+    artifact.id,
+    artifact.type,
+    consumeJustResolved,
+    fileId,
+    isMyClaim,
+    setCurrentArtifactId,
+    setVisible,
+  ]);
 
   const { handleDownload } = useAttachmentLink({
     href: attachment.filepath ?? '',
@@ -226,46 +189,50 @@ const ToolArtifactCard = memo(({ attachment, artifact }: ToolArtifactCardProps) 
   // tool artifacts, so re-derive the user-facing label rather than
   // showing the collision-suffixed name.
   const visibleTitle = displayFilename(artifact.title);
-
+  if (supportsInlineArtifact(artifact)) {
+    return <InlineArtifactPreview artifact={artifact} />;
+  }
   return (
-    <div className="group relative my-2 inline-flex max-w-fit items-stretch gap-px overflow-hidden rounded-xl text-sm text-text-primary shadow-sm">
-      <button
-        type="button"
-        onClick={handleOpen}
-        aria-pressed={isSelected}
-        className={cn(
-          'relative overflow-hidden rounded-l-xl transition-all duration-200 hover:bg-surface-hover active:scale-[0.99]',
-          {
-            'border-border-medium bg-surface-hover': isSelected,
-            'border-border-light bg-surface-tertiary': !isSelected,
-          },
-        )}
-      >
-        <div className="w-fit p-2">
-          <div className="flex flex-row items-center gap-2">
-            <FilePreview fileType={fileType} className="relative" />
-            <div className="overflow-hidden text-left">
-              <div className="truncate font-medium" title={visibleFilename}>
-                {visibleTitle}
+    <div className="my-2 w-full text-sm text-text-primary">
+      <div className="group relative inline-flex max-w-fit items-stretch gap-px overflow-hidden rounded-xl shadow-sm">
+        <button
+          type="button"
+          onClick={handleOpen}
+          aria-pressed={isSelected}
+          className={cn(
+            'relative overflow-hidden rounded-l-xl transition-all duration-200 hover:bg-surface-hover active:scale-[0.99]',
+            {
+              'border-border-medium bg-surface-hover': isSelected,
+              'border-border-light bg-surface-tertiary': !isSelected,
+            },
+          )}
+        >
+          <div className="w-fit p-2">
+            <div className="flex flex-row items-center gap-2">
+              <FilePreview fileType={fileType} className="relative" />
+              <div className="overflow-hidden text-left">
+                <div className="truncate font-medium" title={visibleFilename}>
+                  {visibleTitle}
+                </div>
+                <div className="truncate text-xs text-text-secondary">{actionLabel}</div>
               </div>
-              <div className="truncate text-xs text-text-secondary">{actionLabel}</div>
             </div>
           </div>
-        </div>
-      </button>
-      <button
-        type="button"
-        onClick={handleDownload}
-        aria-label={`${localize('com_ui_download')} ${visibleFilename}`}
-        title={localize('com_ui_download')}
-        className={cn(
-          'flex shrink-0 items-center justify-center px-3 transition-colors duration-200',
-          'rounded-r-xl bg-surface-tertiary text-text-secondary hover:bg-surface-hover hover:text-text-primary',
-          'border-l border-border-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-heavy',
-        )}
-      >
-        <Download className="size-4" aria-hidden="true" />
-      </button>
+        </button>
+        <button
+          type="button"
+          onClick={handleDownload}
+          aria-label={`${localize('com_ui_download')} ${visibleFilename}`}
+          title={localize('com_ui_download')}
+          className={cn(
+            'flex shrink-0 items-center justify-center px-3 transition-colors duration-200',
+            'rounded-r-xl bg-surface-tertiary text-text-secondary hover:bg-surface-hover hover:text-text-primary',
+            'border-l border-border-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-heavy',
+          )}
+        >
+          <Download className="size-4" aria-hidden="true" />
+        </button>
+      </div>
     </div>
   );
 });

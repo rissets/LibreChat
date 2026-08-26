@@ -44,7 +44,7 @@ export default function StartupLayout({ isAuthenticated }: { isAuthenticated?: b
   }, [isAuthenticated, navigate, data]);
 
   useEffect(() => {
-    document.title = startupConfig?.appTitle || 'BP Batam AI';
+    document.title = startupConfig?.appTitle || 'HelloDigi';
   }, [startupConfig?.appTitle]);
 
   useEffect(() => {

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="AHU MariaDB">
+  <rect width="64" height="64" rx="16" fill="#102a43"/>
+  <ellipse cx="32" cy="17" rx="20" ry="8" fill="#d8a34a"/>
+  <path d="M12 17v27c0 4.4 9 8 20 8s20-3.6 20-8V17" fill="#1d4f72" stroke="#d8a34a" stroke-width="3"/>
+  <path d="M12 30c0 4.4 9 8 20 8s20-3.6 20-8M12 43c0 4.4 9 8 20 8s20-3.6 20-8" fill="none" stroke="#d8a34a" stroke-width="3"/>
+  <path d="M23 22h18M23 35h18" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+</svg>

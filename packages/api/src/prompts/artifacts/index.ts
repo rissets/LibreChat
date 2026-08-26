@@ -44,11 +44,13 @@ Artifacts are for substantial, self-contained content that users might modify or
      :::
 
   2. Assign an identifier to the \`identifier\` attribute. For updates, reuse the prior identifier. For new artifacts, the identifier should be descriptive and relevant to the content, using kebab-case (e.g., "example-code-snippet"). This identifier will be used consistently throughout the artifact's lifecycle, even when updating or iterating on the artifact.
+  2a. A saved code output and a direct artifact that represent the same deliverable must render once. If code execution creates an HTML, SVG, diagram, dashboard, document, workbook, or slide file that the interface will preview inline, do not repeat that output in a second :::artifact block; return the single canonical preview and its generated file.
   3. Include a \`title\` attribute to provide a brief title or description of the content.
   4. Add a \`type\` attribute to specify the type of content the artifact represents. Assign one of the following values to the \`type\` attribute:
     - HTML: "text/html"
       - The user interface can render single file HTML pages placed within the artifact tags. HTML, JS, and CSS should be in a single file when using the \`text/html\` type.
       - Images from the web are not allowed, but you can use placeholder images by specifying the width and height like so \`<img src="/api/placeholder/400/320" alt="placeholder" />\`
+      - For interactive HTML charts, use native SVG/canvas or the pinned Chart.js URL https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js. Never import chart scripts from jsdelivr. If a library cannot load, render the chart with native SVG rather than leaving it blank; do not describe CDN restrictions to the user.
       - The only place external scripts can be imported from is https://cdnjs.cloudflare.com
     - SVG: "image/svg+xml"
       - The user interface will render the Scalable Vector Graphics (SVG) image within the artifact tags.
@@ -249,11 +251,13 @@ Artifacts are for substantial, self-contained content that users might modify or
    - Don't omit the closing :::
 
   2. Assign an identifier to the \`identifier\` attribute. For updates, reuse the prior identifier. For new artifacts, the identifier should be descriptive and relevant to the content, using kebab-case (e.g., "example-code-snippet"). This identifier will be used consistently throughout the artifact's lifecycle, even when updating or iterating on the artifact.
+  2a. A saved code output and a direct artifact that represent the same deliverable must render once. If code execution creates an HTML, SVG, diagram, dashboard, document, workbook, or slide file that the interface will preview inline, do not repeat that output in a second :::artifact block; return the single canonical preview and its generated file.
   3. Include a \`title\` attribute to provide a brief title or description of the content.
   4. Add a \`type\` attribute to specify the type of content the artifact represents. Assign one of the following values to the \`type\` attribute:
     - HTML: "text/html"
       - The user interface can render single file HTML pages placed within the artifact tags. HTML, JS, and CSS should be in a single file when using the \`text/html\` type.
       - Images from the web are not allowed, but you can use placeholder images by specifying the width and height like so \`<img src="/api/placeholder/400/320" alt="placeholder" />\`
+      - For interactive HTML charts, use native SVG/canvas or the pinned Chart.js URL https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js. Never import chart scripts from jsdelivr. If a library cannot load, render the chart with native SVG rather than leaving it blank; do not describe CDN restrictions to the user.
       - The only place external scripts can be imported from is https://cdnjs.cloudflare.com
     - SVG: "image/svg+xml"
       - The user interface will render the Scalable Vector Graphics (SVG) image within the artifact tags.
@@ -420,6 +424,36 @@ export function generateArtifactsPrompt(params: {
 
   if (artifacts === ArtifactModes.SHADCNUI) {
     prompt += generateShadcnPrompt({ components, useXML: endpoint === EModelEndpoint.anthropic });
+  }
+
+  const modeInstructions: Partial<Record<ArtifactModes, string>> = {
+    [ArtifactModes.WEB]: dedent`
+      \n# Website and application artifact mode
+      Build a complete, responsive, working application rather than a visual mockup. For any multi-screen website, dashboard, portal, game, or application, prefer an \`application/vnd.react\` artifact with React, Tailwind utilities, and the available shadcn/ui primitives; reserve self-contained HTML for a genuinely small single-screen result. Implement real interactions, state, validation, responsive behavior, representative data, accessible controls, loading/empty/error states, and the primary user flow.
+
+      Use code execution to create a complete multi-file project tree when the work needs more than one component: \`package.json\`, \`src/App.tsx\`, focused components, data/types, and styles/assets. Keep files cohesive rather than placing an entire application in one source block. Verify the main build or interaction before completion. The inline artifact is the one canonical runnable preview; source files remain separate generated files and must never create duplicate inline previews. Do not show source paths, execution notes, or implementation commentary to the user.`,
+    [ArtifactModes.DATA]: dedent`
+      \n# Interactive data artifact mode
+      Base every number on the supplied or computed data. Render the most useful chart, graph, table, KPI card, or dashboard directly in the response as an interactive React or HTML artifact. Include labels, units, legends, tooltips, filters, and a concise statement of the key insight. Use Recharts for React charts when appropriate. When code execution saves the same visual as a file, keep one canonical inline preview and do not duplicate it with another :::artifact block.`,
+    [ArtifactModes.PRESENTATION]: dedent`
+      \n# Editable presentation artifact mode
+      Create the presentation as an editable HTML slide engine: one self-contained HTML artifact with a <meta name="hellodigi-artifact-kind" content="presentation"> marker and one semantic <section class="hd-slide" data-slide> per slide. The rendered artifact must show only the designed 16:9 slide canvases and slide navigation—do not render speaker notes, metadata, implementation commentary, or a separate preview gallery. Use editable HTML/SVG for text, shapes, graphs, and diagrams; generated raster images may be embedded when needed. When code execution is available, also produce the editable native PPTX plus PDF export and preserve all source assets as downloadable files.`,
+    [ArtifactModes.DOCUMENT]: dedent`
+      \n# Document and spreadsheet artifact mode
+      Create the complete native document or workbook with correct structure, formulas, formatting, validation, tables, and charts where relevant. Render its preview directly in Artifact and save the original DOCX or XLSX as a downloadable file. If Google Workspace is connected, prepare the file so it can be converted and opened in Google Docs or Google Sheets for editing.`,
+    [ArtifactModes.DIAGRAM]: dedent`
+      \n# Diagram artifact mode
+      Render the diagram directly in the response. Prefer Mermaid for flows, sequences, ERDs, state, class, architecture, and timelines. Use interactive HTML/SVG when the user needs zoom, filtering, drill-down, tooltips, or data-driven behavior. Keep labels readable and include a legend where necessary.`,
+    [ArtifactModes.DESIGN]: dedent`
+      \n# Visual design artifact mode
+      Produce a complete visual design directly in Artifact. Prefer structured SVG or HTML for editable layouts, text, shapes, and brand systems; use image generation for photographic or painterly raster assets. Keep elements selectable and styles editable, include sensible export dimensions, and save reusable source assets.`,
+  };
+  prompt += modeInstructions[artifacts] ?? '';
+
+  if (artifacts === ArtifactModes.SHADCNUI) {
+    prompt += dedent`
+      \n# shadcn/ui delivery contract
+      Use \`application/vnd.react\` for an interface that needs components. Import only the provided shadcn/ui files and documented dependencies, use the exact import paths in the component catalog, and verify the artifact compiles before completion. Use the components purposefully (for example Card, Button, Input, Dialog, Tabs, Table, Select), not as decorative unused imports. Build source as a focused multi-file React project when it is more than a small component; do not substitute a static HTML mockup.`;
   }
 
   return prompt;

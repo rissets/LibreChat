@@ -16,6 +16,7 @@ jest.mock('@librechat/client', () => ({
 
 jest.mock('~/Providers', () => ({
   useMutationState: () => ({ isMutating: false }),
+  useOptionalChatFormContext: () => null,
   useShareContext: () => ({ isSharedConvo: false }),
 }));
 
@@ -66,6 +67,22 @@ jest.mock('./ArtifactVersion', () => ({
 jest.mock('./DownloadArtifact', () => ({
   __esModule: true,
   default: () => null,
+}));
+
+jest.mock('./GoogleWorkspaceEditButton', () => ({
+  __esModule: true,
+  default: () => null,
+}));
+
+jest.mock('./ArtifactPublishButton', () => ({
+  __esModule: true,
+  default: () => null,
+}));
+
+jest.mock('./PresentationExport', () => ({
+  __esModule: true,
+  default: () => null,
+  supportsPresentationExport: () => false,
 }));
 
 jest.mock('./Mermaid/Export', () => ({

@@ -14,6 +14,7 @@ type MessageRowProps = {
   isCreatedByUser: boolean;
   hasParallelContent?: boolean;
   fullWidth?: boolean;
+  fullWidthArtifact?: boolean;
   isEditing?: boolean;
   className?: string;
 };
@@ -31,9 +32,10 @@ export default function MessageRow({
   isCreatedByUser,
   hasParallelContent = false,
   fullWidth = false,
+  fullWidthArtifact = false,
   isEditing = false,
 }: MessageRowProps) {
-  const showAssistantHeader = !isCreatedByUser && !hasParallelContent;
+  const showAssistantHeader = !isCreatedByUser && !hasParallelContent && !fullWidthArtifact;
   let widthClass = 'w-full max-w-3xl';
   if (fullWidth) {
     widthClass = 'w-full max-w-full';
@@ -49,7 +51,7 @@ export default function MessageRow({
       className={cn(
         'message-render group mx-auto flex min-w-0 flex-1 font-theme-ui transition-[max-width] duration-theme-normal motion-reduce:transition-none',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-primary',
-        isCreatedByUser ? 'justify-end' : 'items-start gap-3',
+        isCreatedByUser ? 'justify-end' : cn('items-start', !fullWidthArtifact && 'gap-3'),
         widthClass,
         className,
       )}

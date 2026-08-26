@@ -70,6 +70,12 @@ export const toolArtifactClaim = atomFamily<string | null, string>({
   default: null,
 });
 
+/** Keep one inline frame for the latest version of a named deliverable. */
+export const inlineArtifactClaim = atomFamily<string | null, string>({
+  key: 'inlineArtifactClaim',
+  default: null,
+});
+
 /**
  * Per-artifact-id slice of `artifactsState`. Used by `ToolArtifactCard`
  * for self-heal registration: the card subscribes only to its own

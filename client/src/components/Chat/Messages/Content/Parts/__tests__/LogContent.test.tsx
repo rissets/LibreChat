@@ -1,5 +1,6 @@
 import React from 'react';
 import { RecoilRoot } from 'recoil';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import type { TAttachment } from 'librechat-data-provider';
 import type { MutableSnapshot } from 'recoil';
@@ -41,6 +42,12 @@ jest.mock('~/components/Chat/Messages/Content/Image', () => ({
   default: ({ altText }: { altText?: string }) => <img alt={altText ?? ''} data-testid="image" />,
 }));
 
+jest.mock('~/components/Artifacts/InlineArtifactPreview', () => ({
+  __esModule: true,
+  default: () => <div data-testid="inline-artifact-preview" />,
+  supportsInlineArtifact: () => false,
+}));
+
 jest.mock('~/components/Messages/Content/Mermaid/Mermaid', () => ({
   __esModule: true,
   default: ({ children }: { children: string }) => (
@@ -72,10 +79,17 @@ const baseAttachment = (overrides: Partial<TAttachment> = {}): TAttachment =>
  */
 const renderWith = (ui: React.ReactElement, opts: { streaming?: boolean } = {}) => {
   const streaming = opts.streaming ?? true;
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   const initializeState = (snapshot: MutableSnapshot) => {
     snapshot.set(store.isSubmittingFamily(0), streaming);
   };
-  return render(<RecoilRoot initializeState={initializeState}>{ui}</RecoilRoot>);
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <RecoilRoot initializeState={initializeState}>{ui}</RecoilRoot>
+    </QueryClientProvider>,
+  );
 };
 
 describe('LogContent attachment routing', () => {
@@ -103,18 +117,16 @@ describe('LogContent attachment routing', () => {
     expect(screen.queryByRole('button', { pressed: true })).not.toBeInTheDocument();
   });
 
-  it('routes text-bearing JSON through inline <pre>, not the panel', () => {
-    /* CSV used to fall through here, but now routes to the SPREADSHEET
-     * preview bucket. JSON has no dedicated viewer yet, so it remains
-     * the canonical "unrouted text" example. */
+  it('routes text-bearing JSON through the structured Artifact card', () => {
     const json = baseAttachment({
       file_id: 'c',
       filename: 'data.json',
       text: '{"a":1,"b":2}',
     });
     const { container } = renderWith(<LogContent output="" attachments={[json]} />);
-    expect(container.querySelector('pre')).not.toBeNull();
-    expect(screen.queryByRole('button', { pressed: true })).not.toBeInTheDocument();
+    expect(container.querySelector('pre')).toBeNull();
+    expect(screen.getByRole('button', { pressed: true })).toBeInTheDocument();
+    expect(screen.getByText('data.json')).toBeInTheDocument();
     expect(screen.queryByTestId('mermaid-render')).not.toBeInTheDocument();
   });
 
@@ -201,10 +213,8 @@ describe('LogContent attachment routing', () => {
       } as Partial<TAttachment>),
       baseAttachment({
         file_id: 't',
-        /* JSON stays on the inline `<pre>` rendering path. CSV used to
-         * live here too but now routes to the SPREADSHEET preview
-         * bucket, so it would no longer satisfy the "inline pre" check
-         * below. */
+        /* JSON uses the structured Artifact card, like other rich data
+         * formats, instead of exposing raw source as the primary chat UI. */
         filename: 'notes.json',
         text: '{"a":1,"b":2}',
       } as Partial<TAttachment>),
@@ -216,7 +226,8 @@ describe('LogContent attachment routing', () => {
     expect(screen.getByText('index.html')).toBeInTheDocument();
     // mermaid render present
     expect(screen.getByTestId('mermaid-render')).toBeInTheDocument();
-    // JSON inline pre present
-    expect(container.querySelector('pre')).not.toBeNull();
+    // JSON is a separate structured artifact, not raw inline source.
+    expect(screen.getByText('notes.json')).toBeInTheDocument();
+    expect(container.querySelector('pre')).toBeNull();
   });
 });

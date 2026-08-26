@@ -8,6 +8,7 @@ import {
   getTemplate,
   getArtifactFilename,
   languageForFilename,
+  formatJsonForArtifact,
   wrapAsFencedCodeBlock,
   TOOL_ARTIFACT_TYPES,
 } from '~/utils/artifacts';
@@ -39,6 +40,11 @@ export default function useArtifactProps({ artifact }: { artifact: Artifact }) {
       const lang = artifact.language ?? languageForFilename(artifact.title);
       const wrapped = wrapAsFencedCodeBlock(artifact.content ?? '', lang);
       return ['content.md', getMarkdownFiles(wrapped)];
+    }
+
+    if (type === TOOL_ARTIFACT_TYPES.JSON) {
+      const formatted = formatJsonForArtifact(artifact.content ?? '');
+      return ['content.md', getMarkdownFiles(wrapAsFencedCodeBlock(formatted, 'json'))];
     }
 
     if (type === 'text/markdown' || type === 'text/md' || type === 'text/plain') {

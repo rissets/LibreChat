@@ -1261,7 +1261,16 @@ function base64ToBuffer(base64String) {
 
 async function saveBase64Image(
   url,
-  { req, file_id: _file_id, filename: _filename, endpoint, context, resolution },
+  {
+    req,
+    file_id: _file_id,
+    filename: _filename,
+    endpoint,
+    context,
+    resolution,
+    codeEnvRef,
+    conversationId,
+  },
 ) {
   const appConfig = req.config;
   const effectiveResolution = resolution ?? appConfig.fileConfig?.imageGeneration ?? 'high';
@@ -1287,11 +1296,12 @@ async function saveBase64Image(
     tenantId: req.user.tenantId,
   });
   const storageMetadata = getStorageMetadata({ filepath, source });
+  const persistedContext = codeEnvRef ? FileContext.execute_code : context;
   return await db.createFile(
     {
       type,
       source,
-      context,
+      context: persistedContext,
       file_id,
       filepath,
       ...storageMetadata,
@@ -1299,6 +1309,8 @@ async function saveBase64Image(
       user: req.user.id,
       bytes: image.bytes,
       width: image.width,
+      ...(conversationId ? { conversationId } : {}),
+      ...(codeEnvRef ? { metadata: { codeEnvRef } } : {}),
       ...(await getRetentionExpiry(req)),
       height: image.height,
       tenantId: req.user.tenantId,

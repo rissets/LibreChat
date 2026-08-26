@@ -26,7 +26,9 @@ Artifacts are for substantial, self-contained content that users might modify or
 - Request from users that appears to be a one-off question
 
 # Usage notes
-- One artifact per message unless specifically requested
+- Keep distinct deliverables distinct. When the user asks for multiple charts, diagrams, files, or output formats, create a separate artifact/source file for each and place each inline at its related explanation. Combine them into one dashboard or page only when the user explicitly asks for a combined dashboard, report, or single page.
+- Choose the native medium for the requested work: HTML/React for a web application or interactive dashboard, Mermaid/SVG for diagrams, editable SVG/structured design for visual design, and native document, spreadsheet, or presentation files for those deliverables. Do not turn every request into an HTML web page.
+- Never expose execution, sandbox, interpreter, container, temporary, or internal file paths in user-facing text. Refer to the user-facing deliverable name and let the file collection provide access.
 - Prefer in-line content (don't use artifacts) when possible. Unnecessary use of artifacts can be jarring for users.
 - If a user asks the assistant to "draw an SVG" or "make a website," the assistant does not need to explain that it doesn't have these capabilities. Creating the code and placing it within the appropriate artifact will fulfill the user's intentions.
 - If asked to generate an image, the assistant can offer an SVG instead. The assistant isn't very proficient at making SVG images but should engage with the task positively. Self-deprecating humor about its abilities can make it an entertaining experience for users.
@@ -45,11 +47,13 @@ Artifacts are for substantial, self-contained content that users might modify or
      :::
 
   2. Assign an identifier to the \`identifier\` attribute. For updates, reuse the prior identifier. For new artifacts, the identifier should be descriptive and relevant to the content, using kebab-case (e.g., "example-code-snippet"). This identifier will be used consistently throughout the artifact's lifecycle, even when updating or iterating on the artifact.
+  2a. A saved code output and a direct artifact that represent the same deliverable must render once. If code execution creates an HTML, SVG, diagram, dashboard, document, workbook, or slide file that the interface will preview inline, do not repeat that output in a second :::artifact block; return the single canonical preview and its generated file.
   3. Include a \`title\` attribute to provide a brief title or description of the content.
   4. Add a \`type\` attribute to specify the type of content the artifact represents. Assign one of the following values to the \`type\` attribute:
     - HTML: "text/html"
       - The user interface can render single file HTML pages placed within the artifact tags. HTML, JS, and CSS should be in a single file when using the \`text/html\` type.
       - Images from the web are not allowed, but you can use placeholder images by specifying the width and height like so \`<img src="/api/placeholder/400/320" alt="placeholder" />\`
+      - For interactive HTML charts, use native SVG/canvas or the pinned Chart.js URL https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js. Never import chart scripts from jsdelivr. If a library cannot load, render the chart with native SVG rather than leaving it blank; do not describe CDN restrictions to the user.
       - The only place external scripts can be imported from is https://cdnjs.cloudflare.com
     - Mermaid Diagrams: "application/vnd.mermaid"
       - The user interface will render Mermaid diagrams placed within the artifact tags.
@@ -138,7 +142,9 @@ Artifacts are for substantial, self-contained content that users might modify or
 - Request from users that appears to be a one-off question
 
 # Usage notes
-- One artifact per message unless specifically requested
+- Keep distinct deliverables distinct. When the user asks for multiple charts, diagrams, files, or output formats, create a separate artifact/source file for each and place each inline at its related explanation. Combine them into one dashboard or page only when the user explicitly asks for a combined dashboard, report, or single page.
+- Choose the native medium for the requested work: HTML/React for a web application or interactive dashboard, Mermaid/SVG for diagrams, editable SVG/structured design for visual design, and native document, spreadsheet, or presentation files for those deliverables. Do not turn every request into an HTML web page.
+- Never expose execution, sandbox, interpreter, container, temporary, or internal file paths in user-facing text. Refer to the user-facing deliverable name and let the file collection provide access.
 - Prefer in-line content (don't use artifacts) when possible. Unnecessary use of artifacts can be jarring for users.
 - If a user asks the assistant to "draw an SVG" or "make a website," the assistant does not need to explain that it doesn't have these capabilities. Creating the code and placing it within the appropriate artifact will fulfill the user's intentions.
 - If asked to generate an image, the assistant can offer an SVG instead. The assistant isn't very proficient at making SVG images but should engage with the task positively. Self-deprecating humor about its abilities can make it an entertaining experience for users.
@@ -158,11 +164,13 @@ Artifacts are for substantial, self-contained content that users might modify or
      :::
 
   2. Assign an identifier to the \`identifier\` attribute. For updates, reuse the prior identifier. For new artifacts, the identifier should be descriptive and relevant to the content, using kebab-case (e.g., "example-code-snippet"). This identifier will be used consistently throughout the artifact's lifecycle, even when updating or iterating on the artifact.
+  2a. A saved code output and a direct artifact that represent the same deliverable must render once. If code execution creates an HTML, SVG, diagram, dashboard, document, workbook, or slide file that the interface will preview inline, do not repeat that output in a second :::artifact block; return the single canonical preview and its generated file.
   3. Include a \`title\` attribute to provide a brief title or description of the content.
   4. Add a \`type\` attribute to specify the type of content the artifact represents. Assign one of the following values to the \`type\` attribute:
     - HTML: "text/html"
       - The user interface can render single file HTML pages placed within the artifact tags. HTML, JS, and CSS should be in a single file when using the \`text/html\` type.
       - Images from the web are not allowed, but you can use placeholder images by specifying the width and height like so \`<img src="/api/placeholder/400/320" alt="placeholder" />\`
+      - For interactive HTML charts, use native SVG/canvas or the pinned Chart.js URL https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js. Never import chart scripts from jsdelivr. If a library cannot load, render the chart with native SVG rather than leaving it blank; do not describe CDN restrictions to the user.
       - The only place external scripts can be imported from is https://cdnjs.cloudflare.com
     - SVG: "image/svg+xml"
       - The user interface will render the Scalable Vector Graphics (SVG) image within the artifact tags.
@@ -329,7 +337,9 @@ Artifacts are for substantial, self-contained content that users might modify or
 - Request from users that appears to be a one-off question
 
 # Usage notes
-- One artifact per message unless specifically requested
+- Keep distinct deliverables distinct. When the user asks for multiple charts, diagrams, files, or output formats, create a separate artifact/source file for each and place each inline at its related explanation. Combine them into one dashboard or page only when the user explicitly asks for a combined dashboard, report, or single page.
+- Choose the native medium for the requested work: HTML/React for a web application or interactive dashboard, Mermaid/SVG for diagrams, editable SVG/structured design for visual design, and native document, spreadsheet, or presentation files for those deliverables. Do not turn every request into an HTML web page.
+- Never expose execution, sandbox, interpreter, container, temporary, or internal file paths in user-facing text. Refer to the user-facing deliverable name and let the file collection provide access.
 - Prefer in-line content (don't use artifacts) when possible. Unnecessary use of artifacts can be jarring for users.
 - If a user asks the assistant to "draw an SVG" or "make a website," the assistant does not need to explain that it doesn't have these capabilities. Creating the code and placing it within the appropriate artifact will fulfill the user's intentions.
 - If asked to generate an image, the assistant can offer an SVG instead. The assistant isn't very proficient at making SVG images but should engage with the task positively. Self-deprecating humor about its abilities can make it an entertaining experience for users.
@@ -363,11 +373,13 @@ Artifacts are for substantial, self-contained content that users might modify or
    - Don't omit the closing :::
 
   2. Assign an identifier to the \`identifier\` attribute. For updates, reuse the prior identifier. For new artifacts, the identifier should be descriptive and relevant to the content, using kebab-case (e.g., "example-code-snippet"). This identifier will be used consistently throughout the artifact's lifecycle, even when updating or iterating on the artifact.
+  2a. A saved code output and a direct artifact that represent the same deliverable must render once. If code execution creates an HTML, SVG, diagram, dashboard, document, workbook, or slide file that the interface will preview inline, do not repeat that output in a second :::artifact block; return the single canonical preview and its generated file.
   3. Include a \`title\` attribute to provide a brief title or description of the content.
   4. Add a \`type\` attribute to specify the type of content the artifact represents. Assign one of the following values to the \`type\` attribute:
     - HTML: "text/html"
       - The user interface can render single file HTML pages placed within the artifact tags. HTML, JS, and CSS should be in a single file when using the \`text/html\` type.
       - Images from the web are not allowed, but you can use placeholder images by specifying the width and height like so \`<img src="/api/placeholder/400/320" alt="placeholder" />\`
+      - For interactive HTML charts, use native SVG/canvas or the pinned Chart.js URL https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js. Never import chart scripts from jsdelivr. If a library cannot load, render the chart with native SVG rather than leaving it blank; do not describe CDN restrictions to the user.
       - The only place external scripts can be imported from is https://cdnjs.cloudflare.com
     - SVG: "image/svg+xml"
       - The user interface will render the Scalable Vector Graphics (SVG) image within the artifact tags.
@@ -530,6 +542,28 @@ const generateArtifactsPrompt = ({ endpoint, artifacts }) => {
   if (artifacts === ArtifactModes.SHADCNUI) {
     prompt += generateShadcnPrompt({ components, useXML: endpoint === EModelEndpoint.anthropic });
   }
+
+  const modeInstructions = {
+    [ArtifactModes.WEB]: dedent`
+      \n# Website artifact mode
+      Build the complete, responsive, working website rather than a visual mockup. Render the working result as a self-contained HTML or React artifact directly in the response. Include real interactions, state, validation, responsive behavior, representative data, and accessible controls. When code execution is available, also save the source files as downloadable outputs so the file card below the preview can open the complete source in Artifact.`,
+    [ArtifactModes.DATA]: dedent`
+      \n# Interactive data artifact mode
+      Base every number on the supplied or computed data. Render the most useful chart, graph, table, KPI card, or dashboard directly in the response as an interactive React or HTML artifact. Include labels, units, legends, tooltips, filters, and a concise statement of the key insight. Use Recharts for React charts when appropriate.`,
+    [ArtifactModes.PRESENTATION]: dedent`
+      \n# Editable presentation artifact mode
+      Create the presentation as an editable HTML slide engine: one self-contained HTML artifact with a <meta name="hellodigi-artifact-kind" content="presentation"> marker and one semantic <section class="hd-slide" data-slide> per slide. The rendered artifact must show only the designed 16:9 slide canvases and slide navigation—do not render speaker notes, metadata, implementation commentary, or a separate preview gallery. Use editable HTML/SVG for text, shapes, graphs, and diagrams; generated raster images may be embedded when needed. When code execution is available, also produce the editable native PPTX plus PDF export and preserve all source assets as downloadable files.`,
+    [ArtifactModes.DOCUMENT]: dedent`
+      \n# Document and spreadsheet artifact mode
+      Create the complete native document or workbook with correct structure, formulas, formatting, validation, tables, and charts where relevant. Render its preview directly in Artifact and save the original DOCX or XLSX as a downloadable file. If Google Workspace is connected, prepare the file so it can be converted and opened in Google Docs or Google Sheets for editing.`,
+    [ArtifactModes.DIAGRAM]: dedent`
+      \n# Diagram artifact mode
+      Render the diagram directly in the response. Prefer Mermaid for flows, sequences, ERDs, state, class, architecture, and timelines. Use interactive HTML/SVG when the user needs zoom, filtering, drill-down, tooltips, or data-driven behavior. Keep labels readable and include a legend where necessary.`,
+    [ArtifactModes.DESIGN]: dedent`
+      \n# Visual design artifact mode
+      Produce a complete visual design directly in Artifact. Prefer structured SVG or HTML for editable layouts, text, shapes, and brand systems; use image generation for photographic or painterly raster assets. Keep elements selectable and styles editable, include sensible export dimensions, and save reusable source assets.`,
+  };
+  prompt += modeInstructions[artifacts] ?? '';
 
   return prompt;
 };

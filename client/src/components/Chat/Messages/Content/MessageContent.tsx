@@ -12,7 +12,7 @@ import Thinking from './Parts/Thinking';
 import { useLocalize } from '~/hooks';
 import Container from './Container';
 import Markdown from './Markdown';
-import { cn } from '~/utils';
+import { cn, redactInternalRuntimeDetails } from '~/utils';
 import store from '~/store';
 
 const ERROR_CONNECTION_TEXT = 'Error connecting to server, try refreshing the page.';
@@ -106,7 +106,7 @@ const DisplayMessage = ({ text, isCreatedByUser, message, showCursor }: TDisplay
 
   const content = useMemo(() => {
     if (!isCreatedByUser) {
-      return <Markdown content={text} isLatestMessage={isLatestMessage} />;
+      return <Markdown content={redactInternalRuntimeDetails(text)} isLatestMessage={isLatestMessage} />;
     }
     if (enableUserMsgMarkdown) {
       return <MarkdownLite content={text} />;

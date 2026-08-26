@@ -4,6 +4,7 @@ import {
   extractCodeArtifactText,
   getExtractedTextFormat,
   resolveMaxTextExtractBytes,
+  resolveMaxTextCacheBytes,
   MAX_TEXT_CACHE_BYTES,
   MAX_TEXT_EXTRACT_BYTES,
 } from './extract';
@@ -692,12 +693,12 @@ describe('extractCodeArtifactText office-html concurrency', () => {
 });
 
 describe('resolveMaxTextExtractBytes', () => {
-  const TWO_MB = 2 * 1024 * 1024;
+  const FOUR_MB = 4 * 1024 * 1024;
 
-  it('defaults to 2 MB when unset or blank', () => {
-    expect(resolveMaxTextExtractBytes(undefined)).toBe(TWO_MB);
-    expect(resolveMaxTextExtractBytes('')).toBe(TWO_MB);
-    expect(resolveMaxTextExtractBytes('   ')).toBe(TWO_MB);
+  it('defaults to 4 MB when unset or blank', () => {
+    expect(resolveMaxTextExtractBytes(undefined)).toBe(FOUR_MB);
+    expect(resolveMaxTextExtractBytes('')).toBe(FOUR_MB);
+    expect(resolveMaxTextExtractBytes('   ')).toBe(FOUR_MB);
   });
 
   it('honors a valid positive byte override', () => {
@@ -710,23 +711,36 @@ describe('resolveMaxTextExtractBytes', () => {
   });
 
   it('falls back to the default on non-numeric or non-positive input', () => {
-    expect(resolveMaxTextExtractBytes('nope')).toBe(TWO_MB);
-    expect(resolveMaxTextExtractBytes('0')).toBe(TWO_MB);
-    expect(resolveMaxTextExtractBytes('-100')).toBe(TWO_MB);
+    expect(resolveMaxTextExtractBytes('nope')).toBe(FOUR_MB);
+    expect(resolveMaxTextExtractBytes('0')).toBe(FOUR_MB);
+    expect(resolveMaxTextExtractBytes('-100')).toBe(FOUR_MB);
   });
 
   it('falls back to the default for sub-byte values that floor to zero', () => {
-    expect(resolveMaxTextExtractBytes('0.5')).toBe(TWO_MB);
-    expect(resolveMaxTextExtractBytes('0.999')).toBe(TWO_MB);
+    expect(resolveMaxTextExtractBytes('0.5')).toBe(FOUR_MB);
+    expect(resolveMaxTextExtractBytes('0.999')).toBe(FOUR_MB);
   });
 
   it('wires the exported ceiling through the resolver for the current env', () => {
-    /* Asserting a literal 2 MB here would falsely fail when the suite runs
+    /* Asserting a literal 4 MB here would falsely fail when the suite runs
      * with FILE_PREVIEW_MAX_EXTRACT_BYTES set (the export is initialized
      * from the env at module load). Verify the export tracks the resolver
-     * instead; the `undefined` case above pins the 2 MB default. */
+     * instead; the `undefined` case above pins the 4 MB default. */
     expect(MAX_TEXT_EXTRACT_BYTES).toBe(
       resolveMaxTextExtractBytes(process.env.FILE_PREVIEW_MAX_EXTRACT_BYTES),
     );
+  });
+});
+
+describe('resolveMaxTextCacheBytes', () => {
+  it('defaults to a 2 MB editor-safe source preview', () => {
+    expect(resolveMaxTextCacheBytes(undefined)).toBe(2 * 1024 * 1024);
+    expect(resolveMaxTextCacheBytes('')).toBe(2 * 1024 * 1024);
+  });
+
+  it('accepts a configured cache ceiling but rejects impractical values', () => {
+    expect(resolveMaxTextCacheBytes('4194304')).toBe(4 * 1024 * 1024);
+    expect(resolveMaxTextCacheBytes('1024')).toBe(2 * 1024 * 1024);
+    expect(resolveMaxTextCacheBytes('invalid')).toBe(2 * 1024 * 1024);
   });
 });

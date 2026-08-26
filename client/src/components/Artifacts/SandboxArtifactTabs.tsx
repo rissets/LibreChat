@@ -8,6 +8,7 @@ import useArtifactProps from '~/hooks/Artifacts/useArtifactProps';
 import { ArtifactCodeEditor } from './ArtifactCodeEditor';
 import { useCodeState } from '~/Providers/EditorContext';
 import { ArtifactPreview } from './ArtifactPreview';
+import ArtifactVisualEditor from './ArtifactVisualEditor';
 import { useShareContext } from '~/Providers';
 
 export default function SandboxArtifactTabs({
@@ -73,6 +74,14 @@ export default function SandboxArtifactTabs({
           currentCode={hasCurrentArtifactCode ? currentCode : undefined}
           startupConfig={resolvedStartupConfig}
         />
+      </Tabs.Content>
+
+      <Tabs.Content
+        value="design"
+        className="h-full w-full flex-grow overflow-hidden"
+        tabIndex={-1}
+      >
+        <ArtifactVisualEditor artifact={artifact} readOnly={isSharedConvo === true} />
       </Tabs.Content>
     </div>
   );

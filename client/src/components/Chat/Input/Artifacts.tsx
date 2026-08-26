@@ -1,7 +1,7 @@
 import React, { memo, useState, useCallback, useMemo, useEffect } from 'react';
 import * as Ariakit from '@ariakit/react';
 import { CheckboxButton } from '@librechat/client';
-import { WandSparkles, ChevronDown } from 'lucide-react';
+import { Check, ChevronDown, WandSparkles } from 'lucide-react';
 import { ArtifactModes, defaultAgentCapabilities } from 'librechat-data-provider';
 import { useLocalize, useAgentCapabilities } from '~/hooks';
 import { useBadgeRowContext } from '~/Providers';
@@ -12,6 +12,54 @@ interface ArtifactsToggleState {
   enabled: boolean;
   mode: string;
 }
+
+const ARTIFACT_PRESETS = [
+  {
+    mode: ArtifactModes.DEFAULT,
+    label: 'com_ui_artifacts_mode_default',
+    info: 'com_ui_artifacts_mode_default_info',
+  },
+  {
+    mode: ArtifactModes.WEB,
+    label: 'com_ui_artifacts_mode_web',
+    info: 'com_ui_artifacts_mode_web_info',
+  },
+  {
+    mode: ArtifactModes.DATA,
+    label: 'com_ui_artifacts_mode_data',
+    info: 'com_ui_artifacts_mode_data_info',
+  },
+  {
+    mode: ArtifactModes.PRESENTATION,
+    label: 'com_ui_artifacts_mode_presentation',
+    info: 'com_ui_artifacts_mode_presentation_info',
+  },
+  {
+    mode: ArtifactModes.DOCUMENT,
+    label: 'com_ui_artifacts_mode_document',
+    info: 'com_ui_artifacts_mode_document_info',
+  },
+  {
+    mode: ArtifactModes.DIAGRAM,
+    label: 'com_ui_artifacts_mode_diagram',
+    info: 'com_ui_artifacts_mode_diagram_info',
+  },
+  {
+    mode: ArtifactModes.DESIGN,
+    label: 'com_ui_artifacts_mode_design',
+    info: 'com_ui_artifacts_mode_design_info',
+  },
+  {
+    mode: ArtifactModes.SHADCNUI,
+    label: 'com_ui_artifacts_mode_shadcn',
+    info: 'com_ui_artifacts_mode_shadcn_info',
+  },
+  {
+    mode: ArtifactModes.CUSTOM,
+    label: 'com_ui_artifacts_mode_custom',
+    info: 'com_ui_artifacts_mode_custom_info',
+  },
+] as const;
 
 function Artifacts() {
   const localize = useLocalize();
@@ -33,8 +81,6 @@ function Artifacts() {
   }, [toggleState]);
 
   const isEnabled = currentState.enabled;
-  const isShadcnEnabled = currentState.mode === ArtifactModes.SHADCNUI;
-  const isCustomEnabled = currentState.mode === ArtifactModes.CUSTOM;
 
   const handleToggle = useCallback(() => {
     if (!debouncedChange) return;
@@ -60,23 +106,13 @@ function Artifacts() {
     }
   }, [isPopoverOpen]);
 
-  const handleShadcnToggle = useCallback(() => {
-    if (!debouncedChange) return;
-    if (isShadcnEnabled) {
-      debouncedChange({ value: ArtifactModes.DEFAULT });
-    } else {
-      debouncedChange({ value: ArtifactModes.SHADCNUI });
-    }
-  }, [isShadcnEnabled, debouncedChange]);
-
-  const handleCustomToggle = useCallback(() => {
-    if (!debouncedChange) return;
-    if (isCustomEnabled) {
-      debouncedChange({ value: ArtifactModes.DEFAULT });
-    } else {
-      debouncedChange({ value: ArtifactModes.CUSTOM });
-    }
-  }, [isCustomEnabled, debouncedChange]);
+  const handleModeSelect = useCallback(
+    (mode: ArtifactModes) => {
+      if (!debouncedChange) return;
+      debouncedChange({ value: mode });
+    },
+    [debouncedChange],
+  );
 
   if (!artifactsEnabled) {
     return null;
@@ -119,7 +155,7 @@ function Artifacts() {
           <Ariakit.Menu
             gutter={4}
             className={cn(
-              'animate-popover-top-left z-40 flex min-w-[250px] flex-col rounded-xl',
+              'animate-popover-top-left z-40 flex max-h-[70vh] min-w-[340px] flex-col overflow-y-auto rounded-xl',
               'border border-border-light bg-surface-secondary shadow-lg',
             )}
             portal={true}
@@ -130,47 +166,36 @@ function Artifacts() {
                 {localize('com_ui_artifacts_options')}
               </div>
 
-              {/* Include shadcn/ui Option */}
-              <Ariakit.MenuItem
-                hideOnClick={false}
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  handleShadcnToggle();
-                }}
-                className={cn(
-                  'mb-1 flex items-center justify-between gap-2 rounded-lg px-2 py-2',
-                  'cursor-pointer bg-surface-secondary text-text-primary outline-none transition-colors',
-                  'hover:bg-surface-hover data-[active-item]:bg-surface-hover',
-                  isShadcnEnabled && 'bg-surface-active',
-                )}
-              >
-                <span className="text-sm">{localize('com_ui_include_shadcnui' as any)}</span>
-                <div className="ml-auto flex items-center">
-                  <Ariakit.MenuItemCheck checked={isShadcnEnabled} />
-                </div>
-              </Ariakit.MenuItem>
-
-              {/* Custom Prompt Mode Option */}
-              <Ariakit.MenuItem
-                hideOnClick={false}
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  handleCustomToggle();
-                }}
-                className={cn(
-                  'mb-1 flex items-center justify-between gap-2 rounded-lg px-2 py-2',
-                  'cursor-pointer bg-surface-secondary text-text-primary outline-none transition-colors',
-                  'hover:bg-surface-hover data-[active-item]:bg-surface-hover',
-                  isCustomEnabled && 'bg-surface-active',
-                )}
-              >
-                <span className="text-sm">{localize('com_ui_custom_prompt_mode' as any)}</span>
-                <div className="ml-auto flex items-center">
-                  <Ariakit.MenuItemCheck checked={isCustomEnabled} />
-                </div>
-              </Ariakit.MenuItem>
+              {ARTIFACT_PRESETS.map((preset) => {
+                const selected = currentState.mode === preset.mode;
+                return (
+                  <Ariakit.MenuItem
+                    key={preset.mode}
+                    hideOnClick={false}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      handleModeSelect(preset.mode);
+                    }}
+                    className={cn(
+                      'mb-1 flex cursor-pointer items-start gap-3 rounded-lg px-2 py-2 text-text-primary outline-none transition-colors',
+                      'hover:bg-surface-hover data-[active-item]:bg-surface-hover',
+                      selected ? 'bg-surface-active' : 'bg-surface-secondary',
+                    )}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium">{localize(preset.label)}</div>
+                      <div className="mt-0.5 text-xs leading-4 text-text-secondary">
+                        {localize(preset.info)}
+                      </div>
+                    </div>
+                    <Check
+                      className={cn('mt-0.5 size-4 shrink-0', !selected && 'invisible')}
+                      aria-hidden="true"
+                    />
+                  </Ariakit.MenuItem>
+                );
+              })}
             </div>
           </Ariakit.Menu>
         </Ariakit.MenuProvider>

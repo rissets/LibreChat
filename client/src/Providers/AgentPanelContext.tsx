@@ -74,12 +74,13 @@ export function AgentPanelProvider({ children }: { children: React.ReactNode }) 
         const displayName = serverConfig?.title || serverName;
         const displayDescription =
           serverConfig?.description || `${localize('com_ui_tool_collection_prefix')} ${serverName}`;
+        const icon = serverData.icon || serverConfig?.iconPath || '';
 
         const metadata = {
           name: displayName,
           pluginKey: serverName,
           description: displayDescription,
-          icon: serverData.icon || '',
+          icon,
           authConfig: serverData.authConfig,
           authenticated: serverData.authenticated,
         } as TPlugin;
@@ -88,7 +89,7 @@ export function AgentPanelProvider({ children }: { children: React.ReactNode }) 
           tool_id: tool.pluginKey,
           metadata: {
             ...tool,
-            icon: serverData.icon,
+            icon,
             authConfig: serverData.authConfig,
             authenticated: serverData.authenticated,
           } as TPlugin,

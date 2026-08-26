@@ -312,6 +312,8 @@ const startServer = async () => {
   app.use('/api/admin/users', routes.adminUsers);
   app.use('/api/admin/audit-log', routes.adminAuditLog);
   app.use('/api/actions', routes.actions);
+  app.use('/api/artifacts', routes.artifacts);
+  app.use('/api/google-workspace', routes.googleWorkspace);
   app.use('/api/keys', routes.keys);
   app.use('/api/api-keys', routes.apiKeys);
   app.use('/api/user', routes.user);

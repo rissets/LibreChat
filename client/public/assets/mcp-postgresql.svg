@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="PostgreSQL SSH">
+  <rect width="64" height="64" rx="16" fill="#1f5f8b"/>
+  <path d="M19 23c0-8 7-13 13-13s13 5 13 13v16c0 8-5 15-13 15s-13-7-13-15V23Z" fill="#d9efff"/>
+  <circle cx="27" cy="27" r="3" fill="#1f5f8b"/><circle cx="37" cy="27" r="3" fill="#1f5f8b"/>
+  <path d="M25 38c4 3 10 3 14 0M15 17l5 5m29-5-5 5" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+  <path d="M25 48h14" stroke="#f8c64d" stroke-width="4" stroke-linecap="round"/>
+</svg>

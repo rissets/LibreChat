@@ -835,6 +835,7 @@ function createToolEndCallback({ req, res, artifactPromises, streamId = null, jo
     if (output.artifact.content) {
       /** @type {FormattedContent[]} */
       const content = output.artifact.content;
+      const imagePromises = [];
       for (let i = 0; i < content.length; i++) {
         const part = content[i];
         if (!part) {
@@ -844,8 +845,7 @@ function createToolEndCallback({ req, res, artifactPromises, streamId = null, jo
           continue;
         }
         const { url } = part.image_url;
-        artifactPromises.push(
-          (async () => {
+        const imagePromise = (async () => {
             const filename = `${output.name}_img_${nanoid()}`;
             const file_id = output.artifact.file_ids?.[i];
             const file = await saveBase64Image(url, {
@@ -854,6 +854,8 @@ function createToolEndCallback({ req, res, artifactPromises, streamId = null, jo
               filename,
               endpoint: metadata.provider,
               context: FileContext.image_generation,
+              codeEnvRef: output.artifact.code_env_refs?.[i],
+              conversationId: metadata.thread_id,
             });
             const fileMetadata = Object.assign(file, {
               messageId: metadata.run_id,
@@ -873,9 +875,14 @@ function createToolEndCallback({ req, res, artifactPromises, streamId = null, jo
           })().catch((error) => {
             logger.error('Error processing artifact content:', error);
             return null;
-          }),
-        );
+          });
+        imagePromises.push(imagePromise);
+        artifactPromises.push(imagePromise);
       }
+      /* The generated image must be mounted before a following execute_code
+       * call in the same agent run. Keep the promise in the final artifact
+       * list as well so it is still persisted for streaming/resume paths. */
+      await Promise.all(imagePromises);
       return;
     }
 
@@ -1149,6 +1156,7 @@ function createResponsesToolEndCallback({ req, res, tracker, artifactPromises })
     if (output.artifact.content) {
       /** @type {FormattedContent[]} */
       const content = output.artifact.content;
+      const imagePromises = [];
       for (let i = 0; i < content.length; i++) {
         const part = content[i];
         if (!part) {
@@ -1158,8 +1166,7 @@ function createResponsesToolEndCallback({ req, res, tracker, artifactPromises })
           continue;
         }
         const { url } = part.image_url;
-        artifactPromises.push(
-          (async () => {
+        const imagePromise = (async () => {
             const filename = `${output.name}_img_${nanoid()}`;
             const file_id = output.artifact.file_ids?.[i];
             const file = await saveBase64Image(url, {
@@ -1168,6 +1175,8 @@ function createResponsesToolEndCallback({ req, res, tracker, artifactPromises })
               filename,
               endpoint: metadata.provider,
               context: FileContext.image_generation,
+              codeEnvRef: output.artifact.code_env_refs?.[i],
+              conversationId: metadata.thread_id,
             });
             const fileMetadata = Object.assign(file, {
               toolCallId: output.tool_call_id,
@@ -1195,9 +1204,11 @@ function createResponsesToolEndCallback({ req, res, tracker, artifactPromises })
           })().catch((error) => {
             logger.error('Error processing artifact content:', error);
             return null;
-          }),
-        );
+          });
+        imagePromises.push(imagePromise);
+        artifactPromises.push(imagePromise);
       }
+      await Promise.all(imagePromises);
       return;
     }
 

@@ -6,9 +6,11 @@ import type { editor } from 'monaco-editor';
 import type { ProcessedMermaidSvg } from '~/utils/diagram/export';
 import { MermaidRenderer } from '~/components/Messages/Content/Mermaid/Mermaid';
 import { MERMAID_ARTIFACT_TYPE, type Artifact } from '~/common/artifacts';
+import { TOOL_ARTIFACT_TYPES } from '~/utils/artifacts';
 import { ArtifactCodeEditor } from './ArtifactCodeEditor';
 import { useCodeState } from '~/Providers/EditorContext';
 import { useLocalize } from '~/hooks';
+import { SvgArtifactPreview } from './InlineDataArtifactPreview';
 
 const SandboxArtifactTabs = lazy(() => import('./SandboxArtifactTabs'));
 
@@ -93,6 +95,30 @@ function MermaidArtifactTabs({
   );
 }
 
+function SvgArtifactTabs({ artifact, isSharedConvo }: Omit<ArtifactTabsProps, 'previewRef'>) {
+  const monacoRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+
+  return (
+    <div className="flex h-full w-full flex-col">
+      <Tabs.Content
+        value="code"
+        id="artifacts-code"
+        className="h-full w-full flex-grow overflow-auto"
+        tabIndex={-1}
+      >
+        <ArtifactCodeEditor artifact={artifact} monacoRef={monacoRef} readOnly={isSharedConvo === true} />
+      </Tabs.Content>
+      <Tabs.Content
+        value="preview"
+        className="h-full w-full flex-grow overflow-hidden"
+        tabIndex={-1}
+      >
+        <SvgArtifactPreview content={artifact.content ?? ''} title={artifact.title} fillContainer />
+      </Tabs.Content>
+    </div>
+  );
+}
+
 export default function ArtifactTabs(props: ArtifactTabsProps) {
   if (props.artifact.type === MERMAID_ARTIFACT_TYPE) {
     return (
@@ -102,6 +128,10 @@ export default function ArtifactTabs(props: ArtifactTabsProps) {
         onMermaidExportReady={props.onMermaidExportReady}
       />
     );
+  }
+
+  if (props.artifact.type === TOOL_ARTIFACT_TYPES.SVG) {
+    return <SvgArtifactTabs artifact={props.artifact} isSharedConvo={props.isSharedConvo} />;
   }
 
   return (

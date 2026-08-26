@@ -61,7 +61,7 @@ describe('List', () => {
   it('shows the onboarding empty state with a create CTA', () => {
     const onCreate = jest.fn();
     const { getByText, getByRole } = renderList({ onCreate });
-    expect(getByText('Connect your agents to external apps')).toBeInTheDocument();
+    expect(getByText('Connect BP Chat to an external app')).toBeInTheDocument();
     fireEvent.click(getByRole('button', { name: 'Create API Key' }));
     expect(onCreate).toHaveBeenCalled();
   });
@@ -80,7 +80,7 @@ describe('List', () => {
       refetch: jest.fn(),
     });
     const { getByRole, getByText } = renderList();
-    expect(getByRole('list', { name: 'Agent API Keys' })).toBeInTheDocument();
+    expect(getByRole('list', { name: 'BP Chat API keys' })).toBeInTheDocument();
     expect(getByText('Alpha')).toBeInTheDocument();
     expect(getByText('Beta')).toBeInTheDocument();
   });

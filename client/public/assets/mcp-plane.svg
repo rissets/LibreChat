@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Plane UTrack">
+  <rect width="64" height="64" rx="16" fill="#5b3db5"/>
+  <rect x="13" y="16" width="38" height="32" rx="6" fill="#fff"/>
+  <path d="M21 25h22M21 32h15M21 39h10" stroke="#5b3db5" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="44" cy="39" r="7" fill="#f3b641" stroke="#5b3db5" stroke-width="3"/>
+  <path d="m41 39 2 2 4-5" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

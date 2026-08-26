@@ -63,7 +63,10 @@ export const useMermaid = ({
 
   // Generate cache key based on content, theme, and ID
   const cacheKey = useMemo((): string | null => {
-    if (!enabled) {
+    // During streamed responses the Mermaid block may exist before it has any
+    // meaningful content. A blank diagram is never renderable, so keeping the
+    // SWR key null prevents Mermaid from emitting a transient parse error.
+    if (!enabled || !content.trim()) {
       return null;
     }
 

@@ -17,6 +17,7 @@ import HoverButtons from '~/components/Chat/Messages/HoverButtons';
 import MessageRow from '~/components/Chat/Messages/ui/MessageRow';
 import MessageIcon from '~/components/Chat/Messages/MessageIcon';
 import SubRow from '~/components/Chat/Messages/SubRow';
+import ResponseCompletion from '~/components/Chat/Messages/ResponseCompletion';
 import store from '~/store';
 
 type ContentRenderProps = {
@@ -203,6 +204,14 @@ const ContentRender = memo(function ContentRender({
         conversationId={conversation?.conversationId}
         content={msg.content as Array<TMessageContentParts | undefined>}
       />
+      {msg.isCreatedByUser !== true && !isSubmitting && (
+        <ResponseCompletion
+          attachments={attachments}
+          ask={chatContext.ask}
+          messageId={msg.messageId}
+          showSuggestions={isLast && isLatestMessage}
+        />
+      )}
     </MessageRow>
   );
 }, areContentRenderPropsEqual);

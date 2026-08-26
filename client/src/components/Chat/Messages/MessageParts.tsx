@@ -10,6 +10,7 @@ import {
 } from '~/utils';
 import { useMessageHelpers, useLocalize, useAttachments, useContentMetadata } from '~/hooks';
 import AuthorHeader from '~/components/Chat/Messages/Content/Parts/AuthorHeader';
+import { artifactTypeForAttachment } from './Content/Parts/attachmentTypes';
 import { revealOnRowHoverClasses, messageFooterClasses } from './styles';
 import MessageRow from '~/components/Chat/Messages/ui/MessageRow';
 import MessageIcon from '~/components/Chat/Messages/MessageIcon';
@@ -17,6 +18,7 @@ import ContentParts from './Content/ContentParts';
 import SiblingSwitch from './SiblingSwitch';
 import HoverButtons from './HoverButtons';
 import SubRow from './SubRow';
+import ResponseCompletion from './ResponseCompletion';
 import store from '~/store';
 
 function MessageParts(props: TMessageProps) {
@@ -27,6 +29,7 @@ function MessageParts(props: TMessageProps) {
     attachments: message?.attachments,
   });
   const {
+    ask,
     edit,
     index,
     agent,
@@ -90,6 +93,13 @@ function MessageParts(props: TMessageProps) {
   );
 
   const { hasParallelContent } = useContentMetadata(message);
+  const hasInlineArtifact = useMemo(
+    () =>
+      !isCreatedByUser &&
+      (/:{2,3}artifact(?:\{|:)/.test(JSON.stringify(message?.content ?? [])) ||
+        attachments.some((attachment) => artifactTypeForAttachment(attachment) != null)),
+    [attachments, isCreatedByUser, message?.content],
+  );
 
   if (!message) {
     return null;
@@ -111,7 +121,8 @@ function MessageParts(props: TMessageProps) {
           headerPrefix={getHeaderPrefixForScreenReader(message, localize)}
           isCreatedByUser={isCreatedByUser === true}
           hasParallelContent={hasParallelContent}
-          fullWidth={maximizeChatSpace}
+          fullWidth={maximizeChatSpace || hasInlineArtifact}
+          fullWidthArtifact={hasInlineArtifact}
           isEditing={edit}
           footer={
             <SubRow classes={cn(messageFooterClasses, isCreatedByUser && 'justify-end')}>
@@ -159,6 +170,14 @@ function MessageParts(props: TMessageProps) {
             isLatestMessage={messageId === latestMessageId}
             content={message.content as Array<TMessageContentParts | undefined>}
           />
+          {isCreatedByUser !== true && !isSubmitting && (
+            <ResponseCompletion
+              attachments={attachments}
+              ask={ask}
+              messageId={messageId}
+              showSuggestions={isLast && messageId === latestMessageId}
+            />
+          )}
         </MessageRow>
       </div>
     </div>

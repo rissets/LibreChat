@@ -7,7 +7,7 @@ import { useLocalize, useExpandCollapse } from '~/hooks';
 import { showThinkingAtom } from '~/store/showThinking';
 import { fontSizeAtom } from '~/store/fontSize';
 import { AnimatedText } from '../animate';
-import { cn } from '~/utils';
+import { cn, redactInternalRuntimeDetails } from '~/utils';
 
 /**
  * ThinkingContent - Displays the actual thinking/reasoning content
@@ -282,13 +282,18 @@ const Thinking: React.ElementType = memo(({ children }: { children: React.ReactN
 
   const label = useMemo(() => localize('com_ui_thoughts'), [localize]);
 
+  const safeChildren = useMemo(
+    () => (typeof children === 'string' ? redactInternalRuntimeDetails(children) : children),
+    [children],
+  );
+
   // Extract text content for copy functionality
   const textContent = useMemo(() => {
-    if (typeof children === 'string') {
-      return children;
+    if (typeof safeChildren === 'string') {
+      return safeChildren;
     }
     return '';
-  }, [children]);
+  }, [safeChildren]);
 
   if (children == null) {
     return null;
@@ -321,7 +326,7 @@ const Thinking: React.ElementType = memo(({ children }: { children: React.ReactN
         style={expandStyle}
       >
         <div className="relative overflow-hidden" ref={expandRef}>
-          <ThinkingContent>{children}</ThinkingContent>
+          <ThinkingContent>{safeChildren}</ThinkingContent>
           <FloatingThinkingBar
             isVisible={isBarVisible && isExpanded}
             isExpanded={isExpanded}

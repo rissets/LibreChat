@@ -1,4 +1,6 @@
 const accessPermissions = require('./accessPermissions');
+const artifacts = require('./artifacts');
+const googleWorkspace = require('./googleWorkspace');
 const assistants = require('./assistants');
 const categories = require('./categories');
 const adminAuth = require('./admin/auth');
@@ -41,6 +43,8 @@ const mcp = require('./mcp');
 const rum = require('./rum');
 
 module.exports = {
+  artifacts,
+  googleWorkspace,
   rum,
   mcp,
   auth,

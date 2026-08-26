@@ -64,13 +64,10 @@ jest.mock('~/utils', () => ({
 const textAttachment = (overrides: Partial<TAttachment> = {}): TAttachment =>
   ({
     file_id: 'file-1',
-    /* JSON stays on the inline `<pre>` rendering path. CSV used to live
-     * here too but now routes through the SPREADSHEET artifact panel
-     * (Recoil-bound), so a CSV fixture would force every test in this
-     * file to add a `RecoilRoot` wrapper. JSON has the same shape (text-
-     * bearing, downloadable, expandable) without the panel coupling. */
-    filename: 'output.json',
-    filepath: '/files/output.json',
+    /* JSON now has its own rendered artifact view. Use an ordinary log file
+     * here to exercise the legacy inline text/expand path directly. */
+    filename: 'output',
+    filepath: '/files/output',
     text: '{"a":1,"b":2,"c":3}',
     ...overrides,
   }) as TAttachment;
@@ -175,11 +172,9 @@ describe('AttachmentGroup', () => {
   });
 
   it('routes text-bearing attachments through the text rendering path', () => {
-    /* `.json` is text-bearing but not artifact-eligible (JSON has no
-     * dedicated viewer yet), so it falls through to the inline <pre>
-     * renderer rather than the side panel card. CSV used to live here
-     * too but now routes through the SPREADSHEET artifact panel. */
-    const attachments = [textAttachment({ file_id: 'a', filename: 'a.json' })] as TAttachment[];
+    /* Use an untyped text file here. JSON is now deliberately a rendered
+     * artifact, while this case validates the expandable text fallback. */
+    const attachments = [textAttachment({ file_id: 'a', filename: 'a' })] as TAttachment[];
     const { container } = render(<AttachmentGroup attachments={attachments} />);
     expect(container.querySelector('pre')).not.toBeNull();
   });
@@ -207,8 +202,8 @@ describe('AttachmentGroup', () => {
       }),
       textAttachment({
         file_id: 'json',
-        filename: 'output.json',
-        filepath: '/files/output.json',
+        filename: 'output',
+        filepath: '/files/output',
         text: '{"ok":true}',
       }),
     ] as TAttachment[];
@@ -217,7 +212,7 @@ describe('AttachmentGroup', () => {
 
     expect(screen.queryByRole('button', { name: 'com_ui_show_n_files' })).not.toBeInTheDocument();
     expect(container.querySelector('pre')?.textContent).toBe('{"ok":true}');
-    expect(screen.getByTestId('file-container')).toHaveTextContent('output.json');
+    expect(screen.getByTestId('file-container')).toHaveTextContent('output');
   });
 
   it('keeps long grouped text previews clamped until the nested preview is expanded', () => {
@@ -231,8 +226,8 @@ describe('AttachmentGroup', () => {
       }),
       textAttachment({
         file_id: 'json',
-        filename: 'output.json',
-        filepath: '/files/output.json',
+        filename: 'output',
+        filepath: '/files/output',
         text: longJson,
       }),
     ] as TAttachment[];
@@ -241,7 +236,7 @@ describe('AttachmentGroup', () => {
     const groupToggle = screen.getByRole('button', { name: 'com_ui_show_n_files' });
     fireEvent.click(groupToggle);
 
-    expect(screen.getByText('output.json')).toBeInTheDocument();
+    expect(screen.getByText('output')).toBeInTheDocument();
     const pre = container.querySelector('pre');
     expect(pre).not.toBeNull();
     expect(pre).toHaveStyle({ maxHeight: '320px' });

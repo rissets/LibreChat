@@ -38,6 +38,12 @@ jest.mock('~/components/Chat/Input/Files/FilePreview', () => ({
   default: () => <div data-testid="file-preview" />,
 }));
 
+jest.mock('~/components/Artifacts/InlineArtifactPreview', () => ({
+  __esModule: true,
+  default: () => <div data-testid="inline-artifact-preview" />,
+  supportsInlineArtifact: () => false,
+}));
+
 jest.mock('~/components/Chat/Messages/Content/Image', () => ({
   __esModule: true,
   default: ({ altText }: { altText?: string }) => <img alt={altText ?? ''} data-testid="image" />,
@@ -209,16 +215,14 @@ describe('Attachment routing for tool artifacts', () => {
     expect(screen.queryByText('com_ui_artifact_click')).not.toBeInTheDocument();
   });
 
-  it('falls through to the inline <pre> for unsupported text types (JSON)', () => {
-    /* CSV used to fall through here, but now routes to the SPREADSHEET
-     * preview bucket. JSON is still inline-only (no dedicated viewer
-     * yet); use it as the canonical "unrouted text" example. */
+  it('renders JSON through the structured artifact card', () => {
     const json = baseAttachment({
       filename: 'data.json',
       text: '{"a":1,"b":2}',
     });
     const { container } = renderWith(<Attachment attachment={json} />);
-    expect(container.querySelector('pre')).not.toBeNull();
+    expect(screen.getByText('data.json')).toBeInTheDocument();
+    expect(container.querySelector('pre')).toBeNull();
     expect(screen.queryByTestId('mermaid-render')).not.toBeInTheDocument();
   });
 
@@ -771,14 +775,11 @@ describe('AttachmentGroup routing', () => {
     const panel = document.getElementById(toggle.getAttribute('aria-controls') ?? '');
     expect(panel?.firstElementChild).toHaveAttribute('aria-hidden', 'true');
     expect(screen.getByTestId('image')).toBeInTheDocument();
-    expect(screen.getAllByTestId('file-container').map((chip) => chip.textContent)).not.toContain(
-      'c.json',
-    );
+    expect(screen.getByText('c.json')).toBeInTheDocument();
 
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByText('c.json')).toBeInTheDocument();
-    expect(container.querySelector('pre')?.textContent).toBe('{"c":true}');
+    expect(container.querySelector('pre')).toBeNull();
   });
 
   it('passes a non-dotfile filename through to FileContainer unchanged', () => {
@@ -879,15 +880,12 @@ describe('AttachmentGroup routing', () => {
     expect(screen.getByText('index.html')).toBeInTheDocument();
     // Mermaid render
     expect(screen.getByTestId('mermaid-render')).toBeInTheDocument();
-    // JSON and plain zip are both downloadable file outputs, so they collapse together.
-    const toggle = screen.getByRole('button', { name: 'com_ui_show_n_files' });
-    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    // JSON has a structured artifact card; only the plain archive remains in
+    // the file bucket, so no collapsed file-group control is needed.
+    expect(screen.queryByRole('button', { name: 'com_ui_show_n_files' })).not.toBeInTheDocument();
     const chipLabels = screen.getAllByTestId('file-container').map((chip) => chip.textContent);
     expect(chipLabels).toContain('archive.zip');
-    expect(chipLabels).not.toContain('data.json');
-
-    fireEvent.click(toggle);
     expect(screen.getByText('data.json')).toBeInTheDocument();
-    expect(container.querySelector('pre')?.textContent).toBe('{"a":1}');
+    expect(container.querySelector('pre')).toBeNull();
   });
 });

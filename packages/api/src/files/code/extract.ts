@@ -9,18 +9,42 @@ import { createConcurrencyLimiter, withTimeout } from '~/utils/promise';
 import { parseDocument } from '~/files/documents/crud';
 import { isBinaryBuffer } from '~/skills/binary';
 
-export const MAX_TEXT_CACHE_BYTES: number = 512 * 1024;
+const DEFAULT_MAX_TEXT_CACHE_BYTES = 2 * 1024 * 1024;
 
-/** Default inline-preview extraction ceiling: 2 MB. Office/text artifacts
+/**
+ * Full application sources regularly exceed the old 512 KB cache ceiling,
+ * which made a saved artifact look cut off even though the generated file was
+ * intact. Keep the limit configurable, but default to a practical 2 MB so a
+ * normal React project can be reviewed and edited without a second download.
+ */
+export function resolveMaxTextCacheBytes(value: string | undefined): number {
+  if (value == null || value.trim() === '') {
+    return DEFAULT_MAX_TEXT_CACHE_BYTES;
+  }
+  const parsed = Math.floor(Number(value));
+  if (!Number.isFinite(parsed) || parsed < 64 * 1024) {
+    logger.warn(
+      `[extract] Invalid FILE_PREVIEW_MAX_CACHE_BYTES "${value}"; using ${DEFAULT_MAX_TEXT_CACHE_BYTES} bytes.`,
+    );
+    return DEFAULT_MAX_TEXT_CACHE_BYTES;
+  }
+  return parsed;
+}
+
+export const MAX_TEXT_CACHE_BYTES: number = resolveMaxTextCacheBytes(
+  process.env.FILE_PREVIEW_MAX_CACHE_BYTES,
+);
+
+/** Default inline-preview extraction ceiling: 4 MB. Office/text artifacts
  * larger than this skip inline preview and fall back to download-only. */
-const DEFAULT_MAX_TEXT_EXTRACT_BYTES = 2 * 1024 * 1024;
+const DEFAULT_MAX_TEXT_EXTRACT_BYTES = 4 * 1024 * 1024;
 
 /**
  * Resolve the inline-preview extraction ceiling from
- * `FILE_PREVIEW_MAX_EXTRACT_BYTES`, falling back to the 2 MB default when
+ * `FILE_PREVIEW_MAX_EXTRACT_BYTES`, falling back to the 4 MB default when
  * the value is missing, non-numeric, or non-positive. Raising it lets
  * larger documents render an inline preview; the rendered HTML is still
- * independently capped at {@link MAX_TEXT_CACHE_BYTES} (512 KB), so
+ * independently capped at {@link MAX_TEXT_CACHE_BYTES} (2 MB by default), so
  * image-heavy files over that show the "too large" banner instead.
  */
 export function resolveMaxTextExtractBytes(value: string | undefined): number {

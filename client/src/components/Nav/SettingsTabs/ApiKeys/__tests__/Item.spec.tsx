@@ -17,6 +17,12 @@ const baseKey: TAgentApiKeyListItem = {
   name: 'CI Pipeline',
   keyPrefix: 'lc-abc123',
   createdAt: '2026-06-01T00:00:00Z',
+  totalRequests: 0,
+  successfulRequests: 0,
+  failedRequests: 0,
+  inputTokens: 0,
+  outputTokens: 0,
+  totalTokens: 0,
 };
 
 function renderItem(apiKey = baseKey) {

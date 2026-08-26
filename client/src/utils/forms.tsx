@@ -68,7 +68,7 @@ const BP_MODEL_ALIASES = new Set([
  **/
 export const getDefaultAgentFormValues = () => {
   const storedModel = localStorage.getItem(LocalStorageKeys.LAST_AGENT_MODEL);
-  const provider = 'BP Batam AI';
+  const provider = 'HelloDigi AI';
   const model = storedModel && BP_MODEL_ALIASES.has(storedModel)
     ? storedModel
     : 'bp/gpt-5.6-sol-medium';

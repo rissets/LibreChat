@@ -1,13 +1,13 @@
-import React, { useEffect, useCallback, useRef, useState } from 'react';
+import React, { useEffect, useCallback, useMemo, useRef, useState } from 'react';
 import throttle from 'lodash/throttle';
 import { visit } from 'unist-util-visit';
-import { useSetRecoilState } from 'recoil';
+import { useRecoilValue, useSetRecoilState } from 'recoil';
 import { useLocation } from 'react-router-dom';
 import type { Pluggable } from 'unified';
 import type { Artifact } from '~/common';
 import { useMessageContext, useArtifactContext } from '~/Providers';
 import { logger, extractContent, isArtifactRoute } from '~/utils';
-import { artifactsState } from '~/store/artifacts';
+import { artifactByIdSelector, artifactsState } from '~/store/artifacts';
 import ArtifactButton from './ArtifactButton';
 
 export const artifactPlugin: Pluggable = () => {
@@ -50,8 +50,19 @@ export function Artifact({
   const { messageId } = useMessageContext();
   const { getNextIndex, resetCounter } = useArtifactContext();
   const artifactIndex = useRef(getNextIndex(false)).current;
+  const title = props.title ?? defaultTitle;
+  const type = props.type ?? defaultType;
+  const identifier = props.identifier ?? defaultIdentifier;
+  const artifactKey = useMemo(
+    () =>
+      `${identifier}_${type}_${title}_${messageId}`
+        .replace(/\s+/g, '_')
+        .toLowerCase(),
+    [identifier, messageId, title, type],
+  );
 
   const setArtifacts = useSetRecoilState(artifactsState);
+  const registeredArtifact = useRecoilValue(artifactByIdSelector(artifactKey));
   const [artifact, setArtifact] = useState<Artifact | null>(null);
 
   const throttledUpdateRef = useRef(
@@ -63,13 +74,6 @@ export function Artifact({
   const updateArtifact = useCallback(() => {
     const content = extractContent(props.children);
     logger.log('artifacts', 'updateArtifact: content.length', content.length);
-
-    const title = props.title ?? defaultTitle;
-    const type = props.type ?? defaultType;
-    const identifier = props.identifier ?? defaultIdentifier;
-    const artifactKey = `${identifier}_${type}_${title}_${messageId}`
-      .replace(/\s+/g, '_')
-      .toLowerCase();
 
     throttledUpdateRef.current(() => {
       const now = Date.now();
@@ -123,6 +127,20 @@ export function Artifact({
     resetCounter();
     updateArtifact();
   }, [updateArtifact, resetCounter]);
+
+  /**
+   * Conversation changes intentionally clear the shared Artifact state. The
+   * markdown artifact has already mounted by then, however, so its original
+   * registration effect does not run a second time. Re-register its current
+   * source whenever that entry is cleared, allowing historical messages to
+   * retain their generated-file cards after leaving and reopening a chat.
+   */
+  useEffect(() => {
+    if (!artifact || registeredArtifact != null || !isArtifactRoute(location.pathname)) {
+      return;
+    }
+    setArtifacts((previous) => ({ ...(previous ?? {}), [artifact.id]: artifact }));
+  }, [artifact, location.pathname, registeredArtifact, setArtifacts]);
 
   return <ArtifactButton artifact={artifact} />;
 }

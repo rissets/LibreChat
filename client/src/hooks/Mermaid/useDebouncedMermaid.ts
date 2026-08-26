@@ -179,6 +179,7 @@ export const useDebouncedMermaid = ({
     content: shouldRender ? debouncedContent : '',
     id: id ? `${id}-${key}` : undefined,
     theme,
+    enabled: shouldRender,
   });
 
   // Track error count

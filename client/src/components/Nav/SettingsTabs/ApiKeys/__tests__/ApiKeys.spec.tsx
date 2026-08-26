@@ -29,7 +29,7 @@ const createdKey = {
 
 function openManageDialog() {
   const utils = render(<ApiKeys />);
-  fireEvent.click(utils.getByRole('button', { name: 'Agent API Keys' }));
+  fireEvent.click(utils.getByRole('button', { name: 'BP Chat API keys' }));
   return utils;
 }
 
@@ -52,13 +52,13 @@ describe('ApiKeys', () => {
   it('renders a manage trigger without opening the dialog', () => {
     const { getByText, getByRole, queryByRole } = render(<ApiKeys />);
     expect(getByText('Manage')).toBeInTheDocument();
-    expect(getByRole('button', { name: 'Agent API Keys' })).toBeInTheDocument();
+    expect(getByRole('button', { name: 'BP Chat API keys' })).toBeInTheDocument();
     expect(queryByRole('heading', { name: 'Agent API Keys' })).not.toBeInTheDocument();
   });
 
   it('opens the management dialog with the empty state', () => {
     const { getByText } = openManageDialog();
-    expect(getByText('Connect your agents to external apps')).toBeInTheDocument();
+    expect(getByText('Connect BP Chat to an external app')).toBeInTheDocument();
   });
 
   it('opens the create dialog from within the management dialog', () => {

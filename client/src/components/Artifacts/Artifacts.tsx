@@ -3,21 +3,35 @@ import copy from 'copy-to-clipboard';
 import * as Tabs from '@radix-ui/react-tabs';
 import { useSetRecoilState, useResetRecoilState } from 'recoil';
 import { Button, Spinner, useMediaQuery, Radio } from '@librechat/client';
-import { Code, Maximize2, Minimize2, Play, RefreshCw, X } from 'lucide-react';
+import {
+  Code,
+  Maximize2,
+  MessageSquarePlus,
+  Minimize2,
+  MousePointer2,
+  Play,
+  RefreshCw,
+  X,
+} from 'lucide-react';
 import type { SandpackPreviewRef } from '@codesandbox/sandpack-react';
 import type { ProcessedMermaidSvg } from '~/utils/diagram/export';
 import { TOOL_ARTIFACT_TYPES, isCodeOnlyArtifact, isPreviewOnlyArtifact } from '~/utils/artifacts';
 import { displayFilename } from '~/components/Chat/Messages/Content/Parts/attachmentTypes';
 import CopyButton from '~/components/Messages/Content/CopyButton';
-import { useShareContext, useMutationState } from '~/Providers';
+import { useOptionalChatFormContext, useShareContext, useMutationState } from '~/Providers';
+import { mainTextareaId } from '~/common';
 import useArtifacts from '~/hooks/Artifacts/useArtifacts';
 import { useFocusTrap, useLocalize } from '~/hooks';
 import DownloadArtifact from './DownloadArtifact';
+import GoogleWorkspaceEditButton from './GoogleWorkspaceEditButton';
+import PresentationExport, { supportsPresentationExport } from './PresentationExport';
 import ArtifactVersion from './ArtifactVersion';
 import MermaidExport from './Mermaid/Export';
 import ArtifactTabs from './ArtifactTabs';
+import ArtifactPublishButton from './ArtifactPublishButton';
 import { cn, logger } from '~/utils';
 import store from '~/store';
+import { buildArtifactAnnotationPrompt } from './artifactAnnotation';
 
 const MAX_BLUR_AMOUNT = 32;
 const MAX_BACKDROP_OPACITY = 0.3;
@@ -26,6 +40,7 @@ export default function Artifacts() {
   const localize = useLocalize();
   const { isMutating } = useMutationState();
   const { isSharedConvo } = useShareContext();
+  const chatForm = useOptionalChatFormContext();
   const isMobile = useMediaQuery('(max-width: 868px)');
   const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const previewRef = useRef<SandpackPreviewRef>();
@@ -197,21 +212,39 @@ export default function Artifacts() {
   }
   const displayedTab = constrainedTab ?? activeTab;
   const tabOptions = useMemo(() => {
+    const availableTabOptions =
+      currentArtifact?.type === TOOL_ARTIFACT_TYPES.HTML && !isSharedConvo
+        ? [
+            ...allTabOptions,
+            {
+              value: 'design',
+              label: 'Design',
+              icon: <MousePointer2 className="size-4" />,
+            },
+          ]
+        : allTabOptions;
     if (constrainedTab == null) {
-      return allTabOptions;
+      return availableTabOptions;
     }
     const filename = displayFilename(currentArtifact?.title);
-    const tab = allTabOptions.find((opt) => opt.value === constrainedTab);
+    const tab = availableTabOptions.find((opt) => opt.value === constrainedTab);
     if (!tab) {
-      return allTabOptions;
+      return availableTabOptions;
     }
     return [filename ? { ...tab, label: filename } : tab];
-  }, [allTabOptions, constrainedTab, currentArtifact?.title]);
+  }, [allTabOptions, constrainedTab, currentArtifact?.title, currentArtifact?.type, isSharedConvo]);
   useEffect(() => {
     if (constrainedTab != null && activeTab !== constrainedTab) {
       setActiveTab(constrainedTab);
+      return;
     }
-  }, [constrainedTab, activeTab, setActiveTab]);
+    if (
+      activeTab === 'design' &&
+      (currentArtifact?.type !== TOOL_ARTIFACT_TYPES.HTML || isSharedConvo)
+    ) {
+      setActiveTab('preview');
+    }
+  }, [constrainedTab, activeTab, currentArtifact?.type, isSharedConvo, setActiveTab]);
 
   const handleCopyArtifact = useCallback(() => {
     const content = currentArtifact?.content ?? '';
@@ -222,6 +255,21 @@ export default function Artifacts() {
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 3000);
   }, [currentArtifact?.content]);
+
+  const addArtifactToDraft = useCallback(() => {
+    if (!chatForm || !currentArtifact) {
+      return;
+    }
+    const prompt = buildArtifactAnnotationPrompt(currentArtifact);
+    const current = chatForm.getValues('text').trim();
+    const value = current ? `${current}\n\n${prompt}` : prompt;
+    chatForm.setValue('text', value, { shouldDirty: true, shouldValidate: true });
+    requestAnimationFrame(() => {
+      const textarea = document.getElementById(mainTextareaId) as HTMLTextAreaElement | null;
+      textarea?.focus();
+      textarea?.setSelectionRange(value.length, value.length);
+    });
+  }, [chatForm, currentArtifact]);
 
   const handleDragStart = (e: React.PointerEvent) => {
     setIsDragging(true);
@@ -442,23 +490,24 @@ export default function Artifacts() {
                   )}
                 </Button>
               )}
-              {(displayedTab === 'preview' || isFullscreen) && document.fullscreenEnabled && (
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-9 w-9"
-                  onClick={handleFullscreen}
-                  aria-label={localize(
-                    isFullscreen ? 'com_ui_exit_full_screen' : 'com_ui_enter_full_screen',
-                  )}
-                >
-                  {isFullscreen ? (
-                    <Minimize2 size={16} aria-hidden="true" />
-                  ) : (
-                    <Maximize2 size={16} aria-hidden="true" />
-                  )}
-                </Button>
-              )}
+              {(displayedTab === 'preview' || displayedTab === 'design' || isFullscreen) &&
+                document.fullscreenEnabled && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-9 w-9"
+                    onClick={handleFullscreen}
+                    aria-label={localize(
+                      isFullscreen ? 'com_ui_exit_full_screen' : 'com_ui_enter_full_screen',
+                    )}
+                  >
+                    {isFullscreen ? (
+                      <Minimize2 size={16} aria-hidden="true" />
+                    ) : (
+                      <Maximize2 size={16} aria-hidden="true" />
+                    )}
+                  </Button>
+                )}
               {displayedTab !== 'preview' && isMutating && (
                 <RefreshCw size={16} className="animate-spin text-text-secondary" />
               )}
@@ -474,6 +523,25 @@ export default function Artifacts() {
                     }
                   }}
                 />
+              )}
+              {currentArtifact.type === TOOL_ARTIFACT_TYPES.HTML && (
+                <ArtifactPublishButton artifact={currentArtifact} />
+              )}
+              {supportsPresentationExport(currentArtifact) && (
+                <PresentationExport artifact={currentArtifact} />
+              )}
+              <GoogleWorkspaceEditButton artifact={currentArtifact} />
+              {!isSharedConvo && chatForm && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-9 w-9"
+                  onClick={addArtifactToDraft}
+                  aria-label="Tambahkan instruksi perubahan ke chat"
+                  title="Tambahkan instruksi perubahan ke chat"
+                >
+                  <MessageSquarePlus size={16} aria-hidden="true" />
+                </Button>
               )}
               <CopyButton
                 isCopied={isCopied}

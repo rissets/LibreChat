@@ -59,6 +59,64 @@ type PreconfiguredOAuthDiscoveryResult = {
 
 const PRECONFIGURED_DISCOVERY_TIMEOUT_MS = 5_000;
 
+/**
+ * Google Workspace's console permits loopback HTTP callback URLs for local
+ * development, but it rejects custom `.localhost` hostnames. These are the
+ * only built-in connectors allowed to opt into the operator-configured
+ * callback origin; all other MCP servers continue to derive their callback
+ * from DOMAIN_SERVER so an arbitrary server configuration cannot redirect an
+ * OAuth response to a different origin.
+ */
+const GOOGLE_WORKSPACE_MCP_SERVER_NAMES = new Set([
+  'google-gmail',
+  'google-drive',
+  'google-docs',
+  'google-sheets',
+  'google-slides',
+  'google-calendar',
+  'google-people',
+  'google-chat',
+]);
+
+export function getGoogleWorkspaceMCPCallbackOrigin(serverName?: string): string | null {
+  if (!serverName || !GOOGLE_WORKSPACE_MCP_SERVER_NAMES.has(serverName)) {
+    return null;
+  }
+
+  const configuredOrigin = process.env.GOOGLE_WORKSPACE_MCP_CALLBACK_ORIGIN?.trim();
+  if (!configuredOrigin) {
+    return null;
+  }
+
+  try {
+    const url = new URL(configuredOrigin);
+    const isLoopback = ['localhost', '127.0.0.1', '[::1]', '::1'].includes(url.hostname);
+    const isSafeOrigin = url.protocol === 'https:' || (url.protocol === 'http:' && isLoopback);
+    if (!isSafeOrigin || url.pathname !== '/' || url.search || url.hash) {
+      logger.warn(
+        '[MCPOAuth] Ignoring invalid GOOGLE_WORKSPACE_MCP_CALLBACK_ORIGIN; use an HTTPS origin or an HTTP loopback origin without a path.',
+      );
+      return null;
+    }
+    return url.origin;
+  } catch {
+    logger.warn('[MCPOAuth] Ignoring malformed GOOGLE_WORKSPACE_MCP_CALLBACK_ORIGIN.');
+    return null;
+  }
+}
+
+export function getDefaultMCPRedirectUri(serverName?: string): string {
+  const googleWorkspaceCallbackOrigin = getGoogleWorkspaceMCPCallbackOrigin(serverName);
+  if (googleWorkspaceCallbackOrigin && serverName) {
+    return `${googleWorkspaceCallbackOrigin}/api/mcp/${serverName}/oauth/callback`;
+  }
+
+  const baseUrl = process.env.DOMAIN_SERVER || 'http://localhost:3080';
+  return serverName
+    ? `${baseUrl}/api/mcp/${serverName}/oauth/callback`
+    : `${baseUrl}/api/mcp/oauth/callback`;
+}
+
 export class MCPOAuthHandler {
   private static readonly FLOW_TYPE = 'mcp_oauth';
 
@@ -1486,10 +1544,7 @@ export class MCPOAuthHandler {
    * Gets the default redirect URI for a server
    */
   private static getDefaultRedirectUri(serverName?: string): string {
-    const baseUrl = process.env.DOMAIN_SERVER || 'http://localhost:3080';
-    return serverName
-      ? `${baseUrl}/api/mcp/${serverName}/oauth/callback`
-      : `${baseUrl}/api/mcp/oauth/callback`;
+    return getDefaultMCPRedirectUri(serverName);
   }
 
   /**

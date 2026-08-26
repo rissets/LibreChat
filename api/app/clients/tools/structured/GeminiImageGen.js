@@ -1,6 +1,7 @@
 const path = require('path');
 const sharp = require('sharp');
 const { v4 } = require('uuid');
+const { registerGeneratedImage } = require('../util/codeImageAssets');
 const { GoogleGenAI } = require('@google/genai');
 const { logger } = require('@librechat/data-schemas');
 const { tool } = require('@librechat/agents/langchain/tools');
@@ -434,6 +435,12 @@ function createGeminiImageTool(fields = {}) {
           image_url: { url: dataUrl },
         },
       ];
+      const codeEnvRef = await registerGeneratedImage({
+        req,
+        runnableConfig,
+        buffer: convertedBuffer,
+        filename: `${file_ids[0]}.${outputFormat}`,
+      });
 
       const textResponse = [
         {
@@ -460,7 +467,7 @@ function createGeminiImageTool(fields = {}) {
         logger.error('[GeminiImageGen] Failed to record token usage:', error);
       });
 
-      return [textResponse, { content, file_ids }];
+      return [textResponse, { content, file_ids, code_env_refs: [codeEnvRef] }];
     },
     {
       ...geminiToolkit.gemini_image_gen,

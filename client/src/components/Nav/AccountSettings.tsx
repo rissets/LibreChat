@@ -156,12 +156,12 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
       >
         <div className="mx-3 flex items-center gap-3 py-2" role="note">
           <img
-            src="/assets/logo.svg"
-            alt="Logo BP Batam"
+            src="/assets/hellodigi-mark.png"
+            alt="Logo HelloDigi"
             className="h-10 w-10 rounded-lg object-contain"
           />
           <div className="min-w-0">
-            <div className="font-semibold text-text-primary">BP Batam AI</div>
+            <div className="font-semibold text-text-primary">HelloDigi</div>
             <div className="truncate text-sm text-text-secondary">
               {user?.email ?? localize('com_nav_user')}
             </div>

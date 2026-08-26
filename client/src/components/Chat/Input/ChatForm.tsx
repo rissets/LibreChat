@@ -48,6 +48,7 @@ import StopButton from './StopButton';
 import SendButton from './SendButton';
 import EditBadges from './EditBadges';
 import BadgeRow from './BadgeRow';
+import CreationModes from './CreationModes';
 import Mention from './Mention';
 import store from '~/store';
 
@@ -713,6 +714,12 @@ const ChatForm = memo(function ChatForm({
               {TextToSpeech && automaticPlayback && <StreamAudio index={index} />}
             </div>
           </div>
+          {index === 0 &&
+            conversationId === Constants.NEW_CONVO &&
+            !isSubmitting &&
+            (conversation?.messages?.length ?? 0) === 0 && (
+              <CreationModes conversationId={String(conversationId)} />
+            )}
         </div>
       </div>
     </form>

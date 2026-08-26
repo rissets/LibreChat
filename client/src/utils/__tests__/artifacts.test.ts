@@ -348,28 +348,41 @@ describe('detectArtifactTypeFromFile', () => {
       );
     });
 
-    it('does NOT route data formats to CODE (JSON / YAML / TOML / XML)', () => {
-      /* These get dedicated viewers in follow-ups; for now they fall
-       * through to inline rendering (return null). CSV is the exception:
-       * it routes to the SPREADSHEET preview bucket — covered separately
-       * in the "classifies %s by extension" suite above. */
+    it('routes structured JSON to its inline data renderer while keeping other data text-safe', () => {
       expect(
         detectArtifactTypeFromFile({ filename: 'data.json', type: 'application/json', text: '{}' }),
-      ).toBeNull();
+      ).toBe(TOOL_ARTIFACT_TYPES.JSON);
       expect(
         detectArtifactTypeFromFile({
           filename: 'config.yaml',
           type: 'application/yaml',
           text: 'a: 1',
         }),
-      ).toBeNull();
+      ).toBe(TOOL_ARTIFACT_TYPES.PLAIN_TEXT);
       expect(
         detectArtifactTypeFromFile({
           filename: 'pyproject.toml',
           type: 'application/toml',
-          text: '',
+          text: 'name = "demo"',
         }),
-      ).toBeNull();
+      ).toBe(TOOL_ARTIFACT_TYPES.PLAIN_TEXT);
+    });
+
+    it('routes SVG and Graph TD source to visual artifact renderers', () => {
+      expect(
+        detectArtifactTypeFromFile({
+          filename: 'dashboard.svg',
+          type: 'image/svg+xml',
+          text: '<svg viewBox="0 0 10 10" />',
+        }),
+      ).toBe(TOOL_ARTIFACT_TYPES.SVG);
+      expect(
+        detectArtifactTypeFromFile({
+          filename: 'flow.txt',
+          type: 'text/plain',
+          text: 'graph TD\n  A[Mulai] --> B[Selesai]',
+        }),
+      ).toBe(TOOL_ARTIFACT_TYPES.MERMAID);
     });
 
     it('does NOT route config dotfiles to CODE (.env / .ini)', () => {

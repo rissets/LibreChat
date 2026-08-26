@@ -2,6 +2,12 @@ export enum ArtifactModes {
   DEFAULT = 'default',
   SHADCNUI = 'shadcnui',
   CUSTOM = 'custom',
+  WEB = 'web',
+  DATA = 'data',
+  PRESENTATION = 'presentation',
+  DOCUMENT = 'document',
+  DIAGRAM = 'diagram',
+  DESIGN = 'design',
 }
 
 export const utils = `

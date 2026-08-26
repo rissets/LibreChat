@@ -7,7 +7,7 @@ import useSmoothStreaming from '~/hooks/Messages/useSmoothStreaming';
 import { useLocalize, useExpandCollapse } from '~/hooks';
 import { showThinkingAtom } from '~/store/showThinking';
 import { useMessageContext } from '~/Providers';
-import { cn } from '~/utils';
+import { cn, redactInternalRuntimeDetails } from '~/utils';
 
 type ReasoningProps = {
   reasoning: string;
@@ -49,10 +49,12 @@ const Reasoning = memo(({ reasoning, isLast }: ReasoningProps) => {
 
   // Strip <think> tags from the reasoning content (modern format)
   const reasoningText = useMemo(() => {
-    return reasoning
-      .replace(/^<think>\s*/, '')
-      .replace(/\s*<\/think>$/, '')
-      .trim();
+    return redactInternalRuntimeDetails(
+      reasoning
+        .replace(/^<think>\s*/, '')
+        .replace(/\s*<\/think>$/, '')
+        .trim(),
+    );
   }, [reasoning]);
 
   const handleClick = useCallback((e: MouseEvent<HTMLButtonElement>) => {

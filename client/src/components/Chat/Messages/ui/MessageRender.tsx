@@ -16,6 +16,7 @@ import HoverButtons from '~/components/Chat/Messages/HoverButtons';
 import MessageRow from '~/components/Chat/Messages/ui/MessageRow';
 import MessageIcon from '~/components/Chat/Messages/MessageIcon';
 import SubRow from '~/components/Chat/Messages/SubRow';
+import { artifactTypeForAttachment } from '../Content/Parts/attachmentTypes';
 import { MessageContext } from '~/Providers';
 import store from '~/store';
 
@@ -127,6 +128,13 @@ const MessageRender = memo(function MessageRender({
   );
 
   const { hasParallelContent } = useContentMetadata(msg);
+  const hasInlineArtifact = useMemo(
+    () =>
+      !msg?.isCreatedByUser &&
+      (/:{2,3}artifact(?:\{|:)/.test(JSON.stringify(msg?.content ?? [])) ||
+        (msg?.attachments ?? []).some((attachment) => artifactTypeForAttachment(attachment) != null)),
+    [msg?.attachments, msg?.content, msg?.isCreatedByUser],
+  );
   const messageId = msg?.messageId ?? '';
   const messageContextValue = useMemo(
     () => ({
@@ -153,7 +161,8 @@ const MessageRender = memo(function MessageRender({
       headerPrefix={getHeaderPrefixForScreenReader(msg, localize)}
       isCreatedByUser={msg.isCreatedByUser === true}
       hasParallelContent={hasParallelContent}
-      fullWidth={maximizeChatSpace}
+      fullWidth={maximizeChatSpace || hasInlineArtifact}
+      fullWidthArtifact={hasInlineArtifact}
       isEditing={edit}
       footer={
         <SubRow classes={cn(messageFooterClasses, msg.isCreatedByUser && 'justify-end')}>

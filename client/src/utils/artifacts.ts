@@ -12,6 +12,8 @@ const artifactFilename = {
   'application/vnd.react': 'App.tsx',
   'application/vnd.ant.react': 'App.tsx',
   'text/html': 'index.html',
+  'image/svg+xml': 'graphic.svg',
+  'application/json': 'data.json',
   'application/vnd.code-html': 'index.html',
   /* Office preview buckets — the backend produces a complete sanitized
    * `index.html` document (head + body) and ships it via `attachment.text`.
@@ -33,6 +35,8 @@ const artifactTemplate: Record<
   | keyof typeof artifactFilename
   | 'application/vnd.mermaid'
   | 'application/vnd.code'
+  | 'image/svg+xml'
+  | 'application/json'
   | 'text/markdown'
   | 'text/md'
   | 'text/plain',
@@ -43,6 +47,8 @@ const artifactTemplate: Record<
   'application/vnd.ant.react': 'react-ts',
   'application/vnd.mermaid': 'react-ts',
   'application/vnd.code-html': 'static',
+  'image/svg+xml': 'static',
+  'application/json': 'static',
   /* CODE bucket reuses the static markdown pipeline — `useArtifactProps`
    * pre-wraps the content in a fenced block and hands it to
    * `getMarkdownFiles`, so the rendered HTML uses the same `marked`
@@ -133,6 +139,8 @@ const dependenciesMap: Record<
   | keyof typeof artifactFilename
   | 'application/vnd.mermaid'
   | 'application/vnd.code'
+  | 'image/svg+xml'
+  | 'application/json'
   | 'text/markdown'
   | 'text/md'
   | 'text/plain',
@@ -147,6 +155,8 @@ const dependenciesMap: Record<
    * runtime deps. Empty map skips the sandpack `package.json` install
    * step entirely (same as MARKDOWN/PLAIN_TEXT). */
   'application/vnd.code': {},
+  'image/svg+xml': {},
+  'application/json': {},
   'text/markdown': {},
   'text/md': {},
   'text/plain': {},
@@ -284,6 +294,8 @@ const baseMime = (mime: string | undefined): string => {
 export const TOOL_ARTIFACT_TYPES = {
   HTML: 'text/html',
   REACT: 'application/vnd.react',
+  SVG: 'image/svg+xml',
+  JSON: 'application/json',
   MARKDOWN: 'text/markdown',
   MERMAID: MERMAID_ARTIFACT_TYPE,
   PLAIN_TEXT: 'text/plain',
@@ -564,9 +576,41 @@ export function wrapAsFencedCodeBlock(source: string, lang: string): string {
   return fence + lang + '\n' + body + '\n' + fence;
 }
 
+/**
+ * Pretty-print valid JSON before it enters the static code viewer. Invalid or
+ * partially streamed JSON deliberately stays untouched so no user content is
+ * hidden while a generated file is still arriving.
+ */
+export function formatJsonForArtifact(source: string): string {
+  try {
+    return JSON.stringify(JSON.parse(source), null, 2);
+  } catch {
+    return source;
+  }
+}
+
+/**
+ * Mermaid files are often named `.txt` by code tools. Recognize an actual
+ * Mermaid grammar prefix so Graph TD/flowchart files render as diagrams while
+ * ordinary text files continue through the text renderer.
+ */
+export function isMermaidDiagramSource(source: string | null | undefined): boolean {
+  if (!source) {
+    return false;
+  }
+  const normalized = source
+    .replace(/^\uFEFF/, '')
+    .replace(/^(?:\s*%%[^\n]*\n)*/g, '')
+    .trimStart();
+  return /^(?:graph\s+(?:TD|TB|BT|RL|LR)\b|flowchart\s+(?:TD|TB|BT|RL|LR)\b|sequenceDiagram\b|classDiagram\b|stateDiagram(?:-v2)?\b|erDiagram\b|journey\b|gantt\b|pie\b|mindmap\b|timeline\b|quadrantChart\b|sankey-beta\b|gitGraph\b)/i.test(
+    normalized,
+  );
+}
+
 const EXTENSION_TO_TOOL_ARTIFACT_TYPE: Record<string, ToolArtifactType> = {
   html: TOOL_ARTIFACT_TYPES.HTML,
   htm: TOOL_ARTIFACT_TYPES.HTML,
+  svg: TOOL_ARTIFACT_TYPES.SVG,
   // jsx/tsx are React component sources — keep them on the React
   // (sandpack) bucket rather than the new CODE bucket so the existing
   // live-preview behavior survives. Plain JS/TS source goes through CODE.
@@ -577,7 +621,17 @@ const EXTENSION_TO_TOOL_ARTIFACT_TYPE: Record<string, ToolArtifactType> = {
   mdx: TOOL_ARTIFACT_TYPES.MARKDOWN,
   mmd: TOOL_ARTIFACT_TYPES.MERMAID,
   mermaid: TOOL_ARTIFACT_TYPES.MERMAID,
+  graphtd: TOOL_ARTIFACT_TYPES.MERMAID,
+  graph: TOOL_ARTIFACT_TYPES.MERMAID,
+  json: TOOL_ARTIFACT_TYPES.JSON,
+  jsonc: TOOL_ARTIFACT_TYPES.JSON,
+  geojson: TOOL_ARTIFACT_TYPES.JSON,
+  topojson: TOOL_ARTIFACT_TYPES.JSON,
   txt: TOOL_ARTIFACT_TYPES.PLAIN_TEXT,
+  yaml: TOOL_ARTIFACT_TYPES.PLAIN_TEXT,
+  yml: TOOL_ARTIFACT_TYPES.PLAIN_TEXT,
+  toml: TOOL_ARTIFACT_TYPES.PLAIN_TEXT,
+  xml: TOOL_ARTIFACT_TYPES.PLAIN_TEXT,
   // ODT has no rich HTML producer — it stays on the markdown-text path.
   odt: TOOL_ARTIFACT_TYPES.PLAIN_TEXT,
   /* Office formats with rich HTML previews. The backend's
@@ -610,11 +664,18 @@ for (const ext of Object.keys(CODE_EXTENSION_TO_LANGUAGE)) {
 const MIME_TO_TOOL_ARTIFACT_TYPE: Record<string, ToolArtifactType> = {
   'text/html': TOOL_ARTIFACT_TYPES.HTML,
   'application/vnd.code-html': TOOL_ARTIFACT_TYPES.HTML,
+  'image/svg+xml': TOOL_ARTIFACT_TYPES.SVG,
+  'application/json': TOOL_ARTIFACT_TYPES.JSON,
+  'text/json': TOOL_ARTIFACT_TYPES.JSON,
+  'application/geo+json': TOOL_ARTIFACT_TYPES.JSON,
+  'application/ld+json': TOOL_ARTIFACT_TYPES.JSON,
   'text/markdown': TOOL_ARTIFACT_TYPES.MARKDOWN,
   'text/md': TOOL_ARTIFACT_TYPES.MARKDOWN,
   'application/vnd.react': TOOL_ARTIFACT_TYPES.REACT,
   'application/vnd.ant.react': TOOL_ARTIFACT_TYPES.REACT,
   'application/vnd.mermaid': TOOL_ARTIFACT_TYPES.MERMAID,
+  'text/vnd.mermaid': TOOL_ARTIFACT_TYPES.MERMAID,
+  'text/x-mermaid': TOOL_ARTIFACT_TYPES.MERMAID,
   // Code MIME types — codeapi serves these via Content-Type for source
   // files (`text/x-python`, `text/x-typescript`, etc.) so a file whose
   // extension was stripped or renamed upstream still routes to CODE.
@@ -731,7 +792,14 @@ export function detectArtifactTypeFromFile(
   const byMime =
     lookupOwn(MIME_TO_TOOL_ARTIFACT_TYPE, normalizedMime) ??
     (excelMimeTypes.test(normalizedMime) ? TOOL_ARTIFACT_TYPES.SPREADSHEET : undefined);
-  const type = byExtension ?? byBareName ?? byMime ?? null;
+  const hasMermaidSource = isMermaidDiagramSource(attachment.text);
+  // Code interpreters frequently save Mermaid as `.txt`. In that one case,
+  // content is more precise than the generic plain-text extension; explicit
+  // visual extensions and MIME types still retain their normal priority.
+  const type =
+    hasMermaidSource && byExtension === TOOL_ARTIFACT_TYPES.PLAIN_TEXT
+      ? TOOL_ARTIFACT_TYPES.MERMAID
+      : byExtension ?? byBareName ?? byMime ?? (hasMermaidSource ? TOOL_ARTIFACT_TYPES.MERMAID : null);
   if (!isToolArtifactType(type)) {
     return null;
   }

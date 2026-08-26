@@ -4,7 +4,7 @@ import MarkdownLite from '~/components/Chat/Messages/Content/MarkdownLite';
 import useSmoothStreaming from '~/hooks/Messages/useSmoothStreaming';
 import Markdown from '~/components/Chat/Messages/Content/Markdown';
 import { useMessageContext } from '~/Providers';
-import { cn } from '~/utils';
+import { cn, redactInternalRuntimeDetails } from '~/utils';
 import store from '~/store';
 
 type TextPartProps = {
@@ -31,7 +31,7 @@ const TextPart = memo(function TextPart({ text, isCreatedByUser, showCursor }: T
 
   const content: ContentType = useMemo(() => {
     if (!isCreatedByUser) {
-      return <Markdown content={text} isLatestMessage={isLatestMessage} />;
+      return <Markdown content={redactInternalRuntimeDetails(text)} isLatestMessage={isLatestMessage} />;
     } else if (enableUserMsgMarkdown) {
       return <MarkdownLite content={text} />;
     } else {

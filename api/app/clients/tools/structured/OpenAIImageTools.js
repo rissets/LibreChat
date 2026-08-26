@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { v4 } = require('uuid');
+const { registerGeneratedImage } = require('../util/codeImageAssets');
 const OpenAI = require('openai');
 const FormData = require('form-data');
 const { logger } = require('@librechat/data-schemas');
@@ -230,13 +231,19 @@ Error Message: ${error.message}`);
       ];
 
       const file_ids = [v4()];
+      const codeEnvRef = await registerGeneratedImage({
+        req,
+        runnableConfig,
+        buffer: Buffer.from(base64Image, 'base64'),
+        filename: `${file_ids[0]}.${output_format}`,
+      });
       const response = [
         {
           type: ContentTypes.TEXT,
           text: displayMessage + `\n\ngenerated_image_id: "${file_ids[0]}"`,
         },
       ];
-      return [response, { content, file_ids }];
+      return [response, { content, file_ids, code_env_refs: [codeEnvRef] }];
     },
     oaiToolkit.image_gen_oai,
   );
@@ -401,6 +408,12 @@ Error Message: ${error.message}`);
         ];
 
         const file_ids = [v4()];
+        const codeEnvRef = await registerGeneratedImage({
+          req,
+          runnableConfig,
+          buffer: Buffer.from(base64Image, 'base64'),
+          filename: `${file_ids[0]}.${imageOutputType}`,
+        });
         const textResponse = [
           {
             type: ContentTypes.TEXT,
@@ -409,7 +422,7 @@ Error Message: ${error.message}`);
               `\n\ngenerated_image_id: "${file_ids[0]}"\nreferenced_image_ids: ["${image_ids.join('", "')}"]`,
           },
         ];
-        return [textResponse, { content, file_ids }];
+        return [textResponse, { content, file_ids, code_env_refs: [codeEnvRef] }];
       } catch (error) {
         const message = '[image_edit_oai] Problem editing the image:';
         logAxiosError({ error, message });

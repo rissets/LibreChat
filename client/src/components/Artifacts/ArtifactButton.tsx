@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { useRecoilState, useSetRecoilState, useResetRecoilState } from 'recoil';
 import type { Artifact } from '~/common';
 import FilePreview from '~/components/Chat/Input/Files/FilePreview';
+import InlineArtifactPreview, { supportsInlineArtifact } from './InlineArtifactPreview';
 import { cn, getFileType, logger, isArtifactRoute } from '~/utils';
 import { useLocalize } from '~/hooks';
 import store from '~/store';
@@ -51,6 +52,9 @@ const ArtifactButton = ({ artifact }: { artifact: Artifact | null }) => {
   if (artifact === null || artifact === undefined) {
     return null;
   }
+  if (supportsInlineArtifact(artifact)) {
+    return <InlineArtifactPreview artifact={artifact} />;
+  }
   const fileType = getFileType('artifact');
 
   return (
@@ -84,17 +88,19 @@ const ArtifactButton = ({ artifact }: { artifact: Artifact | null }) => {
           : localize('com_ui_artifact_click');
 
         return (
-          <button type="button" onClick={handleClick} className={buttonClass}>
-            <div className="w-fit p-2">
-              <div className="flex flex-row items-center gap-2">
-                <FilePreview fileType={fileType} className="relative" />
-                <div className="overflow-hidden text-left">
-                  <div className="truncate font-medium">{artifact.title}</div>
-                  <div className="truncate text-text-secondary">{actionLabel}</div>
+          <>
+            <button type="button" onClick={handleClick} className={buttonClass}>
+              <div className="w-fit p-2">
+                <div className="flex flex-row items-center gap-2">
+                  <FilePreview fileType={fileType} className="relative" />
+                  <div className="overflow-hidden text-left">
+                    <div className="truncate font-medium">{artifact.title}</div>
+                    <div className="truncate text-text-secondary">{actionLabel}</div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </button>
+            </button>
+          </>
         );
       })()}
       <br />

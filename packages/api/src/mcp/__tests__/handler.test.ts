@@ -1,7 +1,13 @@
 import { TokenExchangeMethodEnum } from 'librechat-data-provider';
 import type { AuthorizationServerMetadata } from '@modelcontextprotocol/sdk/shared/auth.js';
 import type { MCPOptions } from 'librechat-data-provider';
-import { MCPOAuthFlowMetadata, MCPOAuthHandler, MCPOAuthTokens } from '~/mcp/oauth';
+import {
+  getDefaultMCPRedirectUri,
+  getGoogleWorkspaceMCPCallbackOrigin,
+  MCPOAuthFlowMetadata,
+  MCPOAuthHandler,
+  MCPOAuthTokens,
+} from '~/mcp/oauth';
 
 jest.mock('@librechat/data-schemas', () => ({
   logger: {
@@ -3301,5 +3307,58 @@ describe('MCPOAuthHandler - Configurable OAuth Metadata', () => {
       const fetchFnArg = mockProbeResourceMetadataHint.mock.calls[0][1];
       expect(typeof fetchFnArg).toBe('function');
     });
+  });
+});
+
+describe('Google Workspace MCP callback origin', () => {
+  const originalDomainServer = process.env.DOMAIN_SERVER;
+  const originalGoogleCallbackOrigin = process.env.GOOGLE_WORKSPACE_MCP_CALLBACK_ORIGIN;
+
+  afterEach(() => {
+    if (originalDomainServer === undefined) {
+      delete process.env.DOMAIN_SERVER;
+    } else {
+      process.env.DOMAIN_SERVER = originalDomainServer;
+    }
+
+    if (originalGoogleCallbackOrigin === undefined) {
+      delete process.env.GOOGLE_WORKSPACE_MCP_CALLBACK_ORIGIN;
+    } else {
+      process.env.GOOGLE_WORKSPACE_MCP_CALLBACK_ORIGIN = originalGoogleCallbackOrigin;
+    }
+  });
+
+  it('uses the explicit safe origin for each bundled Google connector only', () => {
+    process.env.DOMAIN_SERVER = 'http://app.hellodigi.localhost:8080';
+    process.env.GOOGLE_WORKSPACE_MCP_CALLBACK_ORIGIN = 'http://localhost:8080/';
+
+    const googleServers = [
+      'google-gmail',
+      'google-drive',
+      'google-docs',
+      'google-sheets',
+      'google-slides',
+      'google-calendar',
+      'google-people',
+      'google-chat',
+    ];
+
+    expect(googleServers.map(getGoogleWorkspaceMCPCallbackOrigin)).toEqual(
+      googleServers.map(() => 'http://localhost:8080'),
+    );
+    expect(googleServers.map(getDefaultMCPRedirectUri)).toEqual(
+      googleServers.map(
+        (serverName) => `http://localhost:8080/api/mcp/${serverName}/oauth/callback`,
+      ),
+    );
+    expect(getDefaultMCPRedirectUri('custom-google-server')).toBe(
+      'http://app.hellodigi.localhost:8080/api/mcp/custom-google-server/oauth/callback',
+    );
+  });
+
+  it('rejects unsafe non-loopback HTTP origins', () => {
+    process.env.GOOGLE_WORKSPACE_MCP_CALLBACK_ORIGIN = 'http://example.com';
+
+    expect(getGoogleWorkspaceMCPCallbackOrigin('google-drive')).toBeNull();
   });
 });

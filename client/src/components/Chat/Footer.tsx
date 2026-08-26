@@ -39,7 +39,7 @@ function Footer({ className, startupConfig }: FooterProps) {
   const mainContentParts = (
     typeof config?.customFooter === 'string'
       ? config.customFooter
-      : '[BP Batam AI ' +
+      : '[HelloDigi ' +
         Constants.VERSION +
         '](https://librechat.ai) - ' +
         localize('com_ui_latest_footer')

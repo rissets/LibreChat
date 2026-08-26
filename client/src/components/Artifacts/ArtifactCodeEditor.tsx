@@ -48,6 +48,8 @@ const TYPE_MAP: Record<string, string> = {
   'text/md': 'markdown',
   'text/plain': 'plaintext',
   'application/vnd.mermaid': 'markdown',
+  'image/svg+xml': 'xml',
+  'application/json': 'json',
 };
 
 type ArtifactEditTarget = {

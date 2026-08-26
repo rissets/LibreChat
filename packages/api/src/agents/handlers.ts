@@ -3633,14 +3633,45 @@ function buildToolCallConfig(
     toolCallConfig._runtime_session_hint = tc.runtimeSessionHint;
   }
 
-  if (tc.codeSessionContext && isCodeSessionAwareToolCall(tc.name, mergedConfigurable)) {
-    toolCallConfig.session_id = tc.codeSessionContext.session_id;
-    if (tc.codeSessionContext.files && tc.codeSessionContext.files.length > 0) {
-      toolCallConfig._injected_files = tc.codeSessionContext.files;
+  if (isCodeSessionAwareToolCall(tc.name, mergedConfigurable)) {
+    const registry = (globalThis as unknown as Record<string, unknown>)[
+      '__hellodigi_code_image_registry__'
+    ] as
+      | Map<
+          string,
+          {
+            session_id?: string;
+            files?: Array<Record<string, unknown>>;
+            expiresAt?: number;
+          }
+        >
+      | undefined;
+    const registryKeys = [
+      tc.runtimeSessionHint,
+      mergedConfigurable?.runtimeSessionHint,
+      mergedConfigurable?.thread_id,
+      (mergedConfigurable?.requestBody as Record<string, unknown> | undefined)?.conversationId,
+    ].filter((key): key is string => typeof key === 'string' && key.length > 0);
+    const registered = registryKeys
+      .map((key) => registry?.get(key))
+      .find((entry) => entry?.files && entry.files.length > 0);
+    const existingContext = tc.codeSessionContext;
+    const existingFiles = existingContext?.files ?? [];
+    const registeredFiles = (registered?.files ?? []) as typeof existingFiles;
+    const files = [...existingFiles, ...registeredFiles].filter(
+      (file, index, all) =>
+        typeof file?.id !== 'string' || all.findIndex((candidate) => candidate?.id === file.id) === index,
+    );
+    const sessionId = existingContext?.session_id ?? registered?.session_id;
+    if (sessionId) {
+      toolCallConfig.session_id = sessionId;
+    }
+    if (files.length > 0) {
+      toolCallConfig._injected_files = files;
       /* Last LC-controlled point before the wire. Mirrors
        * codeapi's validator context so the two log sides
        * correlate on a single grep. */
-      const refs = tc.codeSessionContext.files as Array<{
+      const refs = files as Array<{
         id?: unknown;
         resource_id?: unknown;
         storage_session_id?: unknown;
@@ -3693,9 +3724,9 @@ function buildToolCallConfig(
         `[code-env:inject] tool=${tc.name} _injected_files=0 — sandbox will see no input files`,
         {
           tool: tc.name,
-          session_id: tc.codeSessionContext.session_id,
-          codeSessionContextHasFiles: tc.codeSessionContext.files !== undefined,
-          codeSessionContextFileCount: tc.codeSessionContext.files?.length ?? 0,
+          session_id: sessionId,
+          codeSessionContextHasFiles: existingContext?.files !== undefined,
+          codeSessionContextFileCount: files.length,
         },
       );
     }

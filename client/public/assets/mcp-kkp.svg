@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="KKP Data">
+  <rect width="64" height="64" rx="16" fill="#056b78"/>
+  <path d="M10 42c6-8 12 8 22 0s16 8 22 0" fill="none" stroke="#bdeff1" stroke-width="4" stroke-linecap="round"/>
+  <path d="M12 50c6-8 12 8 22 0s16 8 22 0" fill="none" stroke="#78d6dd" stroke-width="4" stroke-linecap="round"/>
+  <path d="M23 39h19l-3-12H26l-3 12Zm9-12v-7m-8 0h16" fill="#f4c65a" stroke="#f4c65a" stroke-width="3" stroke-linejoin="round"/>
+</svg>

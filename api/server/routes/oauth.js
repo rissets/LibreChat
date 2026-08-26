@@ -35,7 +35,18 @@ const authFailureRedirectOptions = {
 };
 
 router.use(logHeaders);
-router.use(loginLimiter);
+// An OAuth callback is a response to a state-bound authorization request, not a
+// fresh login attempt. Counting the callback (and the resulting error hand-off)
+// alongside the authorization start makes a normal provider redirect consume two
+// limiter slots and can lock out a user while switching accounts. Keep the rate
+// limit on every authorization initiation endpoint, but let callbacks complete
+// through their own state/PKCE validation.
+router.use((req, res, next) => {
+  if (req.path === '/error' || req.path.endsWith('/callback')) {
+    return next();
+  }
+  return loginLimiter(req, res, next);
+});
 
 const oauthHandler = createOAuthHandler();
 const authenticateOpenIDCallback = createOpenIDCallbackAuthenticator({

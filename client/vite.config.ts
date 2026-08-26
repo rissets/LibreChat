@@ -140,8 +140,8 @@ export default defineConfig(({ command }) => ({
       },
       includeAssets: [],
       manifest: {
-        name: 'BP Batam AI',
-        short_name: 'BP Batam AI',
+        name: 'HelloDigi',
+        short_name: 'HelloDigi',
         display: 'standalone',
         background_color: '#0f172a',
         theme_color: '#1e40af',

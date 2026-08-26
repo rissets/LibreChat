@@ -49,6 +49,7 @@ const mockRedirectToAuthFailure = jest.fn((res, { clientDomain, authFailedError 
   res.redirect(`${clientDomain}/login?redirect=false&error=${authFailedError}`),
 );
 const mockPassportAuthenticate = jest.fn(() => (_req, _res, next) => next());
+const mockLoginLimiter = jest.fn((_req, _res, next) => next());
 
 jest.mock('passport', () => ({
   authenticate: (...args) => mockPassportAuthenticate(...args),
@@ -79,7 +80,7 @@ jest.mock('@librechat/api', () => ({
 
 jest.mock('~/server/middleware', () => ({
   checkDomainAllowed: jest.fn((_req, _res, next) => next()),
-  loginLimiter: jest.fn((_req, _res, next) => next()),
+  loginLimiter: (...args) => mockLoginLimiter(...args),
   logHeaders: jest.fn((_req, _res, next) => next()),
 }));
 
@@ -136,6 +137,7 @@ describe('OAuth route failure logging', () => {
     mockGetOAuthFailureMessage.mockClear();
     mockRedirectToAuthFailure.mockClear();
     mockPassportAuthenticate.mockClear();
+    mockLoginLimiter.mockClear();
     mockOpenIDCallbackAuthenticatorOptions = undefined;
     mockPassportAuthenticate.mockImplementation(() => (_req, _res, next) => next());
     mockOpenIDCallbackMiddleware.mockImplementation((_req, _res, next) => next());
@@ -160,6 +162,15 @@ describe('OAuth route failure logging', () => {
       expect.any(Function),
     );
     expect(mockOAuthHandler).toHaveBeenCalled();
+    expect(mockLoginLimiter).not.toHaveBeenCalled();
+  });
+
+  it('keeps rate limiting on authorization starts but not on callbacks', async () => {
+    const app = createApp();
+
+    await request(app).get('/oauth/openid').expect(404);
+
+    expect(mockLoginLimiter).toHaveBeenCalledTimes(1);
   });
 
   it('logs structured fallback errors without using Unknown OAuth error', async () => {
