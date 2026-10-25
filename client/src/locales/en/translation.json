@@ -799,6 +799,8 @@
   "com_nav_at_command_description": "Toggle command \"@\" for switching endpoints, models, presets, etc.",
   "com_nav_audio_play_error": "Error playing audio: {{0}}",
   "com_nav_audio_process_error": "Error processing audio: {{0}}",
+  "com_nav_tts_browser_fallback": "The speech provider failed. Reading aloud with the browser voice.",
+  "com_nav_stt_browser_fallback": "The transcription provider failed. Browser dictation is ready; record again. Browser support is required.",
   "com_nav_auto_expand_tools": "Auto-expand tool details",
   "com_nav_auto_scroll": "Auto-Scroll to latest message on chat open",
   "com_nav_auto_send_prompts": "Send prompts on select",

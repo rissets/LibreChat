@@ -27,7 +27,7 @@ function useTextToSpeechBrowser({
   /** Reports whether an utterance was actually queued: autoplay must not mark a run as
    *  played when the voice list has not loaded yet, or the message is never spoken. */
   const generateSpeechLocal = useCallback(
-    (text: string): boolean => {
+    (text: string, allowDefaultVoice = false): boolean => {
       if (!isSpeechSynthesisSupported) {
         console.warn('Speech synthesis is not supported');
         return false;
@@ -36,7 +36,7 @@ function useTextToSpeechBrowser({
       const synth = window.speechSynthesis;
       const voice = voices.find((v) => v.value === voiceName);
 
-      if (!voice) {
+      if (!voice && !allowDefaultVoice) {
         console.warn('Selected voice not found');
         return false;
       }
@@ -44,7 +44,9 @@ function useTextToSpeechBrowser({
       try {
         synth.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.voice = synth.getVoices().find((v) => v.name === voice.value) || null;
+        utterance.voice = voice
+          ? synth.getVoices().find((v) => v.name === voice.value) || null
+          : null;
         utterance.onend = () => {
           setIsSpeaking(false);
         };
@@ -83,7 +85,12 @@ function useTextToSpeechBrowser({
     }
   }, [isSpeechSynthesisSupported, setIsSpeaking]);
 
-  return { generateSpeechLocal, cancelSpeechLocal, voices, isSpeechSynthesisSupported };
+  return {
+    generateSpeechLocal,
+    cancelSpeechLocal,
+    voices,
+    isSpeechSynthesisSupported,
+  };
 }
 
 export default useTextToSpeechBrowser;

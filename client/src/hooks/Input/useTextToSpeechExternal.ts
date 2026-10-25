@@ -8,6 +8,7 @@ import {
   getTTSCacheGeneration,
 } from '~/utils';
 import { useTextToSpeechMutation, useVoicesQuery } from '~/data-provider';
+import useTextToSpeechBrowser from './useTextToSpeechBrowser';
 import { useLocalize, useAuthContext } from '~/hooks';
 import store from '~/store';
 
@@ -39,6 +40,12 @@ function useTextToSpeechExternal({
   const voice = useRecoilValue(store.voice);
   const cacheTTS = useRecoilValue(store.cacheTTS);
   const playbackRate = useRecoilValue(store.playbackRate);
+  const browserFallback = useRef(false);
+  const activeRequest = useRef<FormData | null>(null);
+  const isMounted = useRef(true);
+  const { generateSpeechLocal, cancelSpeechLocal } = useTextToSpeechBrowser({
+    setIsSpeaking,
+  });
 
   const [downloadFile, setDownloadFile] = useState(false);
 
@@ -110,6 +117,9 @@ function useTextToSpeechExternal({
       }
     },
     onSuccess: async (data: ArrayBuffer, variables) => {
+      if (!isMounted.current || activeRequest.current !== variables) {
+        return;
+      }
       try {
         const inputText = (variables.get('input') ?? '') as string;
         const audioBlob = new Blob([data], { type: 'audio/mpeg' });
@@ -134,9 +144,23 @@ function useTextToSpeechExternal({
         });
       }
     },
-    onError: (error: unknown) => {
+    onError: (error: unknown, variables) => {
+      if (!isMounted.current || activeRequest.current !== variables) {
+        return;
+      }
+      const text = String(variables.get('input') ?? '');
+      if (!downloadFile && text && generateSpeechLocal(text, true)) {
+        browserFallback.current = true;
+        showToast({
+          message: localize('com_nav_tts_browser_fallback'),
+          status: 'warning',
+        });
+        return;
+      }
       showToast({
-        message: localize('com_nav_audio_process_error', { 0: (error as Error).message }),
+        message: localize('com_nav_audio_process_error', {
+          0: (error as Error).message,
+        }),
         status: 'error',
       });
     },
@@ -144,6 +168,7 @@ function useTextToSpeechExternal({
 
   const startMutation = (text: string, download: boolean) => {
     const formData = createFormData(text, voice ?? '');
+    activeRequest.current = formData;
     requestGenerations.current.set(formData, getTTSCacheGeneration());
     setDownloadFile(download);
     processAudio(formData);
@@ -172,6 +197,11 @@ function useTextToSpeechExternal({
   };
 
   const cancelSpeech = () => {
+    activeRequest.current = null;
+    if (browserFallback.current) {
+      cancelSpeechLocal();
+      browserFallback.current = false;
+    }
     const messageAudio = document.getElementById(`audio-${messageId}`) as HTMLAudioElement | null;
     const pauseAudio = (currentElement: HTMLAudioElement | null) => {
       if (currentElement) {
@@ -186,15 +216,26 @@ function useTextToSpeechExternal({
   };
 
   const cancelPromiseSpeech = useCallback(() => {
+    if (browserFallback.current) {
+      cancelSpeechLocal();
+      browserFallback.current = false;
+    }
     if (promiseAudioRef.current) {
       promiseAudioRef.current.pause();
       promiseAudioRef.current.src && URL.revokeObjectURL(promiseAudioRef.current.src);
       promiseAudioRef.current = null;
       setIsSpeaking(false);
     }
-  }, [setIsSpeaking]);
+  }, [cancelSpeechLocal, setIsSpeaking]);
 
-  useEffect(() => cancelPromiseSpeech, [cancelPromiseSpeech]);
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+      activeRequest.current = null;
+      cancelPromiseSpeech();
+    };
+  }, [cancelPromiseSpeech]);
 
   const isFetching = useMemo(
     () => isLast && globalIsFetching && !globalIsPlaying,

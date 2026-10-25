@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRecoilState } from 'recoil';
 import { useToastContext } from '@librechat/client';
 import { useSpeechToTextMutation } from '~/data-provider';
+import useLocalize from '~/hooks/useLocalize';
 import store from '~/store';
 
 export const getBestSupportedMimeType = (
@@ -41,6 +42,7 @@ const useSpeechToTextExternal = (
   autoSendText: number,
 ) => {
   const { showToast } = useToastContext();
+  const localize = useLocalize();
   const audioStream = useRef<MediaStream | null>(null);
   const animationFrameIdRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -68,7 +70,12 @@ const useSpeechToTextExternal = (
   const [speechToText] = useRecoilState<boolean>(store.speechToText);
   const [autoTranscribeAudio] = useRecoilState<boolean>(store.autoTranscribeAudio);
 
-  const { mutate: processAudio, isLoading: isProcessing } = useSpeechToTextMutation();
+  const {
+    mutate: processAudio,
+    isLoading: isProcessing,
+    isError: providerUnavailable,
+    reset: resetProviderError,
+  } = useSpeechToTextMutation();
 
   const getFileExtension = (mimeType: string) => {
     if (mimeType.includes('mp4')) {
@@ -113,7 +120,9 @@ const useSpeechToTextExternal = (
     }
 
     if (audioChunksRef.current.length > 0) {
-      const audioBlob = new Blob(audioChunksRef.current, { type: audioMimeTypeRef.current });
+      const audioBlob = new Blob(audioChunksRef.current, {
+        type: audioMimeTypeRef.current,
+      });
       const fileExtension = getFileExtension(audioMimeTypeRef.current);
 
       audioChunksRef.current = [];
@@ -148,8 +157,8 @@ const useSpeechToTextExternal = (
         },
         onError: () => {
           showToast({
-            message: 'An error occurred while processing the audio, maybe the audio was too short',
-            status: 'error',
+            message: localize('com_nav_stt_browser_fallback'),
+            status: 'warning',
           });
           setIsRequestBeingMade(false);
           onTranscriptionSettled(takeId);
@@ -207,7 +216,10 @@ const useSpeechToTextExternal = (
   const startRecording = async (takeId?: number) => {
     recordingTakeIdRef.current = takeId;
     if (isRequestBeingMade) {
-      showToast({ message: 'A request is already being made. Please wait.', status: 'warning' });
+      showToast({
+        message: 'A request is already being made. Please wait.',
+        status: 'warning',
+      });
       return;
     }
 
@@ -219,7 +231,10 @@ const useSpeechToTextExternal = (
        permission is granted, `isListening` stays false, and the tracks run
        until the composer unmounts. */
     if (typeof MediaRecorder === 'undefined') {
-      showToast({ message: 'MediaRecorder is not supported in this browser', status: 'error' });
+      showToast({
+        message: 'MediaRecorder is not supported in this browser',
+        status: 'error',
+      });
       return;
     }
 
@@ -253,10 +268,16 @@ const useSpeechToTextExternal = (
            behind a UI that offers no way to stop it. */
         releaseAudioStream();
         cleanup();
-        showToast({ message: `Error starting recording: ${error}`, status: 'error' });
+        showToast({
+          message: `Error starting recording: ${error}`,
+          status: 'error',
+        });
       }
     } else {
-      showToast({ message: 'Microphone permission not granted', status: 'error' });
+      showToast({
+        message: 'Microphone permission not granted',
+        status: 'error',
+      });
     }
   };
 
@@ -293,7 +314,10 @@ const useSpeechToTextExternal = (
   };
   const externalStartRecording = (takeId?: number) => {
     if (isListening) {
-      showToast({ message: 'Already listening. Please stop recording first.', status: 'warning' });
+      showToast({
+        message: 'Already listening. Please stop recording first.',
+        status: 'warning',
+      });
       return;
     }
 
@@ -378,6 +402,8 @@ const useSpeechToTextExternal = (
   }, []);
 
   return {
+    providerUnavailable,
+    resetProviderError,
     isListening,
     externalStopRecording,
     externalAbortRecording,

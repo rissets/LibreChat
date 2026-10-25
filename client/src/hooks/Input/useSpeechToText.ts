@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import useSpeechToTextExternal from './useSpeechToTextExternal';
 import useSpeechToTextBrowser from './useSpeechToTextBrowser';
 import useGetAudioSettings from './useGetAudioSettings';
@@ -17,7 +18,6 @@ const useSpeechToText = (
   abortRecording: () => void;
 } => {
   const { speechToTextEndpoint } = useGetAudioSettings();
-  const externalSpeechToText = speechToTextEndpoint === 'external';
 
   const {
     isListening: speechIsListeningBrowser,
@@ -38,12 +38,20 @@ const useSpeechToText = (
     externalStartRecording: startSpeechRecordingExternal,
     externalStopRecording: stopSpeechRecordingExternal,
     externalAbortRecording: abortSpeechRecordingExternal,
+    providerUnavailable,
+    resetProviderError,
   } = useSpeechToTextExternal(
     setText,
     onTranscriptionComplete,
     onTranscriptionSettled,
     autoSendText,
   );
+
+  useEffect(() => {
+    resetProviderError?.();
+  }, [speechToTextEndpoint, resetProviderError]);
+
+  const externalSpeechToText = speechToTextEndpoint === 'external' && !providerUnavailable;
 
   const isListening = externalSpeechToText ? speechIsListeningExternal : speechIsListeningBrowser;
   const isLoading = externalSpeechToText ? speechIsLoadingExternal : speechIsLoadingBrowser;

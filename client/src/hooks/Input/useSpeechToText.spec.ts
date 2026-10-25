@@ -4,6 +4,8 @@ import useSpeechToText from './useSpeechToText';
 let mockSpeechToTextEndpoint = 'external';
 let mockBrowserIsListening = false;
 let mockExternalIsListening = false;
+let mockProviderUnavailable = false;
+const mockResetProviderError = jest.fn();
 
 const mockStartSpeechRecordingBrowser = jest.fn();
 const mockStopSpeechRecordingBrowser = jest.fn();
@@ -29,6 +31,8 @@ jest.mock('./useSpeechToTextExternal', () => ({
   __esModule: true,
   default: () => ({
     isListening: mockExternalIsListening,
+    providerUnavailable: mockProviderUnavailable,
+    resetProviderError: mockResetProviderError,
     isLoading: false,
     externalStartRecording: mockStartSpeechRecordingExternal,
     externalStopRecording: mockStopSpeechRecordingExternal,
@@ -41,6 +45,7 @@ describe('useSpeechToText', () => {
     mockSpeechToTextEndpoint = 'external';
     mockBrowserIsListening = false;
     mockExternalIsListening = false;
+    mockProviderUnavailable = false;
   });
 
   it('selects the externally seeded engine after settings change', () => {
@@ -77,5 +82,26 @@ describe('useSpeechToText', () => {
     expect(mockStopSpeechRecordingExternal).toHaveBeenCalledTimes(1);
     expect(mockStartSpeechRecordingExternal).not.toHaveBeenCalled();
     expect(mockStopSpeechRecordingBrowser).not.toHaveBeenCalled();
+  });
+
+  it('uses browser dictation for the next recording after the provider fails', () => {
+    const { result, rerender } = renderHook(() =>
+      useSpeechToText(jest.fn(), jest.fn(), jest.fn(), -1),
+    );
+    mockProviderUnavailable = true;
+    rerender();
+
+    act(() => result.current.startRecording());
+
+    expect(mockStartSpeechRecordingBrowser).toHaveBeenCalledTimes(1);
+    expect(mockStartSpeechRecordingExternal).not.toHaveBeenCalled();
+  });
+
+  it('clears a provider failure when the user changes the selected engine', () => {
+    const { rerender } = renderHook(() => useSpeechToText(jest.fn(), jest.fn(), jest.fn(), -1));
+    mockResetProviderError.mockClear();
+    mockSpeechToTextEndpoint = 'browser';
+    rerender();
+    expect(mockResetProviderError).toHaveBeenCalledTimes(1);
   });
 });
