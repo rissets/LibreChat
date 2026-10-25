@@ -74,6 +74,13 @@ beforeEach(() => {
 });
 
 describe('ThemeSelector MorphIcon map', () => {
+  it('keeps both appearance controls in normal flow for an inline header', () => {
+    renderWith('light', false, jest.fn(), <ThemeSelector inline />);
+
+    const theme = screen.getByRole('button', { name: 'com_ui_toggle_theme' });
+    expect(theme.parentElement).not.toHaveClass('absolute');
+    expect(screen.getByRole('button', { name: 'com_ui_toggle_high_contrast' })).toBeVisible();
+  });
   it('shows monitor for system, moon for dark, sun for light', () => {
     const system = renderTheme('system');
     expect(screen.getByTestId('monitor')).toBeInTheDocument();

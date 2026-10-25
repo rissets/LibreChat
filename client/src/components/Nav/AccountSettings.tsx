@@ -7,6 +7,9 @@ import {
   Archive,
   ChevronRight,
   CircleHelp,
+  Info,
+  Mail,
+  Newspaper,
   Files,
   Keyboard,
   LifeBuoy,
@@ -68,6 +71,27 @@ function HelpSubmenu({
             {localize('com_nav_help_faq')}
           </Menu.MenuItem>
         )}
+        <Menu.MenuItem
+          onClick={() => openInNewTab('/brand/about.html')}
+          className="select-item text-sm"
+        >
+          <Info className="icon-md" aria-hidden="true" />
+          {localize('com_nav_setting_about')}
+        </Menu.MenuItem>
+        <Menu.MenuItem
+          onClick={() => openInNewTab('/brand/contact.html')}
+          className="select-item text-sm"
+        >
+          <Mail className="icon-md" aria-hidden="true" />
+          {localize('com_bp_contact')}
+        </Menu.MenuItem>
+        <Menu.MenuItem
+          onClick={() => openInNewTab('/brand/news.html')}
+          className="select-item text-sm"
+        >
+          <Newspaper className="icon-md" aria-hidden="true" />
+          {localize('com_bp_news')}
+        </Menu.MenuItem>
         <Menu.MenuItem onClick={onShowShortcuts} className="select-item text-sm">
           <Keyboard className="icon-md" aria-hidden="true" />
           {localize('com_shortcut_keyboard_shortcuts')}

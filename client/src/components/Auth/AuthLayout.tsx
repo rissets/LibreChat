@@ -4,6 +4,7 @@ import { ErrorMessage } from '~/components/Auth/ErrorMessage';
 import { hasPublishedPolicies } from '~/utils/policies';
 import { TranslationKeys, useLocalize } from '~/hooks';
 import SocialLoginRender from './SocialLoginRender';
+import BrandLogo from '~/components/ui/BrandLogo';
 import { BlinkAnimation } from './BlinkAnimation';
 import LegalConsent from './LegalConsent';
 import { Banner } from '../Banners';
@@ -88,42 +89,50 @@ function AuthLayout({
   };
 
   return (
-    <div className="bg-surface-primary relative flex min-h-screen flex-col">
+    <div className="bg-surface-primary flex min-h-svh flex-col">
       <Banner />
-      <BlinkAnimation active={isFetching}>
-        <div className="mt-6 h-10 w-full bg-cover">
+      <div className="grid flex-1 lg:grid-cols-2">
+        <div
+          data-testid="auth-artwork"
+          aria-hidden="true"
+          className="bg-surface-sidebar relative hidden overflow-hidden lg:block"
+        >
           <img
-            src="assets/logo.svg"
-            className="h-full w-full object-contain"
-            alt={localize('com_ui_logo', { 0: startupConfig?.appTitle ?? 'LibreChat' })}
+            src="/brand/auth-maritime-v1.webp"
+            alt=""
+            width={1024}
+            height={1536}
+            className="absolute inset-0 h-full w-full object-cover"
           />
         </div>
-      </BlinkAnimation>
-      <DisplayError />
-      <div className="absolute inset-s-0 bottom-0 md:m-4">
-        <ThemeSelector />
+        <section className="flex min-h-svh min-w-0 flex-col px-6 py-6 sm:px-10 lg:px-12 xl:px-16">
+          <header className="flex items-center justify-between gap-4">
+            <BlinkAnimation active={isFetching}>
+              <BrandLogo className="h-10 w-40 sm:h-12 sm:w-48" />
+            </BlinkAnimation>
+            <ThemeSelector inline />
+          </header>
+          <main
+            className={cn(
+              'mx-auto flex w-full flex-1 flex-col justify-center py-8 sm:py-10',
+              isTwoFactorSetup ? 'max-w-lg' : 'max-w-sm',
+            )}
+          >
+            <DisplayError />
+            {!hasStartupConfigError && !isFetching && header && (
+              <h1 className="text-text-primary mb-8 text-start text-3xl font-semibold select-none">
+                {header}
+              </h1>
+            )}
+            {children}
+            {showsSocialLogin && (
+              <SocialLoginRender startupConfig={startupConfig} showPasskey={isLogin} />
+            )}
+            {statesConsentBelowProviders && <LegalConsent startupConfig={startupConfig} />}
+          </main>
+          <Footer startupConfig={startupConfig} showPolicies={!statesConsent} />
+        </section>
       </div>
-
-      <main className="flex grow items-center justify-center">
-        <div
-          className={cn(
-            'bg-surface-primary overflow-hidden px-6 py-4 sm:rounded-lg',
-            isTwoFactorSetup ? 'w-11/12 max-w-lg' : 'w-authPageWidth sm:max-w-md',
-          )}
-        >
-          {!hasStartupConfigError && !isFetching && header && (
-            <h1 className="text-text-primary mb-4 text-center text-3xl font-semibold select-none">
-              {header}
-            </h1>
-          )}
-          {children}
-          {showsSocialLogin && (
-            <SocialLoginRender startupConfig={startupConfig} showPasskey={isLogin} />
-          )}
-          {statesConsentBelowProviders && <LegalConsent startupConfig={startupConfig} />}
-        </div>
-      </main>
-      {!statesConsent && <Footer startupConfig={startupConfig} />}
     </div>
   );
 }

@@ -155,11 +155,11 @@ export default defineConfig(({ command }) => ({
       },
       includeAssets: [],
       manifest: {
-        name: 'LibreChat',
-        short_name: 'LibreChat',
+        name: 'BP Batam AI',
+        short_name: 'BP Batam AI',
         display: 'standalone',
-        background_color: '#000000',
-        theme_color: '#009688',
+        background_color: '#F7F9FC',
+        theme_color: '#31569B',
         icons: [
           {
             src: 'assets/favicon-32x32.png',
@@ -543,6 +543,9 @@ export function copyPublicAssets(): Plugin {
     },
     async writeBundle() {
       await fs.promises.cp(path.join(publicDir, 'assets'), path.join(outDir, 'assets'), {
+        recursive: true,
+      });
+      await fs.promises.cp(path.join(publicDir, 'brand'), path.join(outDir, 'brand'), {
         recursive: true,
       });
       await fs.promises.copyFile(

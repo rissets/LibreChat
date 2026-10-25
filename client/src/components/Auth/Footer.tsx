@@ -2,7 +2,13 @@ import { TStartupConfig } from 'librechat-data-provider';
 import { policyUrls } from '~/utils/policies';
 import { useLocalize } from '~/hooks';
 
-function Footer({ startupConfig }: { startupConfig: TStartupConfig | null | undefined }) {
+function Footer({
+  startupConfig,
+  showPolicies = true,
+}: {
+  startupConfig: TStartupConfig | null | undefined;
+  showPolicies?: boolean;
+}) {
   const localize = useLocalize();
   if (!startupConfig) {
     return null;
@@ -11,7 +17,7 @@ function Footer({ startupConfig }: { startupConfig: TStartupConfig | null | unde
    *  screen and a link back to this page on another. */
   const { privacyPolicyUrl, termsOfServiceUrl } = policyUrls(startupConfig);
 
-  const privacyPolicyRender = privacyPolicyUrl != null && (
+  const privacyPolicyRender = showPolicies && privacyPolicyUrl != null && (
     <a
       className="text-accent-primary hover:text-accent-primary-hover hover:decoration-accent-primary-hover focus:text-accent-primary-hover focus:decoration-accent-primary-hover text-sm underline decoration-transparent transition-all duration-200"
       href={privacyPolicyUrl}
@@ -23,7 +29,7 @@ function Footer({ startupConfig }: { startupConfig: TStartupConfig | null | unde
     </a>
   );
 
-  const termsOfServiceRender = termsOfServiceUrl != null && (
+  const termsOfServiceRender = showPolicies && termsOfServiceUrl != null && (
     <a
       className="text-accent-primary hover:text-accent-primary-hover hover:decoration-accent-primary-hover focus:text-accent-primary-hover focus:decoration-accent-primary-hover text-sm underline decoration-transparent transition-all duration-200"
       href={termsOfServiceUrl}
@@ -36,7 +42,8 @@ function Footer({ startupConfig }: { startupConfig: TStartupConfig | null | unde
   );
 
   return (
-    <div className="m-4 flex justify-center gap-2" role="contentinfo">
+    <div className="m-4 flex flex-wrap justify-center gap-4" role="contentinfo">
+      <a href="/brand/help.html">{localize('com_nav_help_faq')}</a>
       {privacyPolicyRender}
       {privacyPolicyRender && termsOfServiceRender && (
         <div className="border-border-medium border-e" />

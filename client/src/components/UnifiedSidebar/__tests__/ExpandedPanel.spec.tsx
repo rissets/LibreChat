@@ -145,17 +145,37 @@ describe('ExpandedPanel', () => {
     localStorage.clear();
   });
 
+  it('collapses without passing the click event as an after-slide callback', () => {
+    const { onCollapse } = renderPanel({ expanded: true });
+
+    fireEvent.click(screen.getByTestId('close-sidebar-button'));
+    expect(onCollapse).toHaveBeenCalledWith();
+  });
+
+  it('keeps the compact BP Batam symbol visible when collapsed', () => {
+    renderPanel({ expanded: false });
+
+    expect(screen.getByRole('img', { name: 'BP Batam' })).toHaveAttribute(
+      'src',
+      '/brand/logo-symbol-v1.svg',
+    );
+  });
+
   describe('NavIconButton collapse toggle', () => {
     it('collapses sidebar when clicking the active icon while expanded', () => {
       const { onCollapse } = renderPanel({ expanded: true });
-      const activeButton = screen.getByRole('button', { name: 'com_ui_chat_history' });
+      const activeButton = screen.getByRole('button', {
+        name: 'com_ui_chat_history',
+      });
       fireEvent.click(activeButton);
       expect(onCollapse).toHaveBeenCalledTimes(1);
     });
 
     it('switches panel when clicking an inactive icon while expanded', () => {
       const { onCollapse } = renderPanel({ expanded: true });
-      const inactiveButton = screen.getByRole('button', { name: 'com_ui_prompts' });
+      const inactiveButton = screen.getByRole('button', {
+        name: 'com_ui_prompts',
+      });
       fireEvent.click(inactiveButton);
       expect(onCollapse).not.toHaveBeenCalled();
       expect(getDefaultStore().get(activePanelAtom)).toBe('prompts');
@@ -163,14 +183,18 @@ describe('ExpandedPanel', () => {
 
     it('expands sidebar when clicking any icon while collapsed', () => {
       const { onExpand } = renderPanel({ expanded: false });
-      const activeButton = screen.getByRole('button', { name: 'com_ui_chat_history' });
+      const activeButton = screen.getByRole('button', {
+        name: 'com_ui_chat_history',
+      });
       fireEvent.click(activeButton);
       expect(onExpand).toHaveBeenCalledTimes(1);
     });
 
     it('sets active panel and expands when clicking an inactive icon while collapsed', () => {
       const { onExpand } = renderPanel({ expanded: false });
-      const inactiveButton = screen.getByRole('button', { name: 'com_ui_prompts' });
+      const inactiveButton = screen.getByRole('button', {
+        name: 'com_ui_prompts',
+      });
       fireEvent.click(inactiveButton);
       expect(onExpand).toHaveBeenCalledTimes(1);
       expect(getDefaultStore().get(activePanelAtom)).toBe('prompts');
@@ -198,7 +222,9 @@ describe('ExpandedPanel', () => {
 
     it('marks only the current panel pressed and paints it with the navigation roles', () => {
       renderPanel({ expanded: true });
-      const active = screen.getByRole('button', { name: 'com_ui_chat_history' });
+      const active = screen.getByRole('button', {
+        name: 'com_ui_chat_history',
+      });
       const idle = screen.getByRole('button', { name: 'com_ui_prompts' });
 
       expect(active).toHaveAttribute('aria-pressed', 'true');

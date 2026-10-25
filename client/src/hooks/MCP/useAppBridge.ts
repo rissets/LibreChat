@@ -285,7 +285,7 @@ export function useAppBridge({
     };
     const bridge = new AppBridge(
       null,
-      { name: 'LibreChat', version: '1.0.0' },
+      { name: 'BP Batam AI', version: '1.0.0' },
       {
         openLinks: {},
         logging: {},

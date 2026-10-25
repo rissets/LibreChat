@@ -5,6 +5,22 @@
 @import '../../packages/client/src/theme/tokens.css';
 @config '../tailwind.config.cjs';
 
+/* Logo variants carry their own alpha; the wrapper never paints a backing. */
+@utility bp-logo {
+  display: block;
+  object-fit: contain;
+  background: transparent;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+@utility bp-logo-light {
+  display: block;
+}
+@utility bp-logo-dark {
+  display: none;
+}
+
 /* Close the legacy palette scales only inside this repository. */
 @theme inline {
   --color-gray-*: initial;

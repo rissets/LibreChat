@@ -4,6 +4,7 @@ import { Constants } from 'librechat-data-provider';
 import type { TStartupConfig } from 'librechat-data-provider';
 import CopyButton from '~/components/Messages/Content/CopyButton';
 import { useGetStartupConfig } from '~/data-provider';
+import BrandLogo from '~/components/ui/BrandLogo';
 import { useLocalize } from '~/hooks';
 
 const UNKNOWN_PLACEHOLDER = '—';
@@ -27,7 +28,7 @@ function buildDiagnosticsBlob(
   buildInfo: TStartupConfig['buildInfo'] | undefined,
 ): string {
   const lines: string[] = [
-    `LibreChat version: ${version}`,
+    `BP Batam AI version: ${version}`,
     `Commit: ${buildInfo?.commit ?? UNKNOWN_PLACEHOLDER}`,
     `Branch: ${buildInfo?.branch ?? UNKNOWN_PLACEHOLDER}`,
     `Build date: ${formatBuildDate(buildInfo?.buildDate)}`,
@@ -82,6 +83,21 @@ function About() {
 
   return (
     <div className="text-text-primary flex flex-col text-sm">
+      <a href="/brand/about.html" className="mb-4 self-start">
+        <BrandLogo className="h-12 w-48" />
+      </a>
+      <p className="text-text-secondary mb-4">{localize('com_bp_about_description')}</p>
+      <nav className="mb-4 flex flex-wrap gap-4" aria-label={localize('com_nav_setting_about')}>
+        <a href="/brand/help.html" className="text-link underline">
+          {localize('com_nav_help_faq')}
+        </a>
+        <a href="/brand/contact.html" className="text-link underline">
+          {localize('com_bp_contact')}
+        </a>
+        <a href="/brand/news.html" className="text-link underline">
+          {localize('com_bp_news')}
+        </a>
+      </nav>
       <dl className="divide-border-light flex flex-col divide-y">
         <Row label={localize('com_nav_about_version')} value={version} />
         <Row

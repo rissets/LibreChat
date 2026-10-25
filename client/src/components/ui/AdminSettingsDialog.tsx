@@ -278,7 +278,7 @@ const AdminSettingsDialog: React.FC<AdminSettingsDialogProps> = ({
                           <div className="border-border-light text-text-destructive border-t px-4 py-3 text-sm break-words whitespace-normal">
                             <span>{localize('com_ui_admin_access_warning')}</span>{' '}
                             <a
-                              href="https://www.librechat.ai/docs/configuration/librechat_yaml/object_structure/interface"
+                              href="/brand/help.html"
                               target="_blank"
                               rel="noreferrer"
                               className="text-link underline"

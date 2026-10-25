@@ -123,7 +123,13 @@ const ContrastToggle = ({
   );
 };
 
-const ThemeSelector = ({ returnThemeOnly }: { returnThemeOnly?: boolean }): JSX.Element => {
+const ThemeSelector = ({
+  returnThemeOnly,
+  inline = false,
+}: {
+  returnThemeOnly?: boolean;
+  inline?: boolean;
+}): JSX.Element => {
   const { theme, highContrast, setTheme } = useContext(ThemeContext);
   const [announcement, setAnnouncement] = useState('');
   const localize = useLocalize();
@@ -174,8 +180,18 @@ const ThemeSelector = ({ returnThemeOnly }: { returnThemeOnly?: boolean }): JSX.
   }
 
   return (
-    <div className="bg-surface-primary flex flex-col items-center justify-center pt-6 sm:pt-0">
-      <div className="absolute inset-s-0 bottom-0 m-4 flex items-center">
+    <div
+      className={
+        inline
+          ? 'relative flex shrink-0 items-center'
+          : 'bg-surface-primary flex flex-col items-center justify-center pt-6 sm:pt-0'
+      }
+    >
+      <div
+        className={
+          inline ? 'flex items-center' : 'absolute inset-s-0 bottom-0 m-4 flex items-center'
+        }
+      >
         <Theme theme={theme} highContrast={highContrast} onChange={changeScheme} />
         <ContrastToggle theme={theme} highContrast={highContrast} onChange={changeContrast} />
       </div>

@@ -8,7 +8,7 @@ import i18n from '~/locales/i18n';
 
 /**
  * The auth layout decides where the consent is stated, and a screen that states
- * it does not also carry the footer bar linking the same two policies. Both
+ * it does not repeat those policy links in the footer. Brand navigation remains. Both
  * ways in state it: which of them can create an account is not knowable here
  * (a provider sign-in and an LDAP sign-in both create one, and
  * ALLOW_SOCIAL_REGISTRATION is server-side), and the sentence is about
@@ -51,7 +51,7 @@ function setup({
   interfaceConfig,
 }: Options) {
   const startupConfig = {
-    appTitle: 'LibreChat',
+    appTitle: 'BP Batam AI',
     socialLoginEnabled,
     socialLogins: providers ?? (socialLoginEnabled ? ['google'] : []),
     googleLoginEnabled: googleLoginEnabled ?? socialLoginEnabled,
@@ -87,14 +87,40 @@ function setup({
 const consent = () => screen.queryByText(/By continuing/i);
 const footerBar = () => document.querySelector('[role="contentinfo"]');
 
+function expectBrandLinksWithoutDuplicatePolicies() {
+  const footer = footerBar();
+  expect(footer).not.toBeNull();
+  for (const page of ['help']) {
+    expect(footer?.querySelector(`a[href="/brand/${page}.html"]`)).not.toBeNull();
+  }
+  for (const page of ['about', 'contact', 'news']) {
+    expect(footer?.querySelector(`a[href="/brand/${page}.html"]`)).toBeNull();
+  }
+  expect(footer?.querySelector(`a[href="${PRIVACY_URL}"]`)).toBeNull();
+  expect(footer?.querySelector(`a[href="${TERMS_URL}"]`)).toBeNull();
+}
+
 describe('AuthLayout legal placement', () => {
+  test.each(['login', 'register', 'forgot-password'])(
+    '%s keeps the form and decorative artwork in separate regions',
+    (pathname) => {
+      setup({ pathname, interfaceConfig: policies });
+
+      const artwork = screen.getByTestId('auth-artwork');
+      const form = screen.getByRole('form', { name: 'Registration form' });
+      expect(artwork).toHaveAttribute('aria-hidden', 'true');
+      expect(artwork.querySelector('img')).toHaveAttribute('src', '/brand/auth-maritime-v1.webp');
+      expect(screen.getByRole('main')).toContainElement(form);
+      expect(artwork).not.toContainElement(form);
+    },
+  );
   /** The registration form states the consent itself, under its own submit
-   *  button (Registration.spec covers that); the layout's part is dropping the
-   *  footer bar so the same two policies are not linked twice. */
-  test('registration drops the footer bar the consent replaces', () => {
+   *  button (Registration.spec covers that); the layout keeps the brand links
+   *  without linking the same two policies twice. */
+  test('registration keeps brand links without duplicating the consent policies', () => {
     setup({ pathname: 'register', interfaceConfig: policies });
 
-    expect(footerBar()).toBeNull();
+    expectBrandLinksWithoutDuplicatePolicies();
     expect(consent()).not.toBeInTheDocument();
   });
 
@@ -104,7 +130,7 @@ describe('AuthLayout legal placement', () => {
     expect(consent()).toBeInTheDocument();
     expect(document.querySelectorAll(`a[href="${PRIVACY_URL}"]`)).toHaveLength(1);
     expect(document.querySelectorAll(`a[href="${TERMS_URL}"]`)).toHaveLength(1);
-    expect(footerBar()).toBeNull();
+    expectBrandLinksWithoutDuplicatePolicies();
   });
 
   /** No provider button is needed for the screen to be a way in: a first LDAP
@@ -113,7 +139,7 @@ describe('AuthLayout legal placement', () => {
     setup({ pathname: 'login', socialLoginEnabled: false, interfaceConfig: policies });
 
     expect(consent()).toBeInTheDocument();
-    expect(footerBar()).toBeNull();
+    expectBrandLinksWithoutDuplicatePolicies();
   });
 
   /** The second factor is not a way in of its own; the screen that sent the
@@ -132,7 +158,10 @@ describe('AuthLayout legal placement', () => {
 
     expect(consent()).not.toBeInTheDocument();
     expect(footerBar()).not.toBeNull();
-    expect(document.querySelector('[role="contentinfo"] a')).toBeNull();
+    expect(document.querySelector(`[role="contentinfo"] a[href="${PRIVACY_URL}"]`)).toBeNull();
+    expect(
+      document.querySelector('[role="contentinfo"] a[href="/brand/help.html"]'),
+    ).not.toBeNull();
   });
 
   /** A link that would run script is no policy at all: the sign-in page renders
@@ -179,7 +208,7 @@ describe('AuthLayout legal placement', () => {
     setup({ pathname: 'login', isFetching: true, interfaceConfig: policies });
 
     expect(consent()).toBeInTheDocument();
-    expect(footerBar()).toBeNull();
+    expectBrandLinksWithoutDuplicatePolicies();
   });
 
   /** A deployment that asks for explicit acceptance in a modal after sign-in

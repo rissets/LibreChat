@@ -9,7 +9,6 @@ import { useGetEndpointsQuery, useGetStartupConfig } from '~/data-provider';
 import { getIconEndpoint, getEntity, getModelSpec } from '~/utils';
 import { useLocalize, useAuthContext, useGreeting } from '~/hooks';
 import { useChatSettings } from '~/Providers/ChatSettingsContext';
-import AgentContact from '~/components/Agents/AgentContact';
 import ConvoIcon from '~/components/Endpoints/ConvoIcon';
 
 const containerClassName =
@@ -64,7 +63,7 @@ export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: 
     });
   }, [conversation?.endpoint, conversation?.iconURL, endpointsConfig]);
 
-  const { entity, isAgent } = getEntity({
+  const { entity } = getEntity({
     endpoint: endpointType,
     agentsMap,
     assistantMap,
@@ -87,8 +86,6 @@ export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: 
     ? localize('com_ui_temporary_description')
     : ((entity?.description || brandedSpecDescription || conversation?.greeting) ?? '');
   const descriptionIsHTML = isHtmlDescription(description);
-  const selectedAgent =
-    isAgent && conversation?.agent_id != null ? agentsMap?.[conversation.agent_id] : undefined;
 
   const customWelcome =
     typeof startupConfig?.interface?.customWelcome === 'string'
@@ -106,7 +103,7 @@ export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: 
     if (contentRef.current) {
       setContentHeight(contentRef.current.offsetHeight);
     }
-  }, [lineCount, description, selectedAgent, remScale]);
+  }, [lineCount, description, remScale]);
 
   const getDynamicMargin = useMemo(() => {
     let margin = 'mb-0';
@@ -215,12 +212,6 @@ export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: 
               : `animate-fadeIn mt-4 max-w-md text-center text-sm font-normal ${isTemporary ? 'text-text-secondary' : 'text-text-primary'}`
           }
         />
-        {selectedAgent && !isTemporary && (
-          <AgentContact
-            agent={selectedAgent}
-            className="animate-fadeIn mt-2 max-w-md justify-center text-center text-sm"
-          />
-        )}
       </div>
     </div>
   );

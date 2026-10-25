@@ -23,8 +23,7 @@ interface Props {
   description?: string;
 }
 
-const ARTIFACTS_CUSTOM_DOCS_URL =
-  'https://www.librechat.ai/docs/features/artifacts#custom-instructions';
+const ARTIFACTS_CUSTOM_DOCS_URL = '/brand/help.html';
 
 const ARTIFACT_MODES: Array<{
   value: string;
