@@ -20,6 +20,12 @@ export const generateShortLivedToken = (userId: string, expireIn: string = '5m')
   });
 };
 
+/** Server-to-RAG workload identity; browser tokens cannot act as embedding workloads. */
+export const generateRagToken = (userId: string): string => jwt.sign(
+  { id: userId, scope: 'rag_workload' }, process.env.JWT_SECRET!,
+  { audience: 'librechat-rag', expiresIn: '60s', algorithm: 'HS256' },
+);
+
 /** Mint the server-only identity used by durable agent trigger admission. */
 export const generateAgentTriggerToken = (userId: string, expireIn: string = '60s'): string => {
   return jwt.sign({ id: userId, scope: AGENT_TRIGGER_SCOPE }, process.env.JWT_SECRET!, {

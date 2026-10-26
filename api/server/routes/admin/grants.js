@@ -1,6 +1,7 @@
 const express = require('express');
 const {
   createAdminGrantsHandlers,
+  createGovernanceGrantAuthority,
   getCachedPrincipals,
   isAuditFailClosed,
 } = require('@librechat/api');
@@ -15,6 +16,10 @@ const router = express.Router();
 const requireAdminAccess = requireCapability(SystemCapabilities.ACCESS_ADMIN);
 
 const handlers = createAdminGrantsHandlers({
+  ...createGovernanceGrantAuthority({
+    getHeldCapabilities: db.getHeldCapabilities,
+    hasCapabilityForPrincipals: db.hasCapabilityForPrincipals,
+  }),
   listGrants: db.listGrants,
   countGrants: db.countGrants,
   getCapabilitiesForPrincipal: db.getCapabilitiesForPrincipal,
@@ -22,8 +27,6 @@ const handlers = createAdminGrantsHandlers({
   grantCapability: db.grantCapability,
   revokeCapability: db.revokeCapability,
   getUserPrincipals: db.getUserPrincipals,
-  hasCapabilityForPrincipals: db.hasCapabilityForPrincipals,
-  getHeldCapabilities: db.getHeldCapabilities,
   getCachedPrincipals,
   checkRoleExists: async (name) => (await db.getRoleByName(name)) != null,
   recordAuditEntry: db.recordAuditEntry,

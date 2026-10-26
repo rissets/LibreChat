@@ -15,6 +15,7 @@ import { fetchModels as defaultFetchModels } from '~/endpoints/models';
 import { isServedCustomEndpoint } from '~/endpoints/custom/config';
 import { getTokenConfigKey } from '~/endpoints/custom/initialize';
 import { getAppConfigOptionsFromUser } from '~/app/service';
+import { managedModelCatalog } from '~/gateway';
 
 /**
  * Built-in endpoints whose configured `models` list replaces their `*_MODELS`
@@ -89,6 +90,9 @@ export function createLoadConfigModels(deps: LoadConfigModelsDeps) {
   const { getAppConfig, getUserKeyValues, fetchModels = defaultFetchModels } = deps;
 
   return async function loadConfigModels(req: ServerRequest): Promise<TModelsConfig> {
+    // Admin config catalogs resolve a synthetic scope with no user id or stored user key.
+    const managed = req.user?.id ? await managedModelCatalog(req.user) : null;
+    if (managed) return managed;
     const appConfig = req.config ?? (await getAppConfig(getAppConfigOptionsFromUser(req.user)));
     if (!appConfig) {
       return {};

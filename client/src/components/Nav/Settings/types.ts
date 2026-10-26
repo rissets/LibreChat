@@ -1,11 +1,12 @@
 import { createElement } from 'react';
-import { MessageSquare, Info } from 'lucide-react';
+import { MessageSquare, Info, BarChart3 } from 'lucide-react';
 import { SettingsTabValues } from 'librechat-data-provider';
 import { GearIcon, DataIcon, UserIcon, SpeechIcon } from '@librechat/client';
 import type { ComponentType, ReactNode } from 'react';
 import type { TranslationKeys } from '~/hooks';
 
 export type SettingsTab =
+  | 'gateway-usage'
   | SettingsTabValues.GENERAL
   | SettingsTabValues.CHAT
   | SettingsTabValues.SPEECH
@@ -15,6 +16,7 @@ export type SettingsTab =
   | SettingsTabValues.ABOUT;
 
 export type SectionId =
+  | 'gatewayUsage'
   | 'appearance'
   | 'layout'
   | 'notifications'
@@ -40,6 +42,7 @@ export type SectionId =
   | 'about';
 
 export interface SettingsContextValue {
+  gatewayEnabled?: boolean;
   balanceEnabled: boolean;
   hasAnyPersonalizationFeature: boolean;
   hasMemoryOptOut: boolean;
@@ -104,6 +107,13 @@ function createLangfuseIcon(className: string): ReactNode {
 }
 
 export const TABS: TabMeta[] = [
+  {
+    id: 'gateway-usage',
+    labelKey: 'com_gateway_usage',
+    icon: createElement(BarChart3, { className: 'icon-sm', 'aria-hidden': true }),
+    sections: [{ id: 'gatewayUsage', labelKey: 'com_gateway_usage' }],
+    show: (ctx) => !!ctx.gatewayEnabled,
+  },
   {
     id: SettingsTabValues.GENERAL,
     labelKey: 'com_nav_setting_general',

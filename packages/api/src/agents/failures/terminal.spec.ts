@@ -74,6 +74,25 @@ describe('terminal agent-run error logging', () => {
     );
   });
 
+  it('explains an account reconciliation pause without exposing the provider error code', () => {
+    const observer = createTerminalRunErrorObserver({
+      logger: { error: jest.fn() },
+      source: '[Agent API]',
+      protectionEnabled: true,
+    });
+    const providerError = Object.assign(
+      new Error('403 ACCOUNT_RECONCILIATION_REQUIRED; private provider detail'),
+      { status: 403 },
+    );
+    observer.modelCallback.handleLLMError(providerError);
+
+    const userMessage = observer.getUserFacingError(providerError, () => 'fallback');
+    expect(userMessage).toContain('token usage awaiting review');
+    expect(userMessage).toContain('Control Panel operator reconciles the receipt');
+    expect(userMessage).not.toContain('ACCOUNT_RECONCILIATION_REQUIRED');
+    expect(userMessage).not.toContain('private provider detail');
+  });
+
   /** A provider error rethrown without its own text: the terminal error carries the wording. */
   it('falls back to the terminal error wording when the tracked failure has none', () => {
     const observer = createTerminalRunErrorObserver({

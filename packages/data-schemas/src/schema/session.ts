@@ -2,6 +2,7 @@ import mongoose, { Schema } from 'mongoose';
 import { ISession } from '~/types';
 
 const sessionSchema: Schema<ISession> = new Schema({
+  identitySessionId: { type: String },
   refreshTokenHash: {
     type: String,
     required: true,

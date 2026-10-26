@@ -15,6 +15,7 @@ import { loadCustomEndpointsConfig as defaultLoadCustomEndpoints } from '~/endpo
 import { isCodeEnvironmentSelectionEnabled } from '~/code/protocol';
 import { getAppConfigOptionsFromUser } from '~/app/service';
 import { getResponsesApiRouting } from './responses';
+import { gatewayConfig } from '../../gateway/config';
 
 type PartialEndpointEntry = Partial<TConfig> & Record<string, unknown>;
 type DefaultEndpointsResult = Record<string, PartialEndpointEntry | false | null>;
@@ -188,6 +189,20 @@ export function createEndpointsConfigService(deps: EndpointsConfigDeps): {
       };
     }
 
+    const managed = gatewayConfig();
+    if (managed) {
+      const allowed = new Set([managed.endpoint, EModelEndpoint.agents]);
+      for (const endpoint of Object.keys(mergedConfig)) {
+        if (!allowed.has(endpoint)) delete mergedConfig[endpoint];
+      }
+      const entry = mergedConfig[managed.endpoint];
+      if (entry) {
+        entry.userProvide = false;
+        entry.userProvideURL = false;
+      }
+      const agents = mergedConfig[EModelEndpoint.agents];
+      if (agents) agents.allowedProviders = [managed.endpoint];
+    }
     return orderEndpointsConfig(mergedConfig as TEndpointsConfig);
   }
 

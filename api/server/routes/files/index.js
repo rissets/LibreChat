@@ -7,7 +7,7 @@ const {
   uaParser,
   checkBan,
 } = require('~/server/middleware');
-const { restoreTenantContextFromReq } = require('@librechat/api');
+const { restoreTenantContextFromReq, governanceBanGate } = require('@librechat/api');
 const { avatar: asstAvatarRouter } = require('~/server/routes/assistants/v1');
 const { avatar: agentAvatarRouter } = require('~/server/routes/agents/v1');
 const { createMulterInstance } = require('./multer');
@@ -21,8 +21,8 @@ const initialize = async () => {
   const router = express.Router();
   router.use(requireJwtAuth);
   router.use(configMiddleware);
-  router.use(checkBan);
-  router.use(uaParser);
+  router.use(governanceBanGate(checkBan));
+  router.use(governanceBanGate(uaParser));
 
   const upload = await createMulterInstance();
   router.post('/speech/stt', upload.single('audio'), restoreTenantContextFromReq);

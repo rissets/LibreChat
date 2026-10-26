@@ -971,6 +971,11 @@ async function setupOpenId() {
       undefined,
       {
         [client.customFetch]: customFetch,
+        ...require('@librechat/api').localIdentityDiscoveryOptions(
+          process.env.OPENID_ISSUER,
+          process.env.OPENID_ALLOW_LOCAL_HTTP,
+          client.allowInsecureRequests,
+        ),
       },
     );
 

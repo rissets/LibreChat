@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useMemo, useCallback } from 'react';
 import debounce from 'lodash/debounce';
+import { useGatewayAccount } from '~/data-provider/Gateway';
 import {
   EModelEndpoint,
   PermissionBits,
@@ -111,12 +112,20 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
     { select: selectAgents },
   );
 
-  const { mappedEndpoints, endpointRequiresUserKey } = useEndpoints({
+  const { mappedEndpoints: rawEndpoints, endpointRequiresUserKey } = useEndpoints({
     agents,
     assistantsMap,
     startupConfig,
     endpointsConfig,
   });
+  const gateway = useGatewayAccount();
+  const mappedEndpoints = useMemo(
+    () =>
+      rawEndpoints.map((e) =>
+        e.value === gateway.data?.endpoint ? { ...e, label: localize('com_gateway_models') } : e,
+      ),
+    [rawEndpoints, gateway.data?.endpoint, localize],
+  );
 
   const getModelDisplayName = useCallback(
     (endpoint: Endpoint, model: string): string => {

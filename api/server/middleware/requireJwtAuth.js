@@ -261,6 +261,6 @@ const requireRumProxyAuth = (req, res, next) => {
   tryNextStrategy();
 };
 
-module.exports = requireJwtAuth;
+module.exports = require('@librechat/api').withGovernanceAuthentication(requireJwtAuth);
 module.exports.requireRumProxyAuth = requireRumProxyAuth;
 module.exports.requireTermsAcceptance = requireTermsAcceptance;

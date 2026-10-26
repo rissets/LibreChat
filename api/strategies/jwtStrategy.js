@@ -1,3 +1,4 @@
+const { validateManagedJwtUser } = require('@librechat/api');
 const { logger, runAsSystem } = require('@librechat/data-schemas');
 const { SystemRoles } = require('librechat-data-provider');
 const { Strategy: JwtStrategy, ExtractJwt } = require('passport-jwt');
@@ -38,11 +39,15 @@ const jwtLogin = () =>
           done(null, false, { message: 'Agent trigger token is not valid for this endpoint' });
           return;
         }
-        const user = await runAsSystem(() =>
-          getUserById(
-            payload?.id,
-            '-password -__v -totpSecret -backupCodes +agentTriggerDeletionStartedAt',
+        const user = await validateManagedJwtUser(
+          await runAsSystem(() =>
+            getUserById(
+              payload?.id,
+              '-password -__v -totpSecret -backupCodes +agentTriggerDeletionStartedAt',
+            ),
           ),
+          payload,
+          isAgentTriggerAdmissionRequest(req),
         );
         if (user?.agentTriggerDeletionStartedAt != null) {
           done(null, false, {

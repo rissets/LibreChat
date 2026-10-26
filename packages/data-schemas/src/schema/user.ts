@@ -63,6 +63,8 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
       type: String,
       required: false,
     },
+    governancePermissions: { type: Schema.Types.Mixed, default: undefined },
+    governanceDisabled: { type: Boolean, default: false },
     provider: {
       type: String,
       required: true,

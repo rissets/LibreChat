@@ -6,7 +6,7 @@ jest.mock('@librechat/api', () => {
   const { selectFileCitationSources, executeFileSearchQuery } =
     jest.requireActual('@librechat/api');
   return {
-    generateShortLivedToken: jest.fn(),
+    generateRagToken: jest.fn(),
     logAxiosError: jest.fn(),
     selectFileCitationSources,
     executeFileSearchQuery,
@@ -30,7 +30,7 @@ jest.mock('~/server/services/Files/permissions', () => ({
 }));
 
 const { createFileSearchTool, primeFiles } = require('~/app/clients/tools/util/fileSearch');
-const { generateShortLivedToken } = require('@librechat/api');
+const { generateRagToken: generateShortLivedToken } = require('@librechat/api');
 
 describe('fileSearch.js - agent file authorization', () => {
   it('uses the permission resource type established by the calling route', async () => {

@@ -1,0 +1,14 @@
+const express = require('express');
+const { createManagedSelfService, gatewayConfig } = require('@librechat/api');
+const { recordAuditEntry } = require('~/models');
+const { requireJwtAuth } = require('~/server/middleware');
+const router = express.Router();
+const handlers = createManagedSelfService({ config: gatewayConfig, audit: recordAuditEntry });
+router.use(requireJwtAuth);
+router.get('/account', handlers.account);
+router.get('/keys', handlers.keys);
+router.post('/keys', handlers.create);
+router.delete('/keys/:id', handlers.remove);
+router.post('/keys/:id/reveal', handlers.reveal);
+router.put('/keys/:id', handlers.rename);
+module.exports = router;

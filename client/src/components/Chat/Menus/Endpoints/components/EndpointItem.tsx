@@ -18,6 +18,7 @@ import { cn } from '~/utils';
 interface EndpointItemProps {
   endpoint: Endpoint;
   endpointIndex: number;
+  flat?: boolean;
 }
 
 const SettingsButton = ({
@@ -251,7 +252,7 @@ function EndpointModels({
   });
 }
 
-export function EndpointItem({ endpoint, endpointIndex }: EndpointItemProps) {
+export function EndpointItem({ endpoint, endpointIndex, flat = false }: EndpointItemProps) {
   const localize = useLocalize();
   const {
     selectedValues,
@@ -288,6 +289,9 @@ export function EndpointItem({ endpoint, endpointIndex }: EndpointItemProps) {
   if (!shouldRenderEndpointOption(endpoint)) {
     return null;
   }
+
+  if (flat && endpoint.hasModels)
+    return <EndpointMenuContent endpoint={endpoint} endpointIndex={endpointIndex} />;
 
   if (endpoint.hasModels) {
     const placeholder =
@@ -360,10 +364,11 @@ export function EndpointItem({ endpoint, endpointIndex }: EndpointItemProps) {
   }
 }
 
-export function renderEndpoints(mappedEndpoints: Endpoint[]) {
+export function renderEndpoints(mappedEndpoints: Endpoint[], flatEndpoint?: string) {
   return mappedEndpoints.map((endpoint, index) => (
     <EndpointItem
       endpoint={endpoint}
+      flat={endpoint.value === flatEndpoint}
       endpointIndex={index}
       key={`endpoint-${endpoint.value}-${index}`}
     />

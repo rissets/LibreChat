@@ -1,3 +1,4 @@
+jest.mock('~/data-provider/Gateway', () => ({ useGatewayAccount: () => ({ data: undefined }) }));
 import { RecoilRoot } from 'recoil';
 import { renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';

@@ -173,7 +173,11 @@ export function createUserMethods(
     }[]
   >;
   getUserById: (userId: string, fieldsToSelect?: string | string[] | null) => Promise<IUser | null>;
-  generateToken: (user: IUser, expiresIn?: number) => Promise<string>;
+  generateToken: (
+    user: IUser,
+    expiresIn?: number,
+    session?: { identitySessionId?: string },
+  ) => Promise<string>;
   beginAgentTriggerUserDeletion: (
     userId: string,
     startedAt: Date,
@@ -714,7 +718,7 @@ export function createUserMethods(
   async function isAgentTriggerPrincipalActive(userId: string): Promise<boolean> {
     const User = mongoose.models.User;
     return (
-      (await User.exists({ _id: userId, agentTriggerDeletionStartedAt: { $exists: false } })) !=
+      (await User.exists({ _id: userId, governanceDisabled: { $ne: true }, agentTriggerDeletionStartedAt: { $exists: false } })) !=
       null
     );
   }
@@ -808,6 +812,7 @@ export function createUserMethods(
     return (
       (await User.exists({
         _id: userId,
+        governanceDisabled: { $ne: true },
         agentTriggerDeletionStartedAt: { $exists: false },
         subagentAdmissionFences: { $not: { $elemMatch: { expiresAt: { $gt: new Date() } } } },
       })) != null
@@ -819,7 +824,11 @@ export function createUserMethods(
    * @param user - The user object
    * @param expiresIn - Optional expiry time in milliseconds. Default: 15 minutes
    */
-  async function generateToken(user: IUser, expiresIn?: number): Promise<string> {
+  async function generateToken(
+    user: IUser,
+    expiresIn?: number,
+    session?: { identitySessionId?: string },
+  ): Promise<string> {
     if (!user) {
       throw new Error('No user provided');
     }
@@ -835,6 +844,7 @@ export function createUserMethods(
         /** `iat` is whole seconds, too coarse to order this token against a password reset that
          * lands in the same second. `isTokenRetired` reads this claim to settle that exactly. */
         issuedAtMs: Date.now(),
+        identitySessionId: session?.identitySessionId,
       },
       secret: process.env.JWT_SECRET,
       expirationTime: expires / 1000,

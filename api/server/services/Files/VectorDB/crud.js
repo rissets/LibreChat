@@ -5,7 +5,7 @@ const { logger } = require('@librechat/data-schemas');
 const { FileSources } = require('librechat-data-provider');
 const {
   logAxiosError,
-  generateShortLivedToken,
+  generateRagToken: generateShortLivedToken,
   createVectorFileDeleter,
   dispatchFileStorageOperation,
 } = require('@librechat/api');

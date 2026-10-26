@@ -4,6 +4,7 @@ import { useSetRecoilState } from 'recoil';
 import * as Menu from '@ariakit/react/menu';
 import { GearIcon, DropdownMenuSeparator, Avatar } from '@librechat/client';
 import {
+  BarChart3,
   Archive,
   ChevronRight,
   CircleHelp,
@@ -23,7 +24,8 @@ import useDirection, { inlineSide } from '~/hooks/Nav/useDirection';
 import { useGetStartupConfig } from '~/data-provider';
 import { useAuthContext } from '~/hooks/AuthContext';
 import { openInNewTab, policyUrls } from '~/utils';
-import { settingsOpenAtom } from './Settings';
+import { useGatewayAccount, remainingPercentage } from '~/data-provider/Gateway';
+import { settingsTabAtom, settingsOpenAtom } from './Settings';
 import { useLocalize } from '~/hooks';
 import store from '~/store';
 
@@ -126,6 +128,9 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
   const { data: startupConfig } = useGetStartupConfig();
   const { privacyPolicyUrl, termsOfServiceUrl } = policyUrls(startupConfig);
   const setShowSettings = useSetAtom(settingsOpenAtom);
+  const setSettingsTab = useSetAtom(settingsTabAtom);
+  const gateway = useGatewayAccount(true);
+  const fiveHour = gateway.data?.limits.windows.find((w) => w.window === '5h');
   const setShowFiles = useSetAtom(showFilesDialogAtom);
   const setFilesDialogTrigger = useSetAtom(filesDialogTriggerAtom);
   const setShowShortcutsDialog = useSetRecoilState(store.showShortcutsDialog);
@@ -171,6 +176,29 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
           {user?.email ?? localize('com_nav_user')}
         </div>
         <DropdownMenuSeparator />
+        {fiveHour && (
+          <div
+            className="mx-3 my-2 space-y-1.5"
+            role="group"
+            aria-label={localize('com_gateway_5h')}
+            data-testid="profile-five-hour-limit"
+          >
+            <div className="flex justify-between gap-2 text-xs">
+              <span>{localize('com_gateway_5h')}</span>
+              <strong>
+                {localize('com_gateway_remaining_percent', {
+                  0: remainingPercentage(fiveHour).toFixed(2),
+                })}
+              </strong>
+            </div>
+            <progress
+              className="bp-token-progress h-2 w-full"
+              max={100}
+              value={remainingPercentage(fiveHour)}
+              aria-label={localize('com_gateway_5h')}
+            />
+          </div>
+        )}
         <HelpSubmenu
           helpAndFaqURL={startupConfig?.helpAndFaqURL}
           termsOfServiceURL={termsOfServiceUrl}
@@ -204,6 +232,20 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
           <GearIcon className="icon-md" aria-hidden="true" />
           {localize('com_nav_settings')}
         </Menu.MenuItem>
+        {gateway.data && (
+          <>
+            <Menu.MenuItem
+              className="select-item text-sm"
+              onClick={() => {
+                setSettingsTab('gateway-usage');
+                setShowSettings(true);
+              }}
+            >
+              <BarChart3 className="icon-md" aria-hidden="true" />
+              {localize('com_gateway_usage')}
+            </Menu.MenuItem>
+          </>
+        )}
         <DropdownMenuSeparator />
         <Menu.MenuItem onClick={() => logout()} className="select-item text-sm">
           <LogOut className="icon-md" aria-hidden="true" />

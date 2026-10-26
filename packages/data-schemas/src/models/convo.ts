@@ -1,3 +1,4 @@
+import { applyGovernance } from '~/models/plugins/governance';
 import { Model } from 'mongoose';
 import type * as t from '~/types';
 import { applyTenantIsolation } from '~/models/plugins/tenantIsolation';
@@ -7,6 +8,7 @@ import convoSchema from '~/schema/convo';
 export function createConversationModel(
   mongoose: typeof import('mongoose'),
 ): Model<t.IConversation> {
+  applyGovernance(convoSchema);
   applyTenantIsolation(convoSchema);
   if (process.env.MEILI_HOST && process.env.MEILI_MASTER_KEY) {
     convoSchema.plugin(mongoMeili, {

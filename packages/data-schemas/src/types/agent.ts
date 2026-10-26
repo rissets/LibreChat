@@ -16,6 +16,7 @@ export interface ISupportContact {
 }
 
 export interface IAgent extends Omit<Document, 'model'> {
+  remoteGovernanceDisabled?:boolean;
   id: string;
   name?: string;
   description?: string;

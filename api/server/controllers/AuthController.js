@@ -1,3 +1,4 @@
+const { isManagedRefreshSessionValid } = require('@librechat/api');
 const cookies = require('cookie');
 const jwt = require('jsonwebtoken');
 const { logger, runAsSystem, tenantStorage } = require('@librechat/data-schemas');
@@ -224,6 +225,7 @@ const resetPasswordController = createResetPasswordController({
 });
 
 const refreshLocalSession = createLocalRefreshHandler({
+  validateIdentitySession: isManagedRefreshSessionValid,
   userProjection: AUTH_REFRESH_USER_PROJECTION,
   getUserById,
   findSession,

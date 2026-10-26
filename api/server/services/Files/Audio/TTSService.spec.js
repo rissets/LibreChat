@@ -1,6 +1,8 @@
 jest.mock('axios');
 jest.mock('@librechat/data-schemas', () => ({ logger: { warn: jest.fn(), error: jest.fn() } }));
 jest.mock('@librechat/api', () => ({
+  managedSpeechConfiguration: jest.requireActual('@librechat/api').managedSpeechConfiguration,
+
   genAzureEndpoint: jest.fn(),
   logAxiosError: jest.fn(),
   applyAxiosProxyConfig: jest.fn(),

@@ -6,7 +6,7 @@ import { FileSources } from 'librechat-data-provider';
 import type { ServerRequest } from '~/types';
 import { logAxiosError, readFileAsString } from '~/utils';
 import { getFileExtractionLogDetails } from './extract';
-import { generateShortLivedToken } from '~/crypto/jwt';
+import { generateRagToken as generateShortLivedToken } from '~/crypto/jwt';
 
 const MARKDOWN_MIME_TYPES = new Set([
   'text/markdown',

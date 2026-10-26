@@ -8,6 +8,7 @@ import {
 import type { SystemCapability } from '@librechat/data-schemas';
 import type { Types } from 'mongoose';
 import type { ScheduleUserContext } from './types';
+import { managedRoleProjection } from '../gateway/permissions';
 
 type AgentAccess = 'ok' | 'missing' | 'forbidden';
 
@@ -44,6 +45,8 @@ export function createResolveAgentFireAccess(deps: AgentFireAccessDeps) {
     agentId: string,
     user: ScheduleUserContext,
   ): Promise<AgentAccess> {
+    if (user.governanceDisabled || user.governancePermissions?.AGENTS?.USE === false)
+      return 'forbidden';
     const agent = await deps.findAgentObjectId(agentId);
     if (agent == null) {
       return 'missing';
@@ -52,7 +55,12 @@ export function createResolveAgentFireAccess(deps: AgentFireAccessDeps) {
     // and does NOT special-case admins: an admin whose role has AGENTS:USE disabled is
     // rejected there, so the precheck must reject too — otherwise every fire 403s.
     const role = await deps.getRoleByName(user.role);
-    if (role?.permissions?.[PermissionTypes.AGENTS]?.[Permissions.USE] !== true) {
+    if (
+      !role ||
+      managedRoleProjection(role, user, true).permissions?.[PermissionTypes.AGENTS]?.[
+        Permissions.USE
+      ] !== true
+    ) {
       return 'forbidden';
     }
     const capability = ResourceCapabilityMap[ResourceType.AGENT];

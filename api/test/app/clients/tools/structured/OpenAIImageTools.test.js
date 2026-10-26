@@ -16,6 +16,8 @@ jest.mock('@librechat/data-schemas', () => ({
 }));
 
 jest.mock('@librechat/api', () => ({
+  managedImageConfiguration: jest.requireActual('@librechat/api').managedImageConfiguration,
+
   logAxiosError: jest.fn(),
   oaiToolkit: {
     image_gen_oai: {

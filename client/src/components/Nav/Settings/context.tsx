@@ -1,3 +1,4 @@
+import { useGatewayAccount } from '~/data-provider/Gateway';
 import { useMemo } from 'react';
 import { useRecoilValue } from 'recoil';
 import {
@@ -16,6 +17,7 @@ import store from '~/store';
 
 export function useSettingsContext(): SettingsContextValue {
   const { user } = useAuthContext();
+  const gatewayEnabled = !!useGatewayAccount().data;
   const { data: startupConfig } = useGetStartupConfig();
   const { agentsConfig } = useGetAgentsConfig();
   const pullRequestConnection = usePullRequestConnectionStatus();
@@ -72,6 +74,7 @@ export function useSettingsContext(): SettingsContextValue {
 
   return useMemo(
     () => ({
+      gatewayEnabled,
       balanceEnabled,
       hasAnyPersonalizationFeature,
       hasMemoryOptOut,
@@ -99,6 +102,7 @@ export function useSettingsContext(): SettingsContextValue {
       analyticsConfigured,
     }),
     [
+      gatewayEnabled,
       balanceEnabled,
       hasAnyPersonalizationFeature,
       hasMemoryOptOut,

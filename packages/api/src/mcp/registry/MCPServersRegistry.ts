@@ -1652,6 +1652,11 @@ export class MCPServersRegistry {
    * the per-server cache cannot enumerate tenant-scoped keys, so it clears the
    * namespace, and the aggregate map uses its global path.
    */
+  /** A governance quarantine retains the owner record while fencing every cached DB view. */
+  public async invalidateGovernedServer(serverName: string, userId: string): Promise<void> {
+    await this.invalidateServerReadCaches(serverName, userId, 'DB');
+  }
+
   private async invalidateServerReadCaches(
     serverName: string,
     userId?: string,

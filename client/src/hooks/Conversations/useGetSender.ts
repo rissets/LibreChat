@@ -1,3 +1,4 @@
+import { useGatewayAccount } from '~/data-provider/Gateway';
 import { useCallback } from 'react';
 import { getResponseSender, getEphemeralSender, isAgentsEndpoint } from 'librechat-data-provider';
 import type { TEndpointOption, TEndpointsConfig } from 'librechat-data-provider';
@@ -14,10 +15,13 @@ import { getModelSpec } from '~/utils';
  * model an agent author may intend to keep private.
  */
 export default function useGetSender() {
+  const gateway = useGatewayAccount();
   const { data: startupConfig } = useGetStartupConfig();
   const { data: endpointsConfig = {} as TEndpointsConfig } = useGetEndpointsQuery();
   return useCallback(
     (endpointOption: TEndpointOption) => {
+      if (gateway.data?.endpoint === endpointOption.endpoint && endpointOption.model)
+        return endpointOption.model;
       const { modelDisplayLabel } = endpointsConfig?.[endpointOption.endpoint ?? ''] ?? {};
       if (isAgentsEndpoint(endpointOption.endpoint)) {
         return getResponseSender({ ...endpointOption, modelDisplayLabel });
@@ -30,6 +34,6 @@ export default function useGetSender() {
       });
       return sender || getResponseSender({ ...endpointOption, modelDisplayLabel });
     },
-    [endpointsConfig, startupConfig],
+    [endpointsConfig, startupConfig, gateway.data?.endpoint],
   );
 }

@@ -1134,6 +1134,11 @@ export const AUDIT_ACTIONS = [
   'config.reloaded',
   /** Account lifecycle; `role_changed` covers IdP-driven role assignment. */
   'user.deleted',
+  'user.created',
+  'user.updated',
+  'user.suspended',
+  'user.reactivated',
+  'user.identity_linked',
   'user.role_changed',
   /** Resource ACL (sharing) changes. */
   'acl.granted',
@@ -1180,6 +1185,11 @@ export const AUDIT_ACTION_CATEGORY: Record<AuditAction, AuditCategory> = {
   'config.toggled': 'config',
   'config.reloaded': 'config',
   'user.deleted': 'user',
+  'user.created': 'user',
+  'user.updated': 'user',
+  'user.suspended': 'user',
+  'user.reactivated': 'user',
+  'user.identity_linked': 'user',
   'user.role_changed': 'user',
   'acl.granted': 'acl',
   'acl.revoked': 'acl',

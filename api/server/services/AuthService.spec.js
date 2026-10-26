@@ -25,6 +25,7 @@ jest.mock(
   () => {
     const shouldUseSecureCookie = jest.fn(() => false);
     return {
+      managedSessionOptions: (_req, expiresIn) => ({ expiresIn }),
       isEnabled: jest.fn((val) => val === 'true' || val === true),
       /** Real bcrypt on the test thread; the worker pool has its own spec in packages/api. */
       hashSecret: jest.fn((plain) => require('bcryptjs').hash(plain, 4)),

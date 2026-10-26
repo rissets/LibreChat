@@ -160,7 +160,9 @@ class STTService {
         userId: req?.user?.id,
         tenantId: req?.user?.tenantId,
       }));
-    const sttSchema = appConfig?.speech?.stt;
+    const sttSchema = await require('@librechat/api').managedSpeechSchema(
+      appConfig?.speech?.stt, req.user, 'transcribe',
+    );
     if (!sttSchema) {
       throw new Error(
         'No STT schema is set. Did you configure STT in the custom config (librechat.yaml)?',

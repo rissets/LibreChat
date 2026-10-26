@@ -1,3 +1,4 @@
+const { managedSessionOptions } = require('@librechat/api');
 const jwt = require('jsonwebtoken');
 const { webcrypto } = require('node:crypto');
 const {
@@ -733,7 +734,7 @@ const setAuthTokens = async (userId, res, _session = null, req = null) => {
       refreshTokenExpires = session.expiration.getTime();
       refreshToken = await generateRefreshToken(session);
     } else {
-      const result = await createSession(userId, { expiresIn });
+      const result = await createSession(userId, managedSessionOptions(req, expiresIn));
       session = result.session;
       refreshToken = result.refreshToken;
       refreshTokenExpires = session.expiration.getTime();
@@ -741,7 +742,7 @@ const setAuthTokens = async (userId, res, _session = null, req = null) => {
 
     const user = await getUserById(userId);
     const sessionExpiry = math(process.env.SESSION_EXPIRY, DEFAULT_SESSION_EXPIRY);
-    const token = await generateToken(user, sessionExpiry);
+    const token = await generateToken(user, sessionExpiry, session);
 
     setLocalSessionCookies(res, {
       refreshToken,

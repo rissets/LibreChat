@@ -105,6 +105,17 @@ export function createRequireApiKeyAuth(deps: ApiKeyAuthDependencies) {
       }
 
       user.id = (user._id as Types.ObjectId).toString();
+      if (user.governanceDisabled) {
+        return res
+          .status(403)
+          .json({
+            error: {
+              message: 'Account is suspended',
+              type: 'permission_error',
+              code: 'account_suspended',
+            },
+          });
+      }
       if (!principalActive) {
         return res.status(409).json({
           error: {
@@ -174,6 +185,18 @@ function createAgentAccessMiddleware(
         return;
       }
 
+      if (agent.remoteGovernanceDisabled === true) {
+        res
+          .status(403)
+          .json({
+            error: {
+              message: 'Remote agent is disabled',
+              type: 'permission_error',
+              code: 'remote_agent_disabled',
+            },
+          });
+        return;
+      }
       const userId = req.user?.id || '';
 
       const permissions = await getRemoteAgentPermissions(deps, userId, req.user?.role, agent._id);

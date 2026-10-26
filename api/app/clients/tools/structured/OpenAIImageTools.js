@@ -73,7 +73,7 @@ function createOpenAIImageTools(fields = {}) {
 
   const getApiKey = () => {
     const apiKey = process.env.IMAGE_GEN_OAI_API_KEY ?? '';
-    if (!apiKey && !override) {
+    if (!apiKey && !override && !require('@librechat/api').gatewayConfig()) {
       throw new Error('Missing IMAGE_GEN_OAI_API_KEY environment variable.');
     }
     return apiKey;
@@ -126,7 +126,10 @@ function createOpenAIImageTools(fields = {}) {
       if (!prompt) {
         throw new Error('Missing required field: prompt');
       }
-      const clientConfig = { ...closureConfig };
+      const { selectedModel, destination, apiKey, clientConfig } =
+        await require('@librechat/api').managedImageConfiguration(
+          req?.user, imageModel, baseURL, closureConfig,
+        );
       const proxyDispatcher = getProxyDispatcher();
       if (proxyDispatcher) {
         clientConfig.fetchOptions = {
@@ -163,7 +166,7 @@ function createOpenAIImageTools(fields = {}) {
 
         resp = await openai.images.generate(
           {
-            model: imageModel,
+            model: selectedModel,
             prompt: replaceUnwantedChars(prompt),
             n: Math.min(Math.max(1, n), 10),
             background,
@@ -236,7 +239,10 @@ Error Message: ${error.message}`);
         throw new Error('Missing required field: prompt');
       }
 
-      const clientConfig = { ...closureConfig };
+      const { selectedModel, destination, apiKey, clientConfig } =
+        await require('@librechat/api').managedImageConfiguration(
+          req?.user, imageModel, baseURL, closureConfig,
+        );
       const proxyDispatcher = getProxyDispatcher();
       if (proxyDispatcher) {
         clientConfig.fetchOptions = {
@@ -245,7 +251,7 @@ Error Message: ${error.message}`);
       }
 
       const formData = new FormData();
-      formData.append('model', imageModel);
+      formData.append('model', selectedModel);
       formData.append('prompt', replaceUnwantedChars(prompt));
       // TODO: `mask` support
       // TODO: more than 1 image support
@@ -350,10 +356,10 @@ Error Message: ${error.message}`);
           headers,
           ...clientConfig,
           signal: derivedSignal,
-          baseURL,
+          baseURL: destination,
         };
 
-        applyAxiosProxyConfig(axiosConfig, baseURL);
+        applyAxiosProxyConfig(axiosConfig, destination);
 
         if (process.env.IMAGE_GEN_OAI_AZURE_API_VERSION && process.env.IMAGE_GEN_OAI_BASEURL) {
           axiosConfig.params = {

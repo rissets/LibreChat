@@ -1,4 +1,5 @@
 export * from './app';
+export { createManagedSelfService } from './gateway/selfService';
 export * from './acl/accessControlService';
 export * from './acl/insightsPermissions';
 export * from './acl/audit';
@@ -151,3 +152,5 @@ export type * from './types';
 export * from './tools/approval';
 
 export * from './mcp/approval';
+
+export * from './gateway';

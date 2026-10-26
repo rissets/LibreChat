@@ -1,3 +1,5 @@
+import { useAtom } from 'jotai';
+import { settingsTabAtom } from '../Settings';
 import { useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import { X, ChevronLeft } from 'lucide-react';
@@ -27,9 +29,9 @@ export default function SettingsDialog({ open, onOpenChange }: TDialogProps) {
    *  layout at scales where the scaled sidebar leaves the content pane too narrow. */
   const remScale = useRemScale();
   const isSmallScreen = useMediaQuery(`(max-width: ${767 * remScale}px)`);
-  const [activeTab, setActiveTab] = useState<SettingsTab>(SettingsTabValues.GENERAL);
+  const [activeTab, setActiveTab] = useAtom(settingsTabAtom);
   const [query, setQuery] = useState('');
-  const [mobileDetail, setMobileDetail] = useState(!isSmallScreen);
+  const [mobileDetail, setMobileDetail] = useState(!isSmallScreen || activeTab === 'gateway-usage');
 
   const searching = query.trim().length > 0;
   const inDetail = isSmallScreen && mobileDetail && !searching;

@@ -171,4 +171,4 @@ const checkBan = async (req, res, next = () => {}) => {
   }
 };
 
-module.exports = checkBan;
+module.exports = require('@librechat/api').governanceBanGate(checkBan);

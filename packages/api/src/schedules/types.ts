@@ -63,6 +63,8 @@ export interface ScheduleUserContext {
   id: string;
   tenantId?: string;
   role?: string;
+  governanceDisabled?: boolean;
+  governancePermissions?: Record<string, Record<string, boolean>>;
 }
 
 /**

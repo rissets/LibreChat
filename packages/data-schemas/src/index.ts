@@ -125,3 +125,14 @@ export type { SearchTokenBackfillResult } from './migrations';
 export { createBrowserSetupStore, createBrowserSetupBackend } from './methods/browserSetup';
 export type * from './types/browserSetup';
 export type * from './types/codeEnvironmentSetup';
+
+export { withGovernanceAccess } from './models/plugins/governance';
+
+export { createGovernanceRepository } from './methods/governance';
+export type { GovernanceRepository, GovernanceRecord } from './methods/governance';
+
+export { createGovernanceEventReader } from './methods/governanceEvents';
+export type { GovernanceFeed } from './methods/governanceEvents';
+
+export {createGovernanceCommandStore} from './methods/governanceCommands';
+export type {GovernanceCommandStore} from './methods/governanceCommands';

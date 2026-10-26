@@ -11,6 +11,7 @@ import { initializeCustom } from '../custom/initialize';
 import { initializeGoogle } from '../google/initialize';
 import { initializeOpenAI } from '../openai/initialize';
 import { getCustomEndpointConfig } from '~/app/config';
+import { gatewayConfig } from '~/gateway';
 
 /**
  * Type for initialize functions
@@ -199,6 +200,8 @@ export function getProviderConfig({
   provider: string;
   appConfig?: AppConfig;
 }): ProviderConfigResult {
+  const managed = gatewayConfig();
+  if (managed && provider !== managed.endpoint) throw new Error('MANAGED_ENDPOINT_REQUIRED');
   let getOptions = providerConfigMap[provider];
   let overrideProvider = provider;
   let customEndpointConfig: Partial<TEndpoint> | undefined;

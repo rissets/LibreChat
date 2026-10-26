@@ -29,4 +29,4 @@ async function uaParser(req, res, next) {
   next();
 }
 
-module.exports = uaParser;
+module.exports = require('@librechat/api').governanceBanGate(uaParser);

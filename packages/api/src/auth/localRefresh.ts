@@ -29,11 +29,12 @@ type RefreshUser = Pick<
   | 'credentialsChangedAt'
 >;
 
-type RefreshSession = Pick<ISession, 'expiration'> & { _id: UserIdentifier };
+type RefreshSession = Pick<ISession, 'expiration' | 'identitySessionId'> & { _id: UserIdentifier };
 type SessionDeletionResult = { deletedCount?: number };
 type AuthResponseSource = TwoFactorAccount & { __v?: number; federatedTokens?: OIDCTokens };
 
 interface LocalRefreshDependencies {
+  validateIdentitySession?: (user: RefreshUser, session: RefreshSession) => Promise<boolean>;
   userProjection: string;
   getUserById: (userId: string, projection: string) => Promise<RefreshUser | null>;
   findSession: (
@@ -155,6 +156,12 @@ export function createLocalRefreshHandler(deps: LocalRefreshDependencies) {
 
       const session = await deps.findSession({ userId, refreshToken }, { lean: false });
       if (session && session.expiration > new Date()) {
+        if (deps.validateIdentitySession && !(await deps.validateIdentitySession(user, session))) {
+          await deps.deleteSession({ sessionId: session._id.toString() });
+          res.clearCookie('refreshToken');
+          clearSessionHintCookie(res);
+          return res.status(401).send(EXPIRED_REFRESH_MESSAGE);
+        }
         if (requiresEnrollment(user)) {
           await deps.deleteSession({ sessionId: session._id.toString() });
           res.clearCookie('refreshToken');

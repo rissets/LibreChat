@@ -1,3 +1,4 @@
+import { useGatewayAccount } from '~/data-provider/Gateway';
 import React, { useMemo } from 'react';
 import { TooltipAnchor } from '@librechat/client';
 import { getConfigDefaults } from 'librechat-data-provider';
@@ -20,6 +21,7 @@ const defaultInterface = getConfigDefaults().interface;
 
 function ModelSelectorContent() {
   const localize = useLocalize();
+  const gateway = useGatewayAccount();
   const modelSelectorHint = useShortcutHint('openModelSelector', localize('com_ui_select_model'));
   const modelSelectorAriaKey = useShortcutAriaKey('openModelSelector');
 
@@ -113,7 +115,7 @@ function ModelSelectorContent() {
               selectedValues.modelSpec || '',
             )}
             {/* Render endpoints (will include grouped specs matching endpoint names) */}
-            {renderEndpoints(mappedEndpoints ?? [])}
+            {renderEndpoints(mappedEndpoints ?? [], gateway.data?.endpoint)}
             {/* Render custom groups (specs with group field not matching any endpoint) */}
             {renderCustomGroups(modelSpecs || [], mappedEndpoints ?? [])}
           </>

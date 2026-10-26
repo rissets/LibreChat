@@ -34,6 +34,18 @@ describe('User Methods', () => {
       delete process.env.JWT_SECRET;
     });
 
+    it('binds the access token to the refresh session identity sid', async () => {
+      mockSignPayload.mockResolvedValue('bound-token');
+      await userMethods.generateToken(mockUser, 900000, {
+        identitySessionId: 'identity-session-a',
+      });
+      expect(mockSignPayload).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payload: expect.objectContaining({ identitySessionId: 'identity-session-a' }),
+        }),
+      );
+    });
+
     it('should default to 15 minutes when expiresIn is not provided', async () => {
       process.env.JWT_SECRET = 'test-secret';
       mockSignPayload.mockResolvedValue('mocked-token');

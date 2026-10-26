@@ -4,7 +4,7 @@ const { tool } = require('@librechat/agents/langchain/tools');
 const {
   logAxiosError,
   selectFileCitationSources,
-  generateShortLivedToken,
+  generateRagToken: generateShortLivedToken,
   executeFileSearchQuery,
 } = require('@librechat/api');
 const { Tools, EToolResources } = require('librechat-data-provider');

@@ -21,6 +21,7 @@ const agentSchema: Schema<IAgent> = new Schema<IAgent>(
       type: Schema.Types.Mixed,
       default: undefined,
     },
+    remoteGovernanceDisabled: { type:Boolean, default:false },
     provider: {
       type: String,
       required: true,

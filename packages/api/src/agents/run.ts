@@ -1,3 +1,4 @@
+import { gatewayConfig } from '~/gateway/config';
 import { randomUUID } from 'crypto';
 import { logger } from '@librechat/data-schemas';
 import { ensureHandler } from '@langchain/core/callbacks/manager';
@@ -1355,6 +1356,29 @@ function shapeSummarizationConfig(
   headerContext: { user?: IUser; tenantId?: string; requestBody?: t.RequestBody },
   agent?: RunAgent,
 ) {
+  const managed = gatewayConfig();
+  if (managed) {
+    if (agentEndpoint !== managed.endpoint) throw new Error('MANAGED_ENDPOINT_REQUIRED');
+    // Summaries reuse the initialized subject credential and the pinned router transport.
+    const allowed = new Set([
+      'temperature',
+      'topP',
+      'top_p',
+      'maxTokens',
+      'max_tokens',
+      'maxSummaryTokens',
+      'frequencyPenalty',
+      'presencePenalty',
+      'reasoning_effort',
+    ]);
+    config = {
+      ...config,
+      provider: managed.endpoint,
+      parameters: Object.fromEntries(
+        Object.entries(config?.parameters ?? {}).filter(([key]) => allowed.has(key)),
+      ),
+    };
+  }
   const rawProvider = config?.provider ?? fallbackProvider;
   /**
    * When the summarization provider resolves to the same custom endpoint as

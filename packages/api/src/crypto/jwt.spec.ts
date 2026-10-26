@@ -1,6 +1,7 @@
 import {
   AGENT_TRIGGER_SCOPE,
   generateAgentTriggerToken,
+  generateRagToken,
   generateShortLivedToken,
   isAgentTriggerRequest,
 } from './jwt';
@@ -49,4 +50,13 @@ describe('agent trigger identity', () => {
     expect(payload).toMatchObject({ id: 'user-1', scope: AGENT_TRIGGER_SCOPE });
     expect(generateShortLivedToken('user-1')).not.toBe(trigger);
   });
+});
+
+it('separates RAG workload tokens from browser and trigger tokens with a sixty second lifetime', () => {
+  const old = process.env.JWT_SECRET; process.env.JWT_SECRET = 'fixture';
+  try {
+    const payload = JSON.parse(Buffer.from(generateRagToken('user-1').split('.')[1], 'base64url').toString());
+    expect(payload).toMatchObject({ id: 'user-1', scope: 'rag_workload', aud: 'librechat-rag' });
+    expect(payload.exp - payload.iat).toBe(60);
+  } finally { if (old) process.env.JWT_SECRET = old; else delete process.env.JWT_SECRET; }
 });

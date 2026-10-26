@@ -1,3 +1,4 @@
+const { combineManagedModels } = require('@librechat/api');
 const { logger } = require('@librechat/data-schemas');
 const { loadDefaultModels, loadConfigModels } = require('~/server/services/Config');
 
@@ -8,7 +9,7 @@ async function loadModels(req) {
     loadDefaultModels(req),
     loadConfigModels(req),
   ]);
-  return { ...defaultModelsConfig, ...customModelsConfig };
+  return combineManagedModels(req.user, defaultModelsConfig, customModelsConfig);
 }
 
 async function modelController(req, res) {

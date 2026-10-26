@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { logger } from '@librechat/data-schemas';
 import type { AxiosInstance } from 'axios';
-import { generateShortLivedToken } from '~/crypto/jwt';
+import { generateRagToken as generateShortLivedToken } from '~/crypto/jwt';
 import { isMissingStorageError } from './storage';
 
 interface DeleteRagFileParams {

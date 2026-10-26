@@ -49,6 +49,12 @@ export interface CapabilityUser {
 interface CapabilityStore {
   principals: Map<string, ResolvedPrincipal[]>;
   results: Map<string, boolean>;
+  delegation?: {
+    userId: string;
+    capabilities: Set<string>;
+    manageResources?: boolean;
+    nativeGrantAuthority?: boolean;
+  };
 }
 
 const DENIAL_WARN_INTERVAL_MS = 5 * 60 * 1000;
@@ -179,6 +185,11 @@ export function generateCapabilityCheck(deps: CapabilityDeps): {
 
   /** Whether the user holds any config-read capability at all, broad or section-scoped. */
   async function hasAnyConfigReadAccess(user: CapabilityUser): Promise<boolean> {
+    const delegated = capabilityStore.getStore()?.delegation;
+    if (delegated?.userId === user.id)
+      return (
+        delegated.capabilities.has('read:configs') || delegated.capabilities.has('manage:configs')
+      );
     const principals = await resolvePrincipals(user);
     return checkAny({ principals, tenantId: user.tenantId });
   }
@@ -187,6 +198,9 @@ export function generateCapabilityCheck(deps: CapabilityDeps): {
     user: CapabilityUser,
     capabilities: SystemCapability[],
   ): Promise<Set<SystemCapability>> {
+    const delegated = capabilityStore.getStore()?.delegation;
+    if (delegated?.userId === user.id)
+      return new Set(capabilities.filter((c) => delegated.capabilities.has(c)));
     const principals = await resolvePrincipals(user);
     return getHeldCaps({ principals, capabilities, tenantId: user.tenantId });
   }
@@ -218,6 +232,8 @@ export function generateCapabilityCheck(deps: CapabilityDeps): {
     capability: SystemCapability,
     { platformOnly = false }: { platformOnly?: boolean } = {},
   ): Promise<boolean> {
+    const delegated = capabilityStore.getStore()?.delegation;
+    if (delegated?.userId === user.id) return delegated.capabilities.has(capability);
     if (!isMainThread && !workerWarned) {
       workerWarned = true;
       logger.warn(

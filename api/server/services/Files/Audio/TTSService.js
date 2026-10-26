@@ -298,13 +298,14 @@ class TTSService {
   async processTextToSpeech(req, res) {
     const { input, voice: requestVoice } = req.body;
 
-    const appConfig =
+    let appConfig =
       req.config ??
       (await getAppConfig({
         role: req.user?.role,
         userId: req.user?.id,
         tenantId: req.user?.tenantId,
       }));
+    appConfig = await require('@librechat/api').managedSpeechConfiguration(appConfig, req.user);
     const text = capSpeechInput(input, appConfig?.speech?.tts);
     if (!text) {
       return res.status(400).send('Missing text in request body');
@@ -382,13 +383,14 @@ class TTSService {
    */
   async streamAudio(req, res) {
     res.setHeader('Content-Type', 'audio/mpeg');
-    const appConfig =
+    let appConfig =
       req.config ??
       (await getAppConfig({
         role: req.user?.role,
         userId: req.user?.id,
         tenantId: req.user?.tenantId,
       }));
+    appConfig = await require('@librechat/api').managedSpeechConfiguration(appConfig, req.user);
     const provider = this.getProvider(appConfig);
     const ttsSchema = appConfig?.speech?.tts?.[provider];
     const allowedAddresses = appConfig?.speech?.tts?.allowedAddresses;

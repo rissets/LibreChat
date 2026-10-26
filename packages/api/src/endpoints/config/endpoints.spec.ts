@@ -15,6 +15,38 @@ import type { ServerRequest } from '~/types';
 import { createEndpointsConfigService } from './endpoints';
 import { createAppConfigService } from '~/app/service';
 
+test('managed deployment exposes only its assigned-model endpoint and governed agents', async () => {
+  const before = { ...process.env };
+  Object.assign(process.env, {
+    BPBATAM_GATEWAY_ENDPOINT: 'Rissets',
+    OPENID_ISSUER: 'https://identity.test/realms/bp',
+    BPBATAM_BRIDGE_URL: 'https://router.test/api/bpbatam',
+    BPBATAM_LC_CLIENT_ID: 'lc-test',
+    BPBATAM_LC_CLIENT_SECRET: 'synthetic-client-secret',
+  });
+  try {
+    const service = createEndpointsConfigService(
+      createMockDeps({
+        loadDefaultEndpointsConfig: jest.fn().mockResolvedValue({
+          openAI: { order: 0 },
+          google: { order: 1 },
+          anthropic: { order: 2 },
+          OpenRouter: { userProvide: true },
+          Rissets: { userProvide: true, userProvideURL: true },
+          agents: { allowedProviders: ['openAI', 'google'] },
+        }),
+      }),
+    );
+    const result = await service.getEndpointsConfig(fakeReq());
+    if (!result) throw new Error('Managed endpoint config missing');
+    expect(Object.keys(result).sort()).toEqual(['Rissets', 'agents']);
+    expect(result.Rissets).toMatchObject({ userProvide: false, userProvideURL: false });
+    expect(result.agents).toMatchObject({ allowedProviders: ['Rissets'] });
+  } finally {
+    process.env = before;
+  }
+});
+
 function appConfig(partial: Record<string, unknown>): AppConfig {
   return partial as unknown as AppConfig;
 }

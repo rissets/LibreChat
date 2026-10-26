@@ -375,7 +375,7 @@ const deleteUserController = async (req, res) => {
       user.id,
       '+totpSecret +backupCodes _id twoFactorEnabled',
     );
-    if (existingUser && existingUser.twoFactorEnabled) {
+    if (existingUser && require('@librechat/api').requiresSelfServiceErasure(req,existingUser.twoFactorEnabled)) {
       const { token, backupCode } = req.body;
       const result = await verifyOTPOrBackupCode({ user: existingUser, token, backupCode });
 

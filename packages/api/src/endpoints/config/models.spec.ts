@@ -353,3 +353,42 @@ describe('configuredModelList', () => {
     expect(configuredModelList(undefined, EModelEndpoint.anthropic)).toBeUndefined();
   });
 });
+
+describe('managed deployment configuration catalog', () => {
+  it('reads an identity-free admin scope without resolving a user inference key', async () => {
+    const previous = process.env;
+    process.env = {
+      ...previous,
+      BPBATAM_GATEWAY_ENDPOINT: 'P0Router',
+      BPBATAM_BRIDGE_URL: 'https://gateway.test/api/bpbatam',
+      BPBATAM_LC_CLIENT_ID: 'lc-test',
+      BPBATAM_LC_CLIENT_SECRET: 'private-fixture',
+      OPENID_ISSUER: 'https://idp.test/realms/test',
+    };
+    try {
+      const loadConfigModels = createLoadConfigModels({
+        getAppConfig: jest.fn(),
+        getUserKeyValues: jest.fn(),
+        fetchModels: jest.fn(),
+      });
+      const request = {
+        user: { role: 'P0_OPERATOR' },
+        config: {
+          endpoints: {
+            custom: [
+              {
+                name: 'P0Router',
+                apiKey: 'managed',
+                baseURL: 'http://localhost/v1',
+                models: { default: ['p0/allowed-model'], fetch: false },
+              },
+            ],
+          },
+        },
+      } as unknown as ServerRequest;
+      await expect(loadConfigModels(request)).resolves.toEqual({ P0Router: ['p0/allowed-model'] });
+    } finally {
+      process.env = previous;
+    }
+  });
+});

@@ -23,6 +23,7 @@ import { getOpenAIConfig } from '~/endpoints/openai/config';
 import { getScopedTokenConfigKey } from '~/endpoints/keys';
 import { resolveCustomEndpointParameters } from './config';
 import { getCustomEndpointConfig } from '~/app/config';
+import { resolveManagedCredential } from '~/gateway';
 import { resolveEndpointRuntime } from '~/types';
 import { fetchModels } from '~/endpoints/models';
 import { validateEndpointURL } from '~/auth';
@@ -230,8 +231,23 @@ export async function initializeCustom(
     userValues = await db.getUserKeyValues({ userId: user?.id ?? '', name: endpoint });
   }
 
-  const apiKey = userProvidesKey || userProvidesURL ? userValues?.apiKey : CUSTOM_API_KEY;
-  const baseURL = userProvidesURL ? userValues?.baseURL : CUSTOM_BASE_URL;
+  const managed = await resolveManagedCredential(user, endpoint, model_parameters?.model);
+  const apiKey =
+    managed?.key ?? (userProvidesKey || userProvidesURL ? userValues?.apiKey : CUSTOM_API_KEY);
+  const baseURL = managed?.baseURL ?? (userProvidesURL ? userValues?.baseURL : CUSTOM_BASE_URL);
+  if (managed) {
+    endpointConfig.modelDisplayLabel = String(model_parameters?.model ?? '');
+    // The subject credential may only leave through the deployment-owned router.
+    endpointConfig.headers = undefined;
+    endpointConfig.provider = undefined;
+    endpointConfig.directEndpoint = undefined;
+    const outputCap = Number(model_parameters?.max_tokens ?? model_parameters?.maxTokens ?? 512);
+    endpointConfig.addParams = {
+      maxTokens:
+        Number.isFinite(outputCap) && outputCap > 0 ? Math.min(4096, Math.floor(outputCap)) : 512,
+    };
+    endpointConfig.customParams = undefined;
+  }
 
   if ((userProvidesKey || userProvidesURL) && !apiKey) {
     throw new Error(

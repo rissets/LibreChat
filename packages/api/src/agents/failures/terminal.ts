@@ -15,6 +15,9 @@ const UPSTREAM_MODEL_ERROR_CODE = 'UPSTREAM_MODEL_ERROR';
 const UPSTREAM_MODEL_ERROR_ORIGIN = 'model_provider';
 const UNKNOWN_UPSTREAM_MODEL_ERROR_TYPE = '_OTHER';
 const UPSTREAM_MODEL_ERROR_FALLBACK = 'The model provider could not complete this request.';
+const TOKEN_RECONCILIATION_CODE = 'ACCOUNT_RECONCILIATION_REQUIRED';
+const TOKEN_RECONCILIATION_MESSAGE =
+  'A previous request has token usage awaiting review. New requests are paused until a BP Batam Control Panel operator reconciles the receipt.';
 
 function safelyResolveLangChainError(error: unknown): string | undefined {
   try {
@@ -116,14 +119,24 @@ export function createTerminalRunErrorObserver({
         return classifiedError;
       }
 
+      const upstreamMessage =
+        getProviderErrorMessage(upstreamModelError, maxProviderErrorChars) ??
+        getProviderErrorMessage(error, maxProviderErrorChars);
+      if (upstreamMessage?.includes(TOKEN_RECONCILIATION_CODE)) {
+        return `${UPSTREAM_MODEL_ERROR_FALLBACK}\n${JSON.stringify({
+          type: ErrorTypes.UPSTREAM_MODEL_ERROR,
+          ...(status != null ? { status } : {}),
+          message: TOKEN_RECONCILIATION_MESSAGE,
+        })}`;
+      }
+
       /** Unclassified: the provider's own explanation is the only account of what happened, and a
        *  rejection from a gateway or proxy carries it as the whole point of the 400. The status
        *  headlines it either way, so a deployment withholding provider text loses no taxonomy. */
       const providerMessage =
         protectionEnabled !== false
           ? undefined
-          : (getProviderErrorMessage(upstreamModelError, maxProviderErrorChars) ??
-            getProviderErrorMessage(error, maxProviderErrorChars));
+          : upstreamMessage;
       return `${UPSTREAM_MODEL_ERROR_FALLBACK}\n${JSON.stringify({
         type: ErrorTypes.UPSTREAM_MODEL_ERROR,
         ...(status != null ? { status } : {}),

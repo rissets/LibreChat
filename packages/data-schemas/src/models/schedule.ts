@@ -1,3 +1,4 @@
+import { applyGovernance } from '~/models/plugins/governance';
 import { Model } from 'mongoose';
 import type { IScheduleDocument, IScheduleRunDocument } from '~/types/schedule';
 import { applyTenantIsolation } from '~/models/plugins/tenantIsolation';
@@ -12,6 +13,7 @@ export function createScheduleModel(mongoose: typeof import('mongoose')): Model<
 export function createScheduleRunModel(
   mongoose: typeof import('mongoose'),
 ): Model<IScheduleRunDocument> {
+  applyGovernance(scheduleRunSchema);
   applyTenantIsolation(scheduleRunSchema);
   return (
     mongoose.models.ScheduleRun ||

@@ -1,3 +1,4 @@
+import { capabilityStore } from './capabilities';
 import { logger } from '@librechat/data-schemas';
 import {
   Permissions,
@@ -144,6 +145,16 @@ export const checkAccess = async ({
   checkObject = {},
   skipCheck,
 }: CheckAccessParams): Promise<boolean> => {
+  const delegation = capabilityStore.getStore()?.delegation;
+  if (delegation?.manageResources && delegation.userId === String(user?.id ?? user?._id))
+    return true;
+  const governed = user?.governancePermissions?.[permissionType];
+  if (
+    user?.governanceDisabled ||
+    permissions.some((permission) => governed?.[permission] === false)
+  )
+    return false;
+  if (governed && permissions.every((permission) => governed[permission] === true)) return true;
   if (skipCheck && skipCheck(req)) {
     return true;
   }

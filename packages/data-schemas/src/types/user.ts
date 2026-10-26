@@ -24,6 +24,8 @@ export interface IUser extends Document {
   password?: string;
   avatar?: string;
   provider: string;
+  governanceDisabled?: boolean;
+  governancePermissions?: Record<string,Record<string,boolean>>;
   role?: string;
   googleId?: string;
   facebookId?: string;

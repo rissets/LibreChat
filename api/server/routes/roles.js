@@ -13,13 +13,18 @@ const {
   remoteAgentsPermissionsSchema,
   skillPermissionsSchema,
 } = require('librechat-data-provider');
-const { createRolePermissionsUpdateHandler } = require('@librechat/api');
+const {
+  createRolePermissionsUpdateHandler,
+  managedRoleProjection,
+  managedRoleMutationGate,
+} = require('@librechat/api');
 const { hasCapability, requireCapability } = require('~/server/middleware/roles/capabilities');
 const { updateRoleByName, getRoleByName, recordAuditEntry } = require('~/models');
 const { requireJwtAuth } = require('~/server/middleware');
 
 const router = express.Router();
 router.use(requireJwtAuth);
+router.use(managedRoleMutationGate);
 const manageRoles = requireCapability(SystemCapabilities.MANAGE_ROLES);
 
 /**
@@ -122,7 +127,7 @@ router.get('/:roleName', async (req, res) => {
       return res.status(404).send({ message: 'Role not found' });
     }
 
-    res.status(200).send(role);
+    res.status(200).send(managedRoleProjection(role, req.user, isOwnRole));
   } catch (error) {
     logger.error('[GET /roles/:roleName] Error:', error);
     return res.status(500).send({ message: 'Failed to retrieve role' });

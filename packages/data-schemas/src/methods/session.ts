@@ -67,6 +67,7 @@ export function createSessionMethods(mongoose: typeof import('mongoose')): {
       const Session = mongoose.models.Session;
       const currentSession = new Session({
         user: userId,
+        identitySessionId: options.identitySessionId,
         expiration: options.expiration || new Date(Date.now() + expiresIn),
       });
       const refreshToken = await generateRefreshToken(currentSession);

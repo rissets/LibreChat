@@ -1,3 +1,4 @@
+const bpbatam = require('./bpbatam');
 const accessPermissions = require('./accessPermissions');
 const assistants = require('./assistants');
 const categories = require('./categories');
@@ -46,6 +47,7 @@ const rum = require('./rum');
 const insights = require('./insights');
 
 module.exports = {
+  bpbatam,
   pullRequests,
   insights,
   rum,

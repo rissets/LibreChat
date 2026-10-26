@@ -60,6 +60,7 @@ import { waitUntilDeadline } from '~/mcp/utils';
 import { startScheduleEngine } from './engine';
 import { withCapacitySlot } from './capacity';
 import { isEnabled } from '../utils/common';
+import { managedRoleProjection } from '../gateway/permissions';
 
 /** Recordable terminal/paused run outcome, as accepted by `recordRunOutcome`. */
 type ScheduleRunOutcomeStatus = Parameters<ScheduleMethods['recordRunOutcome']>[0]['status'];
@@ -167,7 +168,13 @@ export interface SchedulesServiceDeps {
   getAppConfig: (options?: GetAppConfigOptions) => Promise<AppConfig | undefined>;
   findUserById: (
     userId: string | Types.ObjectId,
-  ) => Promise<{ _id: Types.ObjectId; tenantId?: string; role?: string } | null>;
+  ) => Promise<{
+    _id: Types.ObjectId;
+    tenantId?: string;
+    role?: string;
+    governanceDisabled?: boolean;
+    governancePermissions?: Record<string, Record<string, boolean>>;
+  } | null>;
   /** Reads the balance record together with the credits unexpired in-flight reservations hold. */
   findBalance: (userId: string, options?: { applyReset?: boolean }) => Promise<IBalance | null>;
   /**
@@ -694,11 +701,23 @@ export function createSchedulesService(
       if (user == null) {
         return null;
       }
-      return { id: user._id.toString(), tenantId: user.tenantId, role: user.role };
+      return {
+        id: user._id.toString(),
+        tenantId: user.tenantId,
+        role: user.role,
+        governanceDisabled: user.governanceDisabled,
+        governancePermissions: user.governancePermissions,
+      };
     },
     hasScheduleAccess: async (user) => {
+      if (user.governanceDisabled) return false;
       const role = await methods.getRoleByName(user.role);
-      return role?.permissions?.[PermissionTypes.SCHEDULES]?.[Permissions.USE] === true;
+      return (
+        !!role &&
+        managedRoleProjection(role, user, true).permissions?.[PermissionTypes.SCHEDULES]?.[
+          Permissions.USE
+        ] === true
+      );
     },
     isOutOfBalance: async (user) => {
       const appConfig = await deps.getAppConfig(getAppConfigOptionsFromUser(user));

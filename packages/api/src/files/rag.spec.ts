@@ -7,7 +7,7 @@ jest.mock('@librechat/data-schemas', () => ({
 }));
 
 jest.mock('~/crypto/jwt', () => ({
-  generateShortLivedToken: jest.fn().mockReturnValue('mock-jwt-token'),
+  generateRagToken: jest.fn().mockReturnValue('mock-jwt-token'),
 }));
 
 jest.mock('axios', () => ({
@@ -22,7 +22,7 @@ jest.mock('axios', () => ({
 import axios from 'axios';
 import { deleteRagFile, hasEntityEmbeddings, createVectorFileDeleter } from './rag';
 import { logger } from '@librechat/data-schemas';
-import { generateShortLivedToken } from '~/crypto/jwt';
+import { generateRagToken as generateShortLivedToken } from '~/crypto/jwt';
 
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 const mockedLogger = logger as jest.Mocked<typeof logger>;

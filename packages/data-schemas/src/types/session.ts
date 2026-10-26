@@ -1,6 +1,7 @@
 import type { Document, Types } from 'mongoose';
 
 export interface ISession extends Document {
+  identitySessionId?: string;
   refreshTokenHash: string;
   expiration: Date;
   user: Types.ObjectId;
@@ -8,6 +9,7 @@ export interface ISession extends Document {
 }
 
 export interface CreateSessionOptions {
+  identitySessionId?: string;
   expiration?: Date;
   /** Duration in milliseconds for session expiry. Default: 7 days */
   expiresIn?: number;

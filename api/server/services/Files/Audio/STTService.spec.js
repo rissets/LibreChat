@@ -6,6 +6,8 @@ jest.mock('@librechat/data-schemas', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
 jest.mock('@librechat/api', () => ({
+  managedSpeechSchema: jest.requireActual('@librechat/api').managedSpeechSchema,
+
   inspectContent: jest.fn(),
   extractFileContent: jest.fn((input) => [input]),
   hasActiveFileFieldPolicy: jest.fn((filters, candidates) => {
@@ -51,6 +53,7 @@ jest.mock('@librechat/api', () => ({
   })),
 }));
 jest.mock('librechat-data-provider', () => ({
+  ...jest.requireActual('librechat-data-provider'),
   extractEnvVariable: jest.fn(),
   /* Real selection logic: these tests are about which provider a schema resolves to. */
   listConfiguredSpeechProviders:

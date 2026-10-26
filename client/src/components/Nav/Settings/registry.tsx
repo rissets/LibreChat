@@ -1,3 +1,5 @@
+import GatewayUsage from './GatewayUsage';
+import GatewayKeys from './GatewayKeys';
 import { SettingsTabValues } from 'librechat-data-provider';
 import type { SettingEntry } from './types';
 import {
@@ -70,6 +72,24 @@ import store from '~/store';
 const { GENERAL, CHAT, SPEECH, DATA, ACCOUNT, ABOUT } = SettingsTabValues;
 
 export const registry: SettingEntry[] = [
+  {
+    id: 'gatewayUsage',
+    tab: 'gateway-usage',
+    section: 'gatewayUsage',
+    labelKey: 'com_gateway_usage',
+    keywords: ['token', 'usage', 'limit', 'penggunaan'],
+    Component: GatewayUsage,
+    show: (ctx) => !!ctx.gatewayEnabled,
+  },
+  {
+    id: 'gatewayKeys',
+    tab: DATA,
+    section: 'apiKeys',
+    labelKey: 'com_gateway_keys',
+    keywords: ['api', 'key', 'model', 'external'],
+    Component: GatewayKeys,
+    show: (ctx) => !!ctx.gatewayEnabled,
+  },
   // General · Appearance
   {
     id: 'theme',
@@ -743,7 +763,7 @@ export const registry: SettingEntry[] = [
     section: 'apiKeys',
     labelKey: 'com_ui_settings_label_provider_api_keys',
     keywords: ['api', 'key', 'keys', 'provider', 'endpoint', 'credentials'],
-    show: (ctx) => ctx.hasUserProvidedEndpoints,
+    show: (ctx) => !ctx.gatewayEnabled && ctx.hasUserProvidedEndpoints,
     Component: ProviderKeys,
   },
   {
@@ -759,6 +779,7 @@ export const registry: SettingEntry[] = [
     tab: DATA,
     section: 'apiKeys',
     labelKey: 'com_ui_settings_label_revoke_keys',
+    show: (ctx) => !ctx.gatewayEnabled,
     Component: RevokeKeys,
   },
   // Langfuse

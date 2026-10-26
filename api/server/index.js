@@ -433,7 +433,10 @@ const startServer = async () => {
   /* API Endpoints */
   app.use('/api/auth', preAuthTenantMiddleware, routes.auth);
   app.use('/api/insights', routes.insights);
-  app.use('/api/admin', routes.adminAuth);
+  app.use('/api/bpbatam/native', require('./routes/bpbatamAdmin'));
+  app.use('/api/bpbatam', routes.bpbatam);
+  app.use('/api/gateway', require('./routes/gatewaySelf'));
+  app.use('/api/admin', require('@librechat/api').managedAdminGate, routes.adminAuth);
   app.use('/api/admin/config', routes.adminConfig);
   app.use('/api/admin/code-environments', routes.adminCodeEnvironments);
   app.use('/api/code-environments', routes.codeEnvironments);

@@ -1,7 +1,7 @@
 const axios = require('axios');
 const {
   isEnabled,
-  generateShortLivedToken,
+  generateRagToken: generateShortLivedToken,
   logAxiosError,
   createRagContextHandlers,
 } = require('@librechat/api');
