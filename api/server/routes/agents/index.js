@@ -3,6 +3,7 @@ const {
   reportLocatorTraversalFailure,
   isEnabled,
   GenerationJobManager,
+  createPendingConversationRead,
   TERMINAL_PUBLICATION_RECONNECT_ERROR,
   hasPersistableAbortContent,
   announceStoppedReply,
@@ -1214,7 +1215,18 @@ router.post(
 );
 /** Synchronizing durable queue state is read-only and polled while work is
  * pending. It must not consume the model-submission admission budget. */
-router.get('/chat/queued-turns', chatConfigMiddleware, AgentQueuedTurnListController);
+router.get(
+  '/chat/queued-turns',
+  chatConfigMiddleware,
+  createPendingConversationRead(
+    {
+      getJob: (id) => GenerationJobManager.getJob(id),
+      getConvoOwnership: require('~/models').getConvoOwnership,
+    },
+    'queued-turns',
+  ),
+  AgentQueuedTurnListController,
+);
 router.delete(
   '/chat/queued-turns/:queuedTurnId',
   chatConfigMiddleware,

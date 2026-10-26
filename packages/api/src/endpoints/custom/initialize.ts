@@ -241,10 +241,17 @@ export async function initializeCustom(
     endpointConfig.headers = undefined;
     endpointConfig.provider = undefined;
     endpointConfig.directEndpoint = undefined;
-    const outputCap = Number(model_parameters?.max_tokens ?? model_parameters?.maxTokens ?? 512);
+    const configuredCap = Number(endpointConfig.addParams?.maxTokens ?? 8192);
+    const defaultCap = Number.isFinite(configuredCap) && configuredCap > 0 ? configuredCap : 8192;
+    const requestedCap = model_parameters?.max_tokens ?? model_parameters?.maxTokens;
+    const outputCap = requestedCap != null ? Number(requestedCap) : defaultCap;
+    const resolvedMaxTokens =
+      Number.isFinite(outputCap) && outputCap > 0
+        ? Math.min(242000, Math.floor(outputCap))
+        : defaultCap;
     endpointConfig.addParams = {
-      maxTokens:
-        Number.isFinite(outputCap) && outputCap > 0 ? Math.min(4096, Math.floor(outputCap)) : 512,
+      ...endpointConfig.addParams,
+      maxTokens: resolvedMaxTokens,
     };
     endpointConfig.customParams = undefined;
   }

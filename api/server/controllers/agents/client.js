@@ -6216,9 +6216,7 @@ class AgentClient extends BaseClient {
       clientOptions.configuration = options.configOptions;
     }
 
-    if (clientOptions.maxTokens != null) {
-      delete clientOptions.maxTokens;
-    }
+    clientOptions.maxTokens = 1500;
     if (clientOptions?.modelKwargs?.max_completion_tokens != null) {
       delete clientOptions.modelKwargs.max_completion_tokens;
     }

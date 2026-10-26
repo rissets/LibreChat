@@ -81,12 +81,7 @@ export function createInsightsAccessHandler({
         return;
       }
       const agents = await getAccessibleAgents(req.user);
-      if (agents.length === 0) {
-        res.status(403).json({ message: 'Forbidden' });
-        return;
-      }
-
-      res.json({ access: true });
+      res.json({ access: agents.length > 0 });
     } catch (error) {
       logger.error('[Insights] Failed to load access status', error);
       res.status(500).json({ message: 'Failed to load insights access' });

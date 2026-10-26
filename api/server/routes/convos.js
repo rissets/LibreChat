@@ -17,6 +17,7 @@ const {
   isValidSubagentControlRequest,
   exemptAgentTriggerFromIpLimiter,
   createParentSubagentIndexHandler,
+  createPendingConversationRead,
   createBackgroundTaskIndexHandler,
   createBackgroundTaskCancelHandler,
   createBackgroundTaskPolicyMiddleware,
@@ -287,7 +288,14 @@ router.post(
   moderateSubagentControlMessage,
   subagentControlHandler,
 );
-router.get('/:parentConversationId/subagents', parentSubagentIndexHandler);
+router.get(
+  '/:parentConversationId/subagents',
+  createPendingConversationRead(
+    { getJob: (id) => GenerationJobManager.getJob(id), getConvoOwnership: db.getConvoOwnership },
+    'subagents',
+  ),
+  parentSubagentIndexHandler,
+);
 router.post('/pull-requests', conversationPullRequestsHandler);
 router.get('/:conversationId/pull-request', conversationPullRequestHandler);
 router.get('/:conversationId/background-tasks', backgroundTaskPolicy, backgroundTaskIndexHandler);
@@ -311,6 +319,10 @@ router.get('/:conversationId', async (req, res) => {
 
 router.get(
   '/gen_title/:conversationId',
+  createPendingConversationRead(
+    { getJob: (id) => GenerationJobManager.getJob(id), getConvoOwnership: db.getConvoOwnership },
+    'title',
+  ),
   createGeneratedTitleHandler({
     getConvoTitleState: db.getConvoTitleState,
     getCache: () => getLogStores(CacheKeys.GEN_TITLE),

@@ -73,17 +73,18 @@ describe('Insights handlers', () => {
     expect(json).toHaveBeenCalledWith({ access: true });
   });
 
-  it('returns 403 from the access endpoint when no agent is accessible', async () => {
+  it('reports unavailable navigation without an HTTP error when no agent is accessible', async () => {
     getAccessibleAgents.mockResolvedValueOnce([]);
     const handler = createInsightsAccessHandler({
       isInsightsEnabled: insightsEnabled,
       getAccessibleAgents,
     });
-    const { response, status } = createResponse();
+    const { response, status, json } = createResponse();
 
     await handler(createRequest(), response);
 
-    expect(status).toHaveBeenCalledWith(403);
+    expect(status).not.toHaveBeenCalled();
+    expect(json).toHaveBeenCalledWith({ access: false });
   });
 
   it('returns 404 from the access endpoint when Insights is disabled', async () => {
