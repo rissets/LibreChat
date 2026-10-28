@@ -64,7 +64,13 @@ const Error = ({ text, message: rowMessage }: { text: string; message?: ErrorSou
       ? (readString(envelope, 'code') ?? readString(envelope, 'type'))
       : undefined;
   const payload = nestedKey != null && envelope != null ? envelope : json;
-  const errorKey = topLevelKey ?? nestedKey;
+  // The gateway uses OpenAI envelopes: the specific token policy code lives
+  // in message while code can be the generic rate_limit_exceeded value.
+  const nativeCode = readString(payload, 'message');
+  const errorKey =
+    nativeCode === 'INSUFFICIENT_TOKENS' || nativeCode === 'USER_TOKEN_WINDOW_EXHAUSTED'
+      ? nativeCode
+      : (topLevelKey ?? nestedKey);
 
   if (errorKey != null) {
     const Renderer = errorRenderers[errorKey];

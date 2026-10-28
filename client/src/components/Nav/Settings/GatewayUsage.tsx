@@ -1,5 +1,6 @@
 import { Button } from '@librechat/client';
 import { useGatewayAccount, remainingPercentage } from '~/data-provider/Gateway';
+import { TokenRequestHistory } from '~/components/Gateway/TokenRequest';
 import { useLocalize } from '~/hooks';
 
 const count = (value: string | number) => Number(value).toLocaleString();
@@ -41,6 +42,7 @@ export default function GatewayUsage() {
             {t('com_gateway_tokens')}: <strong>{count(data.totals.tokens)}</strong>
           </p>
           {Number(data.totals.uncertain) > 0 && <p role="alert">{t('com_gateway_holds')}</p>}
+          <TokenRequestHistory />
           <h4 className="font-semibold">{t('com_gateway_limits')}</h4>
           {data.limits.windows.map((w) => (
             <div key={w.window} className="border-border-light rounded-xl border p-3">

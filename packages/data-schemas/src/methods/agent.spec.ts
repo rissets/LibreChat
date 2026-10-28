@@ -29,6 +29,7 @@ import {
 } from './agent';
 import { withCodeEnvironmentReference, withCodeEnvironmentReferences } from './codeEnvironment';
 import { tenantStorage } from '~/config/tenantContext';
+import { withGovernanceAccess } from '~/models/plugins/governance';
 import { createAclEntryMethods } from './aclEntry';
 import { createModels } from '~/models';
 
@@ -8105,3 +8106,31 @@ function generateVersionTestCases() {
     },
   ];
 }
+
+it('keeps individual usage restrictions out of content versions and preserves them on restore', async () => {
+  const id = 'agent_governance_version_boundary';
+  const memberId = String(new mongoose.Types.ObjectId());
+  await createAgent({
+    id,
+    name: 'Governed agent',
+    model: 'test-model',
+    provider: 'test',
+    author: new mongoose.Types.ObjectId(),
+  });
+  await withGovernanceAccess(() =>
+    Agent.updateOne({ id }, { $set: { governanceDisabledFor: [memberId] } }).exec(),
+  );
+  const updated = await updateAgent({ id }, { name: 'Updated governed agent' });
+  for (const version of updated!.versions ?? []) {
+    expect(version).not.toHaveProperty('governanceDisabledFor');
+    expect(version).not.toHaveProperty('governanceRevision');
+  }
+  await revertAgentVersion({ id }, 0);
+  const restored = await withGovernanceAccess(() =>
+    Agent.findOne({ id }).select('+governanceDisabledFor').lean().exec(),
+  );
+  expect((restored as unknown as Record<string, unknown>).governanceDisabledFor).toEqual([
+    memberId,
+  ]);
+  expect(await getAgent({ id })).not.toHaveProperty('governanceDisabledFor');
+});

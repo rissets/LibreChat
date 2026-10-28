@@ -975,6 +975,7 @@ const ChatForm = memo(function ChatForm({
                   tool library reads the same cache, so without this a server it
                   lists reads as unknown and offers to connect instead of toggling. */}
               <BadgeRowProvider
+                endpoint={conversation?.endpoint}
                 conversationId={conversationId}
                 specName={conversation?.spec}
                 isSubmitting={isSubmitting}

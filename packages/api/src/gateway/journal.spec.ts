@@ -133,3 +133,52 @@ it('does not acknowledge a legacy HTTP200 storage error as a successful mutation
   expect(res.json).toHaveBeenCalledWith({ code: 'NATIVE_OPERATION_FAILED' });
   expect(complete).not.toHaveBeenCalled();
 });
+
+it('accepts a direct admin approval attested by the authenticated governance service', async () => {
+  const complete = jest.fn(async () => undefined);
+  const audit = jest.fn(async () => undefined);
+  const handler = createGovernanceJournalHandler({
+    store: {
+      claim: jest.fn(),
+      complete,
+      inspect: async () => ({
+        state: 'pending',
+        requestHash: 'hash',
+        expiresAt: new Date(Date.now() + 60000).toISOString(),
+      }),
+    },
+    encrypt: async (value) => value,
+    decrypt: async (value) => value,
+    audit,
+  });
+  const req = {
+    method: 'POST',
+    path: '/fixture-command/resolve',
+    headers: {
+      'x-actor-id': 'admin',
+      'x-checker-id': 'admin',
+      'x-approval-mode': 'admin-direct',
+      'x-approval-id': '00000000-0000-4000-8000-000000000003',
+      'x-approval-payload-hash': 'a'.repeat(64),
+    },
+    body: {
+      resolution_id: '00000000-0000-4000-8000-000000000002',
+      outcome: 'not_applied',
+      evidence: 'Verified provider evidence for the isolated administrative action.',
+    },
+  } as unknown as Request;
+  jest.mocked(governanceIdentity).mockResolvedValue(null);
+  const unauthenticated = response();
+  await handler(req, unauthenticated as unknown as Response, jest.fn());
+  expect(unauthenticated.status).toHaveBeenCalledWith(403);
+  expect(complete).not.toHaveBeenCalled();
+  jest.mocked(governanceIdentity).mockResolvedValue({ sub: 'service', name: 'control' });
+  const accepted = response();
+  await handler(req, accepted as unknown as Response, jest.fn());
+  expect(complete).toHaveBeenCalledTimes(1);
+  expect(accepted.json).toHaveBeenCalledWith({
+    resolved: true,
+    outcome: 'not_applied',
+    execution_repeated: false,
+  });
+});

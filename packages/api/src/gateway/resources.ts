@@ -140,7 +140,7 @@ export function createGovernanceResources(
       }
       if (
         req.method === 'POST' &&
-        req.path === '/commands' &&
+        ['/commands', '/assignments', '/state'].includes(req.path) &&
         !(await beginGovernanceMutation(req, res, deps.journal))
       )
         return;
@@ -150,7 +150,11 @@ export function createGovernanceResources(
         const limit = Math.max(1, Math.min(100, Number(req.query.limit) || 50));
         const after = String(req.query.after ?? '');
         if (after && !/^[a-f0-9]{24}$/i.test(after)) throw new ResourceFailure('INVALID_CURSOR');
-        const rows = await deps.repository.list(kind, ownerId, owner.tenantId, after, limit + 1);
+        const reader =
+          req.query.available === 'true' && deps.repository.available
+            ? deps.repository.available.bind(deps.repository)
+            : deps.repository.list.bind(deps.repository);
+        const rows = await reader(kind, ownerId, owner.tenantId, after, limit + 1);
         res.json({
           kind,
           resources: rows.slice(0, limit),
@@ -313,6 +317,82 @@ export function createGovernanceResources(
           },
           { failClosed: true },
         );
+      if (req.method === 'POST' && ['/assignments', '/state'].includes(req.path)) {
+        const row = await deps.repository.get(
+          kind,
+          ownerId,
+          owner.tenantId,
+          input.resource_id ?? '',
+        );
+        if (!routes[kind]?.acl) throw new ResourceFailure('RESOURCE_ASSIGNMENT_NOT_SUPPORTED', 422);
+        if (!row) throw new ResourceFailure('RESOURCE_NOT_FOUND', 404);
+        if (row.deletingAt || row.deleting) throw new ResourceFailure('RESOURCE_DELETING', 409);
+        await audit();
+        if (req.path === '/assignments') {
+          const data = z
+            .object({
+              policy_id: z.string().uuid(),
+              member_ids: z.array(z.string().regex(/^[a-f0-9]{24}$/i)).max(10000),
+              active: z.boolean(),
+            })
+            .parse(req.body);
+          if (!deps.repository.assign)
+            throw new ResourceFailure('RESOURCE_ASSIGNMENT_UNAVAILABLE', 503);
+          await deps.repository.assign(
+            kind,
+            ownerId,
+            owner.tenantId,
+            input.resource_id!,
+            data.policy_id,
+            [...new Set(data.member_ids)],
+            data.active,
+          );
+          for (const userId of new Set([ownerId, ...data.member_ids]))
+            await deps.invalidate(kind, input.resource_id, [], userId);
+          res.json({
+            resource_id: input.resource_id,
+            policy_id: data.policy_id,
+            active: data.active,
+          });
+        } else {
+          const data = z
+            .object({
+              user_id: z.string().regex(/^[a-f0-9]{24}$/i),
+              enabled: z.boolean(),
+              expected_revision: z.number().int().nonnegative(),
+            })
+            .parse(req.body);
+          const user = await deps.getUserById(data.user_id);
+          if (
+            !user ||
+            user.tenantId !== owner.tenantId ||
+            user.openidIssuer !== owner.openidIssuer ||
+            !user.openidId
+          )
+            throw new ResourceFailure('ASSIGNMENT_MEMBER_INVALID', 422);
+          if (
+            !deps.repository.userState ||
+            !(await deps.repository.userState(
+              kind,
+              ownerId,
+              owner.tenantId,
+              input.resource_id!,
+              data.user_id,
+              data.enabled,
+              data.expected_revision,
+            ))
+          )
+            throw new ResourceFailure('REVISION_CONFLICT', 409);
+          await deps.invalidate(kind, input.resource_id, [], data.user_id);
+          res.json({
+            resource_id: input.resource_id,
+            user_id: data.user_id,
+            enabled: data.enabled,
+            governanceRevision: data.expected_revision + 1,
+          });
+        }
+        return;
+      }
       if (req.path === '/inspect' && req.method === 'POST') {
         if (typeof input.purpose !== 'string' || input.purpose.length < 20)
           throw new ResourceFailure('CONTENT_PURPOSE_REQUIRED');
@@ -348,6 +428,7 @@ export function createGovernanceResources(
         ? await deps.repository.get(kind, ownerId, owner.tenantId, input.resource_id)
         : null;
       if (input.action !== 'create' && !row) throw new ResourceFailure('RESOURCE_NOT_FOUND', 404);
+      if (row?.deletingAt || row?.deleting) throw new ResourceFailure('RESOURCE_DELETING', 409);
       const revision = Number(row?.governanceRevision ?? 0);
       if (input.data?.expected_revision != null && input.data.expected_revision !== revision)
         throw new ResourceFailure('REVISION_CONFLICT', 409);
@@ -439,9 +520,21 @@ export function createGovernanceResources(
         runGovernanceOwner(req, owner, () => deps.dispatch(route, req, res, next)),
       );
     } catch (error) {
-      res.status(error instanceof ResourceFailure ? error.status : 503).json({
-        code: error instanceof ResourceFailure ? error.code : 'RESOURCE_OPERATION_UNAVAILABLE',
-      });
+      const invalidMember = error instanceof Error && error.message === 'ASSIGNMENT_MEMBER_INVALID';
+      const invalidInput = error instanceof z.ZodError;
+      let status = 503;
+      let code = 'RESOURCE_OPERATION_UNAVAILABLE';
+      if (error instanceof ResourceFailure) {
+        status = error.status;
+        code = error.code;
+      } else if (invalidInput) {
+        status = 422;
+        code = 'INVALID_RESOURCE_INPUT';
+      } else if (invalidMember) {
+        status = 422;
+        code = 'ASSIGNMENT_MEMBER_INVALID';
+      }
+      res.status(status).json({ code });
     }
   };
 }

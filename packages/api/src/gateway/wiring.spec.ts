@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import {
   createGovernanceDispatcher,
+  explicitExpansionHandler,
   localIdentityDiscoveryOptions,
   createGovernanceResourceInvalidator,
 } from './wiring';
@@ -9,6 +10,14 @@ import { createResolveAgentFireAccess } from '../schedules/access';
 import { withGovernanceAuthentication } from './delegation';
 
 describe('native integration adapters', () => {
+  it('ignores Express next for expansion while preserving the explicit expanded route', () => {
+    const handler = jest.fn();
+    const adapted = explicitExpansionHandler(handler);
+    adapted('request', 'response', () => undefined);
+    expect(handler).toHaveBeenLastCalledWith('request', 'response', false);
+    adapted('request', 'response', true);
+    expect(handler).toHaveBeenLastCalledWith('request', 'response', true);
+  });
   it('requires an explicit switch and exact local host for HTTP identity discovery', () => {
     const allow = () => undefined;
     expect(

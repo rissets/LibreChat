@@ -6,6 +6,8 @@ const router = express.Router();
 const handlers = createManagedSelfService({ config: gatewayConfig, audit: recordAuditEntry });
 router.use(requireJwtAuth);
 router.get('/account', handlers.account);
+router.get('/token-requests', handlers.requests);
+router.post('/token-requests', handlers.requestTokens);
 router.get('/keys', handlers.keys);
 router.post('/keys', handlers.create);
 router.delete('/keys/:id', handlers.remove);

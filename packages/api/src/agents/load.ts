@@ -81,7 +81,16 @@ export async function loadEphemeralAgent(
   if (spec != null && spec !== '') {
     modelSpec = modelSpecs?.list?.find((s) => s.name === spec) ?? null;
   }
-  const ephemeralAgent: TEphemeralAgent | undefined = req.body?.ephemeralAgent;
+  const defaults = modelSpec ? undefined : req.config?.endpoints?.agents?.defaultTools;
+  const { tools: defaultToolIds, ...defaultSelections } = defaults ?? {};
+  const ephemeralAgent: TEphemeralAgent | undefined = defaults
+    ? { ...defaultSelections, ...req.body?.ephemeralAgent }
+    : req.body?.ephemeralAgent;
+  if (defaults) {
+    req.body ??= {};
+    // Skill and MCP instruction initialization reads the effective request selection.
+    req.body.ephemeralAgent = ephemeralAgent;
+  }
   const userId = req.user?.id ?? '';
   const capabilityProfile = resolveMCPClientCapabilityProfile(
     resolveMCPAppsPolicy(req.config?.mcpSettings?.apps),
@@ -108,7 +117,7 @@ export async function loadEphemeralAgent(
   if (ephemeralAgent != null && Array.isArray(ephemeralAgent.mcp)) {
     ephemeralAgent.mcp = [...mcpServers];
   }
-  const tools: string[] = [];
+  const tools: string[] = [...(defaultToolIds ?? [])];
   if (ephemeralAgent?.execute_code === true || modelSpec?.executeCode === true) {
     tools.push(Tools.execute_code);
   }

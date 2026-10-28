@@ -1,15 +1,17 @@
-import { ThemeSelector } from '@librechat/client';
+import { useContext } from 'react';
 import { TStartupConfig } from 'librechat-data-provider';
+import { Dropdown, ThemeContext, ThemeSelector } from '@librechat/client';
 import { ErrorMessage } from '~/components/Auth/ErrorMessage';
 import { hasPublishedPolicies } from '~/utils/policies';
 import { TranslationKeys, useLocalize } from '~/hooks';
 import SocialLoginRender from './SocialLoginRender';
 import BrandLogo from '~/components/ui/BrandLogo';
 import { BlinkAnimation } from './BlinkAnimation';
+import { cn, DEFAULT_APP_TITLE } from '~/utils';
 import LegalConsent from './LegalConsent';
 import { Banner } from '../Banners';
 import Footer from './Footer';
-import { cn } from '~/utils';
+import './auth-shell.css';
 
 function AuthLayout({
   children,
@@ -19,6 +21,8 @@ function AuthLayout({
   startupConfigError,
   pathname,
   error,
+  language = 'en-US',
+  onLanguageChange,
 }: {
   children: React.ReactNode;
   header: React.ReactNode;
@@ -27,8 +31,11 @@ function AuthLayout({
   startupConfigError: unknown | null | undefined;
   pathname: string;
   error: TranslationKeys | null;
+  language?: string;
+  onLanguageChange?: (language: string) => void;
 }) {
   const localize = useLocalize();
+  const { resolvedMode, highContrast } = useContext(ThemeContext);
 
   const hasStartupConfigError = startupConfigError !== null && startupConfigError !== undefined;
   const isRegister = pathname.includes('register');
@@ -88,53 +95,89 @@ function AuthLayout({
     return null;
   };
 
+  /* These classes are imported from auth-shell.css and shared verbatim with the
+   * Keycloak FreeMarker renderer, which cannot consume React/Tailwind primitives. */
+  /* eslint-disable shadcn/no-unknown-classes, shadcn/no-restyle -- Cross-renderer authentication shell; styles are supplied by the imported CSS. */
   return (
-    <div className="bg-surface-primary flex min-h-svh flex-col">
+    <div
+      className="bp-auth-page"
+      data-bp-theme={resolvedMode}
+      data-bp-contrast={highContrast ? 'high' : 'normal'}
+    >
       <Banner />
-      <div className="grid flex-1 lg:grid-cols-2">
-        <div
-          data-testid="auth-artwork"
-          aria-hidden="true"
-          className="bg-surface-sidebar relative hidden overflow-hidden lg:block"
-        >
+      <div className="bp-auth-layout">
+        <aside data-testid="auth-artwork" aria-hidden="true" className="bp-auth-story">
           <img
             src="/brand/auth-maritime-v1.webp"
             alt=""
             width={1024}
             height={1536}
-            className="absolute inset-0 h-full w-full object-cover"
+            className="bp-auth-artwork"
           />
-        </div>
-        <section className="flex min-h-svh min-w-0 flex-col px-6 py-6 sm:px-10 lg:px-12 xl:px-16">
-          <header className="flex items-center justify-between gap-4">
-            <BlinkAnimation active={isFetching}>
-              <BrandLogo className="h-10 w-40 sm:h-12 sm:w-48" />
-            </BlinkAnimation>
-            <ThemeSelector inline />
-          </header>
-          <main
-            className={cn(
-              'mx-auto flex w-full flex-1 flex-col justify-center py-8 sm:py-10',
-              isTwoFactorSetup ? 'max-w-lg' : 'max-w-sm',
+          <div className="bp-auth-story-copy">
+            <h2>{localize('com_auth_bp_story_title')}</h2>
+            <p>{localize('com_auth_bp_story_description')}</p>
+          </div>
+          <div className="bp-auth-story-caption">{localize('com_auth_bp_story_caption')}</div>
+        </aside>
+        <header className="bp-auth-header">
+          <BlinkAnimation active={isFetching}>
+            <BrandLogo className="bp-auth-brand" />
+          </BlinkAnimation>
+          <div className="bp-auth-utilities">
+            {onLanguageChange && (
+              <Dropdown
+                value={language.startsWith('id') ? 'id-ID' : 'en-US'}
+                options={[
+                  { value: 'id-ID', label: 'Indonesia' },
+                  { value: 'en-US', label: 'English' },
+                ]}
+                onChange={onLanguageChange}
+                ariaLabel={localize('com_nav_language')}
+                className="bp-auth-language"
+                triggerClassName="bp-auth-language-trigger"
+                sizeClasses="bp-auth-language-menu"
+                portal={false}
+                variant="compact"
+                renderValue={(option) => (
+                  <>
+                    <span className="bp-auth-language-full">{option.label}</span>
+                    <span className="bp-auth-language-short">
+                      {option.value === 'id-ID' ? 'ID' : 'EN'}
+                    </span>
+                  </>
+                )}
+              />
             )}
-          >
+            <div className="bp-auth-appearance">
+              <ThemeSelector inline />
+            </div>
+          </div>
+        </header>
+        <main className={cn('bp-auth-main', isTwoFactorSetup && 'bp-auth-main-wide')}>
+          <div className="bp-auth-content">
             <DisplayError />
             {!hasStartupConfigError && !isFetching && header && (
-              <h1 className="text-text-primary mb-8 text-start text-3xl font-semibold select-none">
-                {header}
-              </h1>
+              <>
+                <h1 className="bp-auth-heading">{header}</h1>
+                {isLogin && <p className="bp-auth-intro">{localize('com_auth_bp_login_intro')}</p>}
+              </>
             )}
             {children}
             {showsSocialLogin && (
               <SocialLoginRender startupConfig={startupConfig} showPasskey={isLogin} />
             )}
             {statesConsentBelowProviders && <LegalConsent startupConfig={startupConfig} />}
-          </main>
+          </div>
+        </main>
+        <footer className="bp-auth-footer">
+          <span>{DEFAULT_APP_TITLE}</span>
           <Footer startupConfig={startupConfig} showPolicies={!statesConsent} />
-        </section>
+        </footer>
       </div>
     </div>
   );
+  /* eslint-enable shadcn/no-unknown-classes, shadcn/no-restyle */
 }
 
 export default AuthLayout;

@@ -1,6 +1,6 @@
-import { createManagedSelfService } from './selfService';
 import type { Request, Response } from 'express';
 import type { GatewayDeps } from './config';
+import { createManagedSelfService } from './selfService';
 
 const subject = '00000000-0000-4000-8000-000000000041';
 function setup() {
@@ -103,4 +103,36 @@ it('reveals and renames only through owner-bound commands and rejects entitlemen
     name: 'Renamed',
   });
   expect(JSON.stringify(audit.mock.calls)).not.toContain('new-secret-only');
+});
+
+it('submits a token request bound to the signed-in subject, never a supplied account', async () => {
+  const { handler, req, res, calls, audit } = setup();
+  req.body = { amount: 1000, reason: 'Need tokens for analysis', request_id: subject };
+  await handler.requestTokens(req, res);
+  expect(res.status).toHaveBeenLastCalledWith(201);
+  expect(calls[0].body).toEqual({ op: 'self-topup-request', subject, ...req.body });
+  expect(audit).toHaveBeenCalled();
+});
+it('rejects forged ownership, unsafe amounts, and cross-origin token requests', async () => {
+  const { handler, req, res, calls } = setup();
+  for (const body of [
+    { amount: 100, reason: 'Valid reason for request', request_id: subject, subject: 'forged' },
+    { amount: -1, reason: 'Valid reason for request', request_id: subject },
+    { amount: 0.5, reason: 'Valid reason for request', request_id: subject },
+  ]) {
+    req.body = body;
+    await handler.requestTokens(req, res);
+    expect(res.status).toHaveBeenLastCalledWith(422);
+  }
+  req.body = { amount: 100, reason: 'Valid reason for request', request_id: subject };
+  req.get = ((key: string) =>
+    key === 'host' ? 'chat.test' : 'https://evil.test') as Request['get'];
+  await handler.requestTokens(req, res);
+  expect(res.status).toHaveBeenLastCalledWith(403);
+  expect(calls).toHaveLength(0);
+});
+it('lists token requests only for the immutable current subject', async () => {
+  const { handler, req, calls } = setup();
+  await handler.requests(req, setup().res);
+  expect(calls[0].url).toContain('/self-topups?subject=' + subject);
 });

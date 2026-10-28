@@ -1,4 +1,8 @@
 {
+  "com_auth_bp_story_title": "Ruang untuk ide dan kolaborasi.",
+  "com_auth_bp_story_description": "Percakapan, dokumen, dan agent AI dalam satu ruang kerja BP Batam.",
+  "com_auth_bp_story_caption": "Ilustrasi maritim · BP Batam AI",
+  "com_auth_bp_login_intro": "Masuk untuk melanjutkan ke ruang kerja Anda.",
   "com_gateway_search_keys": "Cari API key",
   "com_gateway_connect_title": "Hubungkan aplikasi eksternal",
   "com_gateway_connect_help": "Pilih penyedia yang kompatibel dengan OpenAI di aplikasi Anda, lalu isi koneksi berikut.",

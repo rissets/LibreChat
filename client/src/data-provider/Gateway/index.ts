@@ -1,6 +1,11 @@
+import { QueryKeys, MutationKeys, request } from 'librechat-data-provider';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { request } from 'librechat-data-provider';
-import type { GatewayAccount, GatewayKey } from 'librechat-data-provider';
+import type {
+  GatewayAccount,
+  GatewayKey,
+  GatewayTokenRequest,
+  GatewayTokenRequestInput,
+} from 'librechat-data-provider';
 import { useAuthContext } from '~/hooks/AuthContext';
 export { remainingPercentage } from './limits';
 
@@ -68,4 +73,22 @@ export function useRenameGatewayKey() {
       onSuccess: () => cache.invalidateQueries(['gateway-keys']),
     },
   );
+}
+
+export function useGatewayTokenRequests() {
+  const { user } = useAuthContext();
+  return useQuery<{ requests: GatewayTokenRequest[] }>(
+    [QueryKeys.gatewayTokenRequests, user?.id],
+    () => request.get('/api/gateway/token-requests'),
+    { enabled: user?.provider === 'openid', retry: false, refetchInterval: 15000 },
+  );
+}
+export function useRequestGatewayTokens() {
+  const cache = useQueryClient();
+  return useMutation({
+    mutationKey: [MutationKeys.requestGatewayTokens],
+    mutationFn: (body: GatewayTokenRequestInput) =>
+      request.post('/api/gateway/token-requests', body),
+    onSuccess: () => cache.invalidateQueries([QueryKeys.gatewayTokenRequests]),
+  });
 }

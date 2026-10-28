@@ -1309,3 +1309,13 @@ describe('Error — agent handoffs within a row', () => {
     expect(document.body.textContent).not.toContain('Google');
   });
 });
+
+it.each(['INSUFFICIENT_TOKENS', 'USER_TOKEN_WINDOW_EXHAUSTED'])(
+  'recognizes gateway token policy %s inside an OpenAI rate-limit envelope',
+  (code) => {
+    renderError({
+      error: { code: 'rate_limit_exceeded', message: code, type: 'rate_limit_error' },
+    });
+    expect(screen.getByText(catalog.com_error_limit_reached)).toBeVisible();
+  },
+);

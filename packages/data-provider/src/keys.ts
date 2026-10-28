@@ -1,4 +1,5 @@
 export enum QueryKeys {
+  gatewayTokenRequests = 'gatewayTokenRequests',
   messages = 'messages',
   /* Full content of one tool-call part, fetched when its preview is not enough */
   toolCallPart = 'toolCallPart',
@@ -132,6 +133,7 @@ export const DynamicQueryKeys = {
 } as const;
 
 export enum MutationKeys {
+  requestGatewayTokens = 'requestGatewayTokens',
   approveCodeSetup = 'approveCodeSetup',
   denyCodeSetup = 'denyCodeSetup',
   resetToolApprovalGrants = 'resetToolApprovalGrants',

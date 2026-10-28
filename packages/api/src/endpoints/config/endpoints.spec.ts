@@ -197,6 +197,7 @@ describe('createEndpointsConfigService', () => {
                 allowedProviders: ['openAI', 'anthropic'],
                 capabilities: [AgentCapabilities.execute_code],
                 maxSubagents: 20,
+                defaultTools: { execute_code: true, mcp: ['fetch'] },
               },
             },
           }),
@@ -207,6 +208,10 @@ describe('createEndpointsConfigService', () => {
 
       expect(result?.[EModelEndpoint.agents]?.allowedProviders).toEqual(['openAI', 'anthropic']);
       expect(result?.[EModelEndpoint.agents]?.maxSubagents).toBe(20);
+      expect(result?.[EModelEndpoint.agents]?.defaultTools).toEqual({
+        execute_code: true,
+        mcp: ['fetch'],
+      });
     });
 
     it.each([true, false])(

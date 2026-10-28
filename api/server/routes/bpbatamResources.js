@@ -20,7 +20,13 @@ const { getLogStores } = require('~/cache');
 const router = express.Router();
 router.use(
   createGovernanceResources({
-    repository: createGovernanceRepository(mongoose),
+    repository: createGovernanceRepository(mongoose, {
+      getUserPrincipals: db.getUserPrincipals,
+      upsertGroupByExternalId: db.upsertGroupByExternalId,
+      grantPermission: db.grantPermission,
+      deleteAclEntries: db.deleteAclEntries,
+      findAccessibleResources: db.findAccessibleResources,
+    }),
     journal: {
       store: createGovernanceCommandStore(mongoose),
       encrypt: encryptV2,

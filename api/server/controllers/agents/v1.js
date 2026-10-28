@@ -5,6 +5,7 @@ const { nanoid } = require('nanoid');
 const { logger } = require('@librechat/data-schemas');
 const {
   refreshS3Url,
+  explicitExpansionHandler,
   splitMCPToolKey,
   buildServerNameAliases,
   findShadowedServerNames,
@@ -2265,7 +2266,7 @@ const getAgentCategories = async (_req, res) => {
 };
 module.exports = {
   createAgent: createAgentHandler,
-  getAgent: getAgentHandler,
+  getAgent: explicitExpansionHandler(getAgentHandler),
   getAgentVersions: getAgentVersionsHandler,
   updateAgent: updateAgentHandler,
   duplicateAgent: duplicateAgentHandler,

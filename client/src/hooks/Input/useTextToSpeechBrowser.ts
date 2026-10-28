@@ -19,7 +19,7 @@ function useTextToSpeechBrowser({
 
   const voices = useMemo(() => {
     const filteredVoices = availableVoices.filter(
-      (v) => cloudBrowserVoices || v.localService === true,
+      (v) => /^(id|en)(-|$)/i.test(v.lang) && (cloudBrowserVoices || v.localService === true),
     );
     return filteredVoices.map((v): VoiceOption => ({ value: v.name, label: v.name }));
   }, [availableVoices, cloudBrowserVoices]);

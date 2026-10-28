@@ -165,6 +165,8 @@ export function createGovernanceJournalHandler(
       const maker = String(req.headers['x-actor-id'] ?? '');
       const approval = String(req.headers['x-approval-id'] ?? '');
       const payloadHash = String(req.headers['x-approval-payload-hash'] ?? '');
+      // Only the authenticated governance service can attest a CP admin decision.
+      const directAdmin = req.headers['x-approval-mode'] === 'admin-direct';
       if (
         req.method !== 'POST' ||
         !req.path.endsWith('/resolve') ||
@@ -175,7 +177,7 @@ export function createGovernanceJournalHandler(
         typeof body.resolution_id !== 'string' ||
         !/^[a-f0-9-]{36}$/i.test(body.resolution_id) ||
         typeof checker !== 'string' ||
-        checker === maker ||
+        (checker === maker && !directAdmin) ||
         !maker ||
         !/^[a-f0-9-]{36}$/i.test(approval) ||
         !/^[a-f0-9]{64}$/i.test(payloadHash)
@@ -209,6 +211,7 @@ export function createGovernanceJournalHandler(
             outcome: body.outcome ?? '',
             evidence: body.evidence,
             checkerId: checker,
+            approvalMode: directAdmin ? 'admin-direct' : 'independent',
             resolutionId: body.resolution_id,
           },
         },

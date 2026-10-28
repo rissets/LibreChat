@@ -1,6 +1,13 @@
 import type { RequestHandler } from 'express';
 import { invalidateLinkedPrompt } from '../agents/instructions/linked';
 
+/** Express supplies next as argument three; expansion requires an explicit boolean. */
+export function explicitExpansionHandler<TReq, TRes, TResult>(
+  handler: (req: TReq, res: TRes, expand?: boolean) => TResult,
+): (req: TReq, res: TRes, expansionOrNext?: unknown) => TResult {
+  return (req, res, expansionOrNext) => handler(req, res, expansionOrNext === true);
+}
+
 /** Explicitly enabled HTTP discovery is restricted to the local identity deployment. */
 export function localIdentityDiscoveryOptions<T>(
   issuer: string,

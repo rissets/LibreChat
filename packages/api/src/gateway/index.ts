@@ -514,6 +514,7 @@ export { createGovernanceMutationJournal, createGovernanceJournalHandler } from 
 export {
   createGovernanceDispatcher,
   createGovernanceResourceInvalidator,
+  explicitExpansionHandler,
   localIdentityDiscoveryOptions,
 } from './wiring';
 

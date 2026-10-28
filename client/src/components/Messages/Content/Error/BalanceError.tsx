@@ -1,5 +1,6 @@
 import type { ErrorRendererProps, JsonValue } from './parts';
 import { ErrorBody, ErrorDetails, formatNumber, readNumber, readString } from './parts';
+import { TokenRequestButton } from '~/components/Gateway/TokenRequest';
 import { useBalanceDisplay } from '~/hooks/useBalanceSummary';
 import { formatBalanceAmount } from '~/utils';
 import { useLocalize } from '~/hooks';
@@ -64,6 +65,7 @@ export default function BalanceError({ json }: ErrorRendererProps) {
   return (
     <ErrorBody>
       <p>{summary}</p>
+      <TokenRequestButton />
       {promptTokens != null ? (
         <p className="text-text-secondary">
           {localize('com_error_token_balance_prompt', { 0: formatNumber(promptTokens) })}

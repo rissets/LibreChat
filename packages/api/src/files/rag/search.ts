@@ -156,7 +156,7 @@ export async function executeFileSearchQuery({
       const citationIndex = citationSources.indexOf(sources[index]);
       return `File: ${result.filename}${
         citationIndex >= 0 ? `\nAnchor: \\ue202turn0file${citationIndex} (${result.filename})` : ''
-      }\nRelevance: ${(1.0 - result.distance).toFixed(4)}\nContent: ${result.content}\n`;
+      }${result.page !== null ? `\nPage: ${result.page}` : ''}\nRelevance: ${(1.0 - result.distance).toFixed(4)}\nContent: ${result.content}\n`;
     })
     .join('\n---\n');
 

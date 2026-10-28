@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import type { Request, Response } from 'express';
 import type { RecordAuditEntryInput } from '@librechat/data-schemas';
+import type { Request, Response } from 'express';
 import type { GatewayDeps } from './config';
 import { machineToken } from './index';
 
@@ -35,9 +35,21 @@ export function createManagedSelfService(deps: SelfDeps): {
   remove: SelfHandler;
   reveal: SelfHandler;
   rename: SelfHandler;
+  requests: SelfHandler;
+  requestTokens: SelfHandler;
 } {
   const handler =
-    (action: 'account' | 'keys' | 'create' | 'delete' | 'reveal' | 'rename') =>
+    (
+      action:
+        | 'account'
+        | 'keys'
+        | 'create'
+        | 'delete'
+        | 'reveal'
+        | 'rename'
+        | 'requests'
+        | 'requestTokens',
+    ) =>
     async (req: Request, res: Response) => {
       res.setHeader('Cache-Control', 'no-store');
       try {
@@ -56,7 +68,8 @@ export function createManagedSelfService(deps: SelfDeps): {
           action === 'create' ||
           action === 'delete' ||
           action === 'reveal' ||
-          action === 'rename'
+          action === 'rename' ||
+          action === 'requestTokens'
         ) {
           const origin = req.get('origin');
           let sameOrigin = false;
@@ -68,9 +81,23 @@ export function createManagedSelfService(deps: SelfDeps): {
           if (!sameOrigin) throw new SelfError('ORIGIN_DENIED', 403);
         }
         const subject = user.openidId!;
-        let path = action === 'account' ? '/self-account' : '/self-keys';
+        let path = '/self-keys';
+        if (action === 'account') path = '/self-account';
+        else if (action === 'requests') path = '/self-topups';
         let body: Record<string, unknown> | undefined;
-        if (action === 'create') {
+        if (action === 'requestTokens') {
+          const parsed = z
+            .object({
+              amount: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+              reason: z.string().trim().min(10).max(1000),
+              request_id: z.string().uuid(),
+            })
+            .strict()
+            .safeParse(req.body);
+          if (!parsed.success) throw new SelfError('INVALID_TOKEN_REQUEST', 422);
+          path = '/commands';
+          body = { op: 'self-topup-request', subject, ...parsed.data };
+        } else if (action === 'create') {
           const parsed = createBody.safeParse(req.body);
           if (!parsed.success) throw new SelfError('INVALID_KEY_INPUT', 422);
           path = '/commands';
@@ -126,16 +153,21 @@ export function createManagedSelfService(deps: SelfDeps): {
           action === 'create' ||
           action === 'delete' ||
           action === 'reveal' ||
-          action === 'rename'
+          action === 'rename' ||
+          action === 'requestTokens'
         )
           await deps.audit({
             action: 'user.updated',
             tenantId: user.tenantId,
             actor: { type: 'user', id: subject, name: subject },
-            target: { type: 'gateway-key', id: String(value.key_id ?? req.params.id ?? '') },
+            target: {
+              type: action === 'requestTokens' ? 'gateway-token-request' : 'gateway-key',
+              id: String(value.id ?? value.key_id ?? req.params.id ?? ''),
+            },
             metadata: {
               subject,
-              operation: 'gateway.key.' + action,
+              operation:
+                action === 'requestTokens' ? 'gateway.tokens.request' : 'gateway.key.' + action,
             },
           });
         if (action === 'account') {
@@ -144,7 +176,8 @@ export function createManagedSelfService(deps: SelfDeps): {
           delete value.subject;
           delete value.issuer;
           res.json({ ...value, endpoint: c.endpoint, api_base_url: c.publicAPIURL ?? null });
-        } else res.status(action === 'create' ? 201 : 200).json(value);
+        } else
+          res.status(action === 'create' || action === 'requestTokens' ? 201 : 200).json(value);
       } catch (error) {
         res
           .status(error instanceof SelfError ? error.status : 503)
@@ -158,5 +191,7 @@ export function createManagedSelfService(deps: SelfDeps): {
     remove: handler('delete'),
     reveal: handler('reveal'),
     rename: handler('rename'),
+    requests: handler('requests'),
+    requestTokens: handler('requestTokens'),
   };
 }

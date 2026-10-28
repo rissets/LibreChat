@@ -853,6 +853,13 @@ function operatorsMutateDocument(
 /**
  * Check if a version already exists in the versions array, excluding timestamp and author fields.
  */
+const governanceVersionFields = [
+  'governanceQuarantined',
+  'governanceRevision',
+  'remoteGovernanceDisabled',
+  'governanceDisabledFor',
+];
+
 function isDuplicateVersion(
   updateData: Record<string, unknown>,
   currentData: Record<string, unknown>,
@@ -875,6 +882,7 @@ function isDuplicateVersion(
     '__v',
     'versions',
     'actionsHash',
+    ...governanceVersionFields,
   ];
 
   const {
@@ -1242,6 +1250,7 @@ export function createAgentMethods(
       }
     }
     const { author: _author, ...versionData } = agentData;
+    for (const field of governanceVersionFields) delete versionData[field];
     const timestamp = new Date();
     const initialAgentData = {
       ...agentData,
@@ -1473,6 +1482,7 @@ export function createAgentMethods(
     if (currentAgent) {
       const currentObject = currentAgent.toObject() as unknown as Record<string, unknown>;
       const { __v, _id, id: __id, versions, author: _author, ...versionData } = currentObject;
+      for (const field of governanceVersionFields) delete versionData[field];
       const { $push, $pull, $addToSet, $unset, ...directUpdates } = updateData;
 
       /** Self-heal: drop allowlist ids whose skill no longer exists in the
@@ -1597,6 +1607,7 @@ export function createAgentMethods(
         ...directUpdates,
         updatedAt: new Date(),
       };
+      for (const field of governanceVersionFields) delete versionEntry[field];
       if (hasOperatorKeys($unset)) {
         for (const path of Object.keys($unset as Record<string, unknown>)) {
           deleteDocumentPath(versionEntry, path);
@@ -2664,6 +2675,8 @@ export function createAgentMethods(
     delete revertToVersion.versions;
     delete revertToVersion.author;
     delete revertToVersion.updatedBy;
+    // Version restore changes agent content, never the current access restrictions.
+    for (const field of governanceVersionFields) delete revertToVersion[field];
 
     /** Version snapshots can predate skill deletions; restoring one verbatim
      *  would resurrect dangling allowlist ids that scope the catalog to

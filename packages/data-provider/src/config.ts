@@ -1645,6 +1645,22 @@ export const agentsEndpointSchema = baseEndpointSchema
   .merge(
     z.object({
       /* agents specific */
+      /** Tools available by default in ordinary model chats. Explicit chat choices
+       * override these defaults; saved agents and model specs keep their own tools. */
+      defaultTools: z
+        .object({
+          execute_code: z.boolean().optional(),
+          file_search: z.boolean().optional(),
+          web_search: z.boolean().optional(),
+          memory: z.boolean().optional(),
+          skills: z.boolean().optional(),
+          ask_user_question: z.boolean().optional(),
+          artifacts: z.string().optional(),
+          mcp: z.array(z.string().min(1)).optional(),
+          /** Additional server-configured tool IDs, such as image generation/editing. */
+          tools: z.array(z.string().min(1)).optional(),
+        })
+        .optional(),
       hostFileEdits: hostFileEditLimitsSchema.optional(),
       /** Maximum provider error characters retained in unprotected terminal failures. */
       maxProviderErrorChars: z

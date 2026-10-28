@@ -1471,11 +1471,12 @@ describe('Agent Controllers - Mass Assignment Protection', () => {
   });
 
   describe('getAgentHandler', () => {
-    test('should return the safe Responses API flag in the basic VIEW response', async () => {
+    test('keeps the basic VIEW response safe when Express passes a next callback', async () => {
       const agent = await Agent.create({
         id: `agent_${uuidv4()}`,
         name: 'Azure Agent',
         description: 'Uses Responses API',
+        instructions: 'Private agent configuration',
         provider: 'azureOpenAI',
         model: 'gpt-5.5',
         author: mockReq.user.id,
@@ -1488,13 +1489,15 @@ describe('Agent Controllers - Mass Assignment Protection', () => {
 
       mockReq.params = { id: agent.id };
 
-      await getAgentHandler(mockReq, mockRes);
+      await getAgentHandler(mockReq, mockRes, jest.fn());
 
       expect(mockRes.status).toHaveBeenCalledWith(200);
       const response = mockRes.json.mock.calls[0][0];
       expect(response.model_parameters).toEqual({ useResponsesApi: true });
       expect(response.model_parameters.temperature).toBeUndefined();
       expect(response.model_parameters.apiKey).toBeUndefined();
+      expect(response.instructions).toBeUndefined();
+      expect(response.governanceDisabledFor).toBeUndefined();
     });
 
     test('should return owner_contact from the first ACL owner when support_contact is missing', async () => {

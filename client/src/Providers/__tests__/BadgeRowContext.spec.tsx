@@ -37,6 +37,7 @@ jest.mock('@librechat/client', () => ({
    would look unstable for a reason that does not exist outside the tests. */
 const mockTranslate = (key: string) => key;
 const mockToolAuth = { authenticated: false };
+let mockEndpoints: Record<string, unknown> | undefined;
 let mockCachedFiles: object[] = [];
 jest.mock('react-i18next', () => ({
   ...jest.requireActual('react-i18next'),
@@ -48,7 +49,7 @@ jest.mock('react-i18next', () => ({
    rejected `/api/config` request report after Jest has torn the test down. */
 jest.mock('~/data-provider', () => ({
   ...jest.requireActual('~/data-provider'),
-  useGetEndpointsQuery: () => ({ data: undefined }),
+  useGetEndpointsQuery: () => ({ data: mockEndpoints }),
   useGetStartupConfig: () => ({ data: undefined }),
   useMCPServersQuery: () => ({ data: undefined, isLoading: false }),
   useVerifyAgentToolAuth: () => ({ data: mockToolAuth }),
@@ -57,7 +58,12 @@ jest.mock('~/data-provider', () => ({
 
 type DraftScope = { index?: number; isSubmitting?: boolean; draftId?: string };
 
-function renderProvider(initialId = 'convo-badge-row', restoreDraft = false, initiallyOff = false) {
+function renderProvider(
+  initialId = 'convo-badge-row',
+  restoreDraft = false,
+  initiallyOff = false,
+  endpoint = 'Rissets',
+) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, cacheTime: 0 } },
   });
@@ -91,7 +97,7 @@ function renderProvider(initialId = 'convo-badge-row', restoreDraft = false, ini
           if (initiallyOff) set(ephemeralAgentByConvoId(initialId), { file_search: false });
         }}
       >
-        <BadgeRowProvider conversationId={id}>
+        <BadgeRowProvider conversationId={id} endpoint={endpoint}>
           {/* Re-rendered along with the provider, the way `Bar` is. */}
           <span>{marker}</span>
           <Consumer />
@@ -312,5 +318,67 @@ describe('BadgeRowProvider', () => {
 
     const { getValue } = renderProvider();
     expect(getValue()).toEqual(expect.objectContaining({ conversationId: 'convo-badge-row' }));
+  });
+});
+
+describe('default tools for ordinary model chats', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mockEndpoints = {
+      agents: {
+        defaultTools: {
+          execute_code: true,
+          file_search: true,
+          skills: true,
+          mcp: ['fetch'],
+        },
+      },
+    };
+  });
+  afterEach(() => {
+    mockEndpoints = undefined;
+    localStorage.clear();
+  });
+
+  it('shows server defaults as enabled without a tool mention', () => {
+    const view = renderProvider('default-tools-chat');
+    expect(view.getValue()?.codeInterpreter.isToolEnabled).toBe(true);
+    expect(view.getValue()?.fileSearch.isToolEnabled).toBe(true);
+    expect(view.getValue()?.skills.isToolEnabled).toBe(true);
+    expect(view.getValue()?.mcpServerManager.mcpValues).toEqual(['fetch']);
+    view.unmount();
+  });
+
+  it('keeps an explicit disabled tool disabled', () => {
+    const view = renderProvider('default-tools-off', false, true);
+    expect(view.getValue()?.fileSearch.isToolEnabled).toBe(false);
+    expect(view.getValue()?.codeInterpreter.isToolEnabled).toBe(true);
+    view.unmount();
+  });
+
+  it('applies defaults when endpoint metadata arrives after the composer mounts', () => {
+    const configured = mockEndpoints;
+    mockEndpoints = undefined;
+    const view = renderProvider('late-tool-defaults');
+    expect(view.getValue()?.codeInterpreter.isToolEnabled).toBe(false);
+    mockEndpoints = configured;
+    view.retype(1);
+    expect(view.getValue()?.codeInterpreter.isToolEnabled).toBe(true);
+    view.unmount();
+  });
+
+  it('respects a saved empty MCP selection', () => {
+    localStorage.setItem(`${LocalStorageKeys.LAST_MCP_}default-tools-no-mcp`, '[]');
+    const view = renderProvider('default-tools-no-mcp');
+    expect(view.getValue()?.mcpServerManager.mcpValues).toEqual([]);
+    view.unmount();
+  });
+
+  it('does not enable ordinary-chat defaults on saved agents', () => {
+    const view = renderProvider('saved-agent-defaults', false, false, 'agents');
+    expect(view.getValue()?.codeInterpreter.isToolEnabled).toBe(false);
+    expect(view.getValue()?.fileSearch.isToolEnabled).toBe(false);
+    expect(view.getValue()?.mcpServerManager.mcpValues).toEqual([]);
+    view.unmount();
   });
 });

@@ -1,5 +1,7 @@
 import type mongoose from 'mongoose';
 import { withGovernanceAccess } from '~/models/plugins/governance';
+import type { AclEntryMethods } from './aclEntry';
+import type { createUserGroupMethods } from './userGroup';
 export type GovernanceRecord = Record<string, unknown>;
 interface Descriptor {
   model: string;
@@ -34,8 +36,46 @@ const descriptors: Record<string, Descriptor> = {
   'agent-api-keys': { model: 'AgentApiKey', owner: 'userId', id: '_id' },
 };
 const projection =
-  '_id id name title version serverName tag file_id bytes type provider model endpoint conversationId shareId createdAt updatedAt created_at updated_at enabled isTemporary remoteGovernanceDisabled governanceQuarantined governanceRevision productionId numberOfGenerations deletingAt deleting agent_id cadence timezone nextRunAt disabledReason runCount failureCount lastRun.status lastRun.conversationId lastRun.firedAt lastRun.scheduledFor';
+  '_id id name title description version serverName tag file_id bytes type provider model tools endpoint conversationId shareId createdAt updatedAt created_at updated_at enabled isTemporary remoteGovernanceDisabled governanceQuarantined governanceRevision governanceDisabledFor productionId numberOfGenerations deletingAt deleting agent_id cadence timezone nextRunAt disabledReason runCount failureCount lastRun.status lastRun.conversationId lastRun.firedAt lastRun.scheduledFor';
+const aclKinds: Record<string, string> = {
+  agents: 'agent',
+  skills: 'skill',
+  prompts: 'promptGroup',
+  'mcp-servers': 'mcpServer',
+  'remote-agents': 'remoteAgent',
+  'shared-links': 'sharedLink',
+};
+type Sharing = Pick<
+  AclEntryMethods,
+  'grantPermission' | 'deleteAclEntries' | 'findAccessibleResources'
+> &
+  Pick<ReturnType<typeof createUserGroupMethods>, 'getUserPrincipals' | 'upsertGroupByExternalId'>;
 export interface GovernanceRepository {
+  available?(
+    kind: string,
+    userId: string,
+    tenantId: string | undefined,
+    after: string,
+    limit: number,
+  ): Promise<GovernanceRecord[]>;
+  assign?(
+    kind: string,
+    ownerId: string,
+    tenantId: string | undefined,
+    id: string,
+    policyId: string,
+    memberIds: string[],
+    active: boolean,
+  ): Promise<void>;
+  userState?(
+    kind: string,
+    ownerId: string,
+    tenantId: string | undefined,
+    id: string,
+    userId: string,
+    enabled: boolean,
+    revision: number,
+  ): Promise<boolean>;
   list(
     kind: string,
     ownerId: string,
@@ -74,7 +114,10 @@ export interface GovernanceRepository {
   promptIds?(groupId: string, ownerId: string, tenantId?: string): Promise<string[]>;
   kinds: string[];
 }
-export function createGovernanceRepository(connection: typeof mongoose): GovernanceRepository {
+export function createGovernanceRepository(
+  connection: typeof mongoose,
+  sharing?: Sharing,
+): GovernanceRepository {
   function scope(kind: string, ownerId: string, tenantId?: string) {
     const d = descriptors[kind];
     if (!d) throw new Error('GOVERNANCE_KIND_INVALID');
@@ -88,6 +131,102 @@ export function createGovernanceRepository(connection: typeof mongoose): Governa
   }
   return {
     kinds: Object.keys(descriptors),
+    async available(kind, userId, tenantId, after, limit) {
+      const { d, model } = scope(kind, userId, tenantId);
+      const ids =
+        sharing && aclKinds[kind]
+          ? await sharing.findAccessibleResources(
+              await sharing.getUserPrincipals({ userId }),
+              aclKinds[kind],
+              1,
+            )
+          : [];
+      const rows = await withGovernanceAccess(() =>
+        model
+          .find({
+            ...(tenantId ? { tenantId } : {}),
+            ...d.filter,
+            $or: [{ [d.owner]: userId }, { _id: { $in: ids } }],
+            ...(after ? { _id: { $gt: after } } : {}),
+          })
+          .select(projection + ' ' + d.owner)
+          .sort({ _id: 1 })
+          .limit(limit)
+          .lean()
+          .exec(),
+      );
+      return (rows as GovernanceRecord[]).map((row) => ({
+        ...row,
+        _id: String(row._id),
+        resource_id: String(row[d.id]),
+        owner_id: String(row[d.owner]),
+        user_enabled: !(row.governanceDisabledFor as string[] | undefined)?.includes(userId),
+        lifecycle_state: row.deletingAt || row.deleting ? 'deleting' : 'active',
+      }));
+    },
+    async assign(kind, ownerId, tenantId, id, policyId, memberIds, active) {
+      if (!sharing || !aclKinds[kind]) throw new Error('RESOURCE_ASSIGNMENT_UNAVAILABLE');
+      const { d, model, filter } = scope(kind, ownerId, tenantId);
+      const row = (await withGovernanceAccess(() =>
+        model
+          .findOne({ ...filter, [d.id]: id })
+          .lean()
+          .exec(),
+      )) as GovernanceRecord | null;
+      if (!row) throw new Error('RESOURCE_NOT_FOUND');
+      const members = await connection.models.User.find({
+        _id: { $in: memberIds },
+        ...(tenantId ? { tenantId } : {}),
+      })
+        .select('idOnTheSource')
+        .lean()
+        .exec();
+      if (members.length !== memberIds.length) throw new Error('ASSIGNMENT_MEMBER_INVALID');
+      const group = await sharing.upsertGroupByExternalId('bpbatam:asset:' + policyId, 'local', {
+        name: 'Akses aset ' + String(row.name ?? row.title ?? id),
+        description: 'Dikelola melalui Control Panel. ' + policyId,
+        memberIds: active ? members.map((m) => String(m.idOnTheSource || m._id)) : [],
+        ...(tenantId ? { tenantId } : {}),
+      });
+      if (!group) throw new Error('ASSIGNMENT_GROUP_UNAVAILABLE');
+      if (active)
+        await sharing.grantPermission(
+          'group',
+          group._id,
+          aclKinds[kind],
+          String(row._id),
+          1,
+          ownerId,
+        );
+      else
+        await sharing.deleteAclEntries({
+          principalType: 'group',
+          principalId: group._id,
+          resourceType: aclKinds[kind],
+          resourceId: row._id,
+        });
+    },
+    async userState(kind, ownerId, tenantId, id, userId, enabled, revision) {
+      const { d, model, filter } = scope(kind, ownerId, tenantId);
+      const result = await withGovernanceAccess(() =>
+        model
+          .updateOne(
+            {
+              ...filter,
+              [d.id]: id,
+              ...(revision === 0
+                ? { $or: [{ governanceRevision: 0 }, { governanceRevision: { $exists: false } }] }
+                : { governanceRevision: revision }),
+            },
+            {
+              [enabled ? '$pull' : '$addToSet']: { governanceDisabledFor: userId },
+              $inc: { governanceRevision: 1 },
+            },
+          )
+          .exec(),
+      );
+      return result.modifiedCount === 1;
+    },
     async promptVersions(groupId, ownerId, tenantId, after, limit) {
       const rows = await withGovernanceAccess(() =>
         connection.models.Prompt.find({
@@ -162,7 +301,11 @@ export function createGovernanceRepository(connection: typeof mongoose): Governa
       const row = await withGovernanceAccess(() =>
         model
           .findOne({ ...filter, [d.id]: id })
-          .select(content ? '-keyHash -config.oauth -config.headers' : '')
+          .select(
+            content
+              ? '-keyHash -config.oauth -config.headers +governanceDisabledFor'
+              : '+governanceDisabledFor',
+          )
           .lean()
           .exec(),
       );

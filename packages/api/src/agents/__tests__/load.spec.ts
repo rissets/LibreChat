@@ -30,6 +30,114 @@ const deps: LoadAgentDeps = {
 };
 
 describe('loadAgent', () => {
+  describe('plain model tool defaults', () => {
+    const request = (): LoadAgentParams['req'] => ({
+      user: { id: 'defaults-user' },
+      config: {
+        endpoints: {
+          agents: {
+            defaultTools: {
+              execute_code: true,
+              file_search: true,
+              web_search: true,
+              memory: true,
+              skills: true,
+              artifacts: 'default',
+              mcp: ['fetch', 'hidden'],
+              tools: ['image_gen_oai', 'image_edit_oai'],
+            },
+          },
+        },
+      } as unknown as AppConfig,
+    });
+    const run = (req: LoadAgentParams['req'], spec?: string) =>
+      loadAgent(
+        {
+          req,
+          spec,
+          agent_id: Constants.EPHEMERAL_AGENT_ID as string,
+          endpoint: 'Rissets',
+          model_parameters: { model: 'bp-batam-qwen' } as AgentModelParameters,
+        },
+        deps,
+      );
+
+    beforeEach(() => {
+      mockGetAccessibleMCPServers.mockResolvedValue({
+        fetch: { chatMenu: true },
+        hidden: { chatMenu: false },
+      });
+      mockGetMCPServerTools.mockResolvedValue({ fetch_mcp_fetch: {} });
+    });
+
+    test('equips a directly selected model without tool mentions or an agent selection', async () => {
+      const req = request();
+      const result = await run(req);
+      expect(result?.model).toBe('bp-batam-qwen');
+      expect(result?.provider).toBe('Rissets');
+      expect(result?.tools).toEqual(
+        expect.arrayContaining([
+          'execute_code',
+          'file_search',
+          'web_search',
+          'memory',
+          'image_gen_oai',
+          'image_edit_oai',
+          'fetch_mcp_fetch',
+        ]),
+      );
+      expect(req.body?.ephemeralAgent?.skills).toBe(true);
+      expect(req.body?.ephemeralAgent?.mcp).toEqual(['fetch']);
+      expect(mockGetMCPServerTools).not.toHaveBeenCalledWith(
+        expect.anything(),
+        'hidden',
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+
+    test('preserves explicit tool opt-outs and an empty MCP selection', async () => {
+      const req = request();
+      req.body = {
+        ephemeralAgent: {
+          execute_code: false,
+          file_search: false,
+          web_search: false,
+          memory: false,
+          skills: false,
+          mcp: [],
+          artifacts: '',
+        },
+      };
+      const result = await run(req);
+      expect(result?.tools).toEqual(['image_gen_oai', 'image_edit_oai']);
+      expect(req.body.ephemeralAgent?.skills).toBe(false);
+      expect(result?.artifacts).toBeUndefined();
+      expect(mockGetMCPServerTools).not.toHaveBeenCalled();
+    });
+
+    test('keeps the previous empty-tool behavior when defaults are not configured', async () => {
+      const result = await run({ user: { id: 'defaults-user' } });
+      expect(result?.tools).toEqual([]);
+    });
+
+    test('does not accept extra tool IDs supplied by the chat request', async () => {
+      const req = request();
+      req.body = JSON.parse('{"ephemeralAgent":{"tools":["untrusted_tool"]}}');
+      const result = await run(req);
+      expect(result?.tools).toContain('image_gen_oai');
+      expect(result?.tools).not.toContain('untrusted_tool');
+    });
+
+    test('leaves explicit model specs in control of their own tools', async () => {
+      const req = request();
+      req.config!.modelSpecs = {
+        list: [{ name: 'plain', preset: { endpoint: 'Rissets', model: 'bp-batam-qwen' } }],
+      } as AppConfig['modelSpecs'];
+      const result = await run(req, 'plain');
+      expect(result?.tools).toEqual([]);
+    });
+  });
   let mongoServer: MongoMemoryServer;
 
   beforeAll(async () => {

@@ -29,3 +29,16 @@ export interface GatewayKey {
   requests: number;
   tokens: number;
 }
+
+export interface GatewayTokenRequest {
+  id: string;
+  amount: number | string;
+  status: string;
+  reason: string;
+  created_at: string;
+}
+export interface GatewayTokenRequestInput {
+  amount: number;
+  reason: string;
+  request_id: string;
+}

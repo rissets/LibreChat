@@ -1,6 +1,13 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef } from 'react';
 import { useSetRecoilState } from 'recoil';
-import { Tools, Constants, LocalStorageKeys, AgentCapabilities } from 'librechat-data-provider';
+import {
+  Tools,
+  Constants,
+  LocalStorageKeys,
+  AgentCapabilities,
+  isAgentsEndpoint,
+  isAssistantsEndpoint,
+} from 'librechat-data-provider';
 import type { TAgentsEndpoint, TEphemeralAgent } from 'librechat-data-provider';
 import {
   useMCPServerManager,
@@ -37,6 +44,7 @@ interface BadgeRowProviderProps {
   isSubmitting?: boolean;
   conversationId?: string | null;
   specName?: string | null;
+  endpoint?: string | null;
   observeToolAuthorization?: boolean;
 }
 
@@ -45,11 +53,17 @@ export default function BadgeRowProvider({
   isSubmitting,
   conversationId,
   specName,
+  endpoint,
   observeToolAuthorization = false,
 }: BadgeRowProviderProps) {
   const lastContextKeyRef = useRef<string>('');
   const hasInitializedRef = useRef(false);
   const { agentsConfig } = useGetAgentsConfig();
+  const defaultTools =
+    endpoint && !isAgentsEndpoint(endpoint) && !isAssistantsEndpoint(endpoint)
+      ? agentsConfig?.defaultTools
+      : undefined;
+  const lastDefaultsRef = useRef(defaultTools);
   const { data: startupConfig } = useGetStartupConfig();
   const key = conversationId ?? Constants.NEW_CONVO;
   const hasModelSpecs = (startupConfig?.modelSpecs?.list?.length ?? 0) > 0;
@@ -94,9 +108,14 @@ export default function BadgeRowProvider({
       return;
     }
     // Check if this is a new conversation/spec or the first load
-    if (!hasInitializedRef.current || lastContextKeyRef.current !== storageSuffix) {
+    if (
+      !hasInitializedRef.current ||
+      lastContextKeyRef.current !== storageSuffix ||
+      lastDefaultsRef.current !== defaultTools
+    ) {
       hasInitializedRef.current = true;
       lastContextKeyRef.current = storageSuffix;
+      lastDefaultsRef.current = defaultTools;
 
       const codeToggleKey = `${LocalStorageKeys.LAST_CODE_TOGGLE_}${storageSuffix}`;
       const webSearchToggleKey = `${LocalStorageKeys.LAST_WEB_SEARCH_TOGGLE_}${storageSuffix}`;
@@ -112,7 +131,8 @@ export default function BadgeRowProvider({
       const skillsToggleValue = getTimestampedValue(skillsToggleKey);
       const memoryToggleValue = getTimestampedValue(memoryToggleKey);
 
-      const initialValues: Record<string, boolean | string> = {};
+      const { mcp: defaultMCP, tools: _toolIds, ...defaultSelections } = defaultTools ?? {};
+      const initialValues: Record<string, boolean | string> = { ...defaultSelections };
 
       if (codeToggleValue !== null) {
         try {
@@ -165,13 +185,13 @@ export default function BadgeRowProvider({
       const hasOverrides = Object.keys(initialValues).length > 0;
 
       /** Read persisted MCP values from localStorage */
-      let mcpOverrides: string[] | null = null;
+      let mcpOverrides: string[] | null = defaultMCP ?? null;
       const mcpStorageKey = `${LocalStorageKeys.LAST_MCP_}${storageSuffix}`;
       const mcpRaw = localStorage.getItem(mcpStorageKey);
       if (mcpRaw !== null) {
         try {
           const parsed = JSON.parse(mcpRaw);
-          if (Array.isArray(parsed) && parsed.length > 0) {
+          if (Array.isArray(parsed)) {
             mcpOverrides = parsed;
           }
         } catch (e) {
@@ -208,7 +228,7 @@ export default function BadgeRowProvider({
         return changed ? result : prev;
       });
     }
-  }, [storageSuffix, specName, isSubmitting, setEphemeralAgent]);
+  }, [storageSuffix, specName, isSubmitting, setEphemeralAgent, defaultTools]);
 
   /** CodeInterpreter hook — sandbox auth is handled server-side by the
    *  agents library, so the toggle no longer has an auth dialog gate. */

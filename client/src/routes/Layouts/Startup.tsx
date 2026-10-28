@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import Cookies from 'js-cookie';
+import { useRecoilState } from 'recoil';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import type { TStartupConfig } from 'librechat-data-provider';
 import {
@@ -10,6 +12,7 @@ import {
 import { TranslationKeys, useLocalize } from '~/hooks';
 import { useGetStartupConfig } from '~/data-provider';
 import AuthLayout from '~/components/Auth/AuthLayout';
+import store from '~/store';
 
 const headerMap: Record<string, TranslationKeys> = {
   '/login': 'com_auth_welcome_back',
@@ -21,6 +24,7 @@ const headerMap: Record<string, TranslationKeys> = {
 };
 
 export default function StartupLayout({ isAuthenticated }: { isAuthenticated?: boolean }) {
+  const [language, setLanguage] = useRecoilState(store.lang);
   const [error, setError] = useState<TranslationKeys | null>(null);
   const [headerText, setHeaderText] = useState<TranslationKeys | null>(null);
   const [startupConfig, setStartupConfig] = useState<TStartupConfig | null>(null);
@@ -89,6 +93,11 @@ export default function StartupLayout({ isAuthenticated }: { isAuthenticated?: b
       startupConfigError={startupConfigError}
       pathname={location.pathname}
       error={error}
+      language={language}
+      onLanguageChange={(value) => {
+        setLanguage(value);
+        Cookies.set('lang', value, { expires: 365 });
+      }}
     >
       <Outlet context={contextValue} />
     </AuthLayout>
