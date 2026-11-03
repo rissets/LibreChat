@@ -50,7 +50,25 @@ type Sharing = Pick<
   'grantPermission' | 'deleteAclEntries' | 'findAccessibleResources'
 > &
   Pick<ReturnType<typeof createUserGroupMethods>, 'getUserPrincipals' | 'upsertGroupByExternalId'>;
+export interface GovernancePageQuery {
+  page: number;
+  page_size: number;
+  search: string;
+  sort_by: string;
+  sort_order: 'asc' | 'desc';
+  filter_by: string;
+  filter_value: string;
+  available: boolean;
+  owner_ids: string[];
+  resource_id?: string;
+}
 export interface GovernanceRepository {
+  page?(
+    kind: string,
+    ownerId: string,
+    tenantId: string | undefined,
+    query: GovernancePageQuery,
+  ): Promise<{ resources: GovernanceRecord[]; total: number; page: number; page_size: number }>;
   available?(
     kind: string,
     userId: string,
@@ -118,6 +136,11 @@ export function createGovernanceRepository(
   connection: typeof mongoose,
   sharing?: Sharing,
 ): GovernanceRepository {
+  function collectionName(model: mongoose.Model<unknown>) {
+    // Mongoose 8 exposes namespace() at runtime but omits it from its Model types.
+    const namespace = (model as mongoose.Model<unknown> & { namespace(): string }).namespace();
+    return namespace.slice(model.db.name.length + 1);
+  }
   function scope(kind: string, ownerId: string, tenantId?: string) {
     const d = descriptors[kind];
     if (!d) throw new Error('GOVERNANCE_KIND_INVALID');
@@ -131,6 +154,167 @@ export function createGovernanceRepository(
   }
   return {
     kinds: Object.keys(descriptors),
+    async page(kind, ownerId, tenantId, query) {
+      const kinds =
+        kind === 'all'
+          ? Object.keys(descriptors).filter((k) => connection.models[descriptors[k].model])
+          : [kind];
+      const pipelines = [];
+      const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      for (const current of kinds) {
+        const { d, model } = scope(current, ownerId, tenantId);
+        const ids =
+          query.available && sharing && aclKinds[current]
+            ? await sharing.findAccessibleResources(
+                await sharing.getUserPrincipals({ userId: ownerId }),
+                aclKinds[current],
+                1,
+              )
+            : [];
+        const ownerIds = query.owner_ids.length ? query.owner_ids : [ownerId];
+        const ownerValue = (id: string) =>
+          model.schema.path(d.owner)?.instance === 'ObjectId'
+            ? new connection.Types.ObjectId(id)
+            : id;
+        const filter: Record<string, unknown> = {
+          ...(tenantId ? { tenantId } : {}),
+          ...d.filter,
+          ...(query.available
+            ? {
+                $or: [
+                  { [d.owner]: ownerValue(ownerId) },
+                  { _id: { $in: ids.map((id) => new connection.Types.ObjectId(String(id))) } },
+                ],
+              }
+            : { [d.owner]: { $in: ownerIds.map(ownerValue) } }),
+        };
+        if (query.resource_id)
+          filter[d.id] =
+            d.id === '_id' ? new connection.Types.ObjectId(query.resource_id) : query.resource_id;
+        const projectionFields = Object.fromEntries(
+          projection
+            .split(' ')
+            .filter(Boolean)
+            .map((field) => [field, 1]),
+        );
+        const project = {
+          ...projectionFields,
+          owner_id: { $toString: '$' + d.owner },
+          resource_id: { $toString: '$' + d.id },
+          asset_kind: { $literal: current },
+          user_enabled: { $not: [{ $in: [ownerId, { $ifNull: ['$governanceDisabledFor', []] }] }] },
+          lifecycle_state: {
+            $cond: [
+              { $or: [{ $ifNull: ['$deleting', false] }, { $ifNull: ['$deletingAt', false] }] },
+              'deleting',
+              'active',
+            ],
+          },
+          display_name: {
+            $ifNull: [
+              '$name',
+              { $ifNull: ['$title', { $ifNull: ['$serverName', { $toString: '$' + d.id }] }] },
+            ],
+          },
+        };
+        pipelines.push({
+          collection: collectionName(model),
+          model,
+          pipeline: [{ $match: filter }, { $project: project }],
+        });
+      }
+      const first = pipelines[0];
+      const pipeline: mongoose.PipelineStage[] = [
+        ...first.pipeline,
+        ...pipelines
+          .slice(1)
+          .map((p) => ({ $unionWith: { coll: p.collection, pipeline: p.pipeline } })),
+      ] as mongoose.PipelineStage[];
+      if (connection.models.User) {
+        pipeline.push({
+          $lookup: {
+            from: collectionName(connection.models.User),
+            let: {
+              owner: {
+                $convert: { input: '$owner_id', to: 'objectId', onError: null, onNull: null },
+              },
+            },
+            pipeline: [
+              { $match: { $expr: { $eq: ['$_id', '$$owner'] } } },
+              { $project: { name: 1, email: 1 } },
+            ],
+            as: '_owner',
+          },
+        });
+        pipeline.push(
+          {
+            $set: {
+              owner_name: { $ifNull: [{ $arrayElemAt: ['$_owner.name', 0] }, ''] },
+              owner_email: { $ifNull: [{ $arrayElemAt: ['$_owner.email', 0] }, ''] },
+            },
+          },
+          { $unset: '_owner' },
+        );
+      }
+      const fields = new Set([
+        'display_name',
+        'model',
+        'provider',
+        'owner_id',
+        'owner_name',
+        'asset_kind',
+        'user_enabled',
+        'lifecycle_state',
+        'createdAt',
+        'updatedAt',
+        'resource_id',
+      ]);
+      if (query.search)
+        pipeline.push({
+          $match: {
+            $or: [
+              'display_name',
+              'model',
+              'provider',
+              'resource_id',
+              'owner_name',
+              'owner_email',
+            ].map((field) => ({
+              [field]: { $regex: escape(query.search), $options: 'i' },
+            })),
+          },
+        });
+      if (query.filter_value && fields.has(query.filter_by))
+        pipeline.push({
+          $match:
+            query.filter_by === 'user_enabled'
+              ? { user_enabled: query.filter_value.toLowerCase() === 'true' }
+              : { [query.filter_by]: { $regex: escape(query.filter_value), $options: 'i' } },
+        });
+      const order = query.sort_order === 'desc' ? -1 : 1;
+      const sort = fields.has(query.sort_by) ? query.sort_by : 'display_name';
+      pipeline.push({
+        $facet: {
+          items: [
+            { $sort: { [sort]: order, _id: 1, asset_kind: 1 } },
+            { $skip: (query.page - 1) * query.page_size },
+            { $limit: query.page_size },
+          ],
+          count: [{ $count: 'total' }],
+        },
+      });
+      const [result] = await withGovernanceAccess(() => first.model.aggregate(pipeline).exec());
+      const resources = (result?.items ?? []).map((row: GovernanceRecord) => {
+        const { governanceDisabledFor: _governanceDisabledFor, display_name, ...safe } = row;
+        return { ...safe, _id: String(safe._id), name: safe.name ?? display_name };
+      });
+      return {
+        resources,
+        total: result?.count?.[0]?.total ?? 0,
+        page: query.page,
+        page_size: query.page_size,
+      };
+    },
     async available(kind, userId, tenantId, after, limit) {
       const { d, model } = scope(kind, userId, tenantId);
       const ids =

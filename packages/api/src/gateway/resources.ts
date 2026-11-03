@@ -144,9 +144,43 @@ export function createGovernanceResources(
         !(await beginGovernanceMutation(req, res, deps.journal))
       )
         return;
-      if (!deps.repository.kinds.includes(kind))
+      const pagedRead = req.method === 'GET' && req.path === '/' && req.query.page !== undefined;
+      if (!(kind === 'all' && pagedRead) && !deps.repository.kinds.includes(kind))
         throw new ResourceFailure('RESOURCE_KIND_NOT_SUPPORTED', 404);
       if (req.method === 'GET' && req.path === '/') {
+        if (pagedRead) {
+          if (!deps.repository.page)
+            throw new ResourceFailure('RESOURCE_PAGINATION_UNAVAILABLE', 503);
+          const query = z
+            .object({
+              page: z.coerce.number().int().min(1).max(1000000),
+              page_size: z.coerce.number().int().min(1).max(100).default(10),
+              search: z.string().max(200).default(''),
+              sort_by: z.string().max(80).default(''),
+              sort_order: z.enum(['asc', 'desc']).default('asc'),
+              filter_by: z.string().max(80).default(''),
+              filter_value: z.string().max(200).default(''),
+              resource_id: z.string().max(200).optional(),
+            })
+            .parse(req.query);
+          const ownerIds = z
+            .array(z.string().regex(/^[a-f0-9]{24}$/i))
+            .max(1000)
+            .parse(
+              String(req.query.owner_ids ?? '')
+                .split(',')
+                .filter(Boolean),
+            );
+          res.json({
+            kind,
+            ...(await deps.repository.page(kind, ownerId, owner.tenantId, {
+              ...query,
+              owner_ids: ownerIds,
+              available: req.query.available === 'true',
+            })),
+          });
+          return;
+        }
         const limit = Math.max(1, Math.min(100, Number(req.query.limit) || 50));
         const after = String(req.query.after ?? '');
         if (after && !/^[a-f0-9]{24}$/i.test(after)) throw new ResourceFailure('INVALID_CURSOR');

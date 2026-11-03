@@ -177,3 +177,59 @@ it('materializes managed assignments into native view/use ACL groups and preserv
     ).toBe(1);
   });
 });
+
+it('pages metadata in Mongo after tenant, ownership, search and sorting, without exposing content', async () => {
+  const principal = new mongoose.Types.ObjectId();
+  const foreign = new mongoose.Types.ObjectId();
+  await mongoose.models.Skill.insertMany(
+    Array.from({ length: 27 }, (_, i) => ({
+      author: principal,
+      name: 'Paged skill ' + String(i).padStart(2, '0'),
+      body: 'private content',
+      tenantId: 'paged',
+    })),
+  );
+  await mongoose.models.Skill.create({
+    author: foreign,
+    name: 'Paged skill outside',
+    tenantId: 'paged',
+  });
+  await mongoose.models.Skill.create({
+    author: principal,
+    name: 'Paged skill other tenant',
+    tenantId: 'other',
+  });
+  const repo = createGovernanceRepository(mongoose);
+  const query = {
+    page: 1,
+    page_size: 10,
+    search: 'Paged skill',
+    sort_by: 'display_name',
+    sort_order: 'asc' as const,
+    filter_by: '',
+    filter_value: '',
+    available: false,
+    owner_ids: [String(principal)],
+  };
+  const first = await repo.page!('skills', String(principal), 'paged', query);
+  const next = await repo.page!('skills', String(principal), 'paged', { ...query, page: 2 });
+  expect(first.total).toBe(27);
+  expect(first.resources).toHaveLength(10);
+  expect(next.resources).toHaveLength(10);
+  expect(new Set([...first.resources, ...next.resources].map((r) => r.resource_id)).size).toBe(20);
+  expect(first.resources[0].name).toBe('Paged skill 00');
+  expect(first.resources[0].body).toBeUndefined();
+  expect(first.resources[0].governanceDisabledFor).toBeUndefined();
+  expect(
+    (await repo.page!('skills', String(principal), 'paged', { ...query, page: 3 })).resources,
+  ).toHaveLength(7);
+  expect(
+    (await repo.page!('skills', String(principal), 'paged', { ...query, search: '.*' })).total,
+  ).toBe(0);
+  const one = await repo.page!('skills', String(principal), 'paged', {
+    ...query,
+    resource_id: String(next.resources[3].resource_id),
+  });
+  expect(one.total).toBe(1);
+  expect(one.resources[0].name).toBe('Paged skill 13');
+});

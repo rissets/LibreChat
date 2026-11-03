@@ -167,3 +167,41 @@ it('returns a validation error for malformed assignment members instead of an am
   expect(res.json).toHaveBeenCalledWith({ code: 'INVALID_RESOURCE_INPUT' });
   expect(repository.assign).not.toHaveBeenCalled();
 });
+
+it('delegates a bounded page to the repository and never falls back to a full list', async () => {
+  const { handler, repository, res } = setup();
+  const page = jest.fn(async () => ({
+    resources: [{ resource_id: 'skill' }],
+    total: 27,
+    page: 2,
+    page_size: 10,
+  }));
+  Object.assign(repository, { page });
+  await handler(
+    {
+      method: 'GET',
+      path: '/',
+      headers: {},
+      query: {
+        owner_id: owner,
+        kind: 'skills',
+        page: '2',
+        page_size: '10',
+        available: 'true',
+        search: 'Paged',
+      },
+    } as unknown as Request,
+    res as unknown as Response,
+    jest.fn(),
+  );
+  expect(page).toHaveBeenCalledWith(
+    'skills',
+    owner,
+    'tenant',
+    expect.objectContaining({ page: 2, page_size: 10, search: 'Paged', available: true }),
+  );
+  expect(repository.list).not.toHaveBeenCalled();
+  expect(res.json).toHaveBeenCalledWith(
+    expect.objectContaining({ total: 27, page: 2, page_size: 10 }),
+  );
+});
