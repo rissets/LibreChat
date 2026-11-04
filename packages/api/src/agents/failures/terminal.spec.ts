@@ -2,6 +2,27 @@ import { errors } from 'undici';
 import { createTerminalRunErrorObserver, getUpstreamModelErrorMetadata } from './terminal';
 
 describe('terminal agent-run error logging', () => {
+  it.each([true, false])(
+    'preserves gateway wallet denial with protection=%s',
+    (protectionEnabled) => {
+      const observer = createTerminalRunErrorObserver({
+        logger: { error: jest.fn() },
+        source: '[Agent API]',
+        protectionEnabled,
+      });
+      const providerError = Object.assign(new Error('429 INSUFFICIENT_TOKENS PRIVATE-PROMPT'), {
+        status: 429,
+        lc_error_code: 'MODEL_RATE_LIMIT',
+      });
+      observer.modelCallback.handleLLMError(providerError);
+      const terminalError = Object.assign(new Error('rate limited', { cause: providerError }), {
+        lc_error_code: 'MODEL_RATE_LIMIT',
+      });
+      expect(observer.getUserFacingError(terminalError, () => 'fallback')).toBe(
+        JSON.stringify({ type: 'INSUFFICIENT_TOKENS' }),
+      );
+    },
+  );
   it('logs stable upstream metadata and deterministic trace correlation', () => {
     const logger = { error: jest.fn() };
     const privateValue = 'PRIVATE-PROVIDER-CONTENT';

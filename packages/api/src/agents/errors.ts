@@ -101,9 +101,33 @@ export function getLangChainErrorCode(error: unknown): string | undefined {
  * code has no localized copy and the provider's own message should be shown instead.
  */
 export function resolveLangChainError(error: unknown): string | undefined {
+  const tokenError = resolveGatewayTokenError(error);
+  if (tokenError != null) {
+    return tokenError;
+  }
   const code = getLangChainErrorCode(error);
   const type = code == null ? undefined : LANGCHAIN_ERROR_TYPES[code];
   return type == null ? undefined : JSON.stringify({ type });
+}
+
+/** Gateway wallet policy is more specific than the SDK's blanket HTTP 429 classification. */
+export function resolveGatewayTokenError(error: unknown): string | undefined {
+  let current = error;
+  for (let depth = 0; depth < MAX_CAUSE_DEPTH && current != null; depth++) {
+    const message = getProviderErrorMessage(current);
+    const code = message?.match(
+      /^(?:429\s+)?(INSUFFICIENT_TOKENS|TOKEN_ALLOCATION_EXHAUSTED|USER_TOKEN_WINDOW_EXHAUSTED|TOKEN_RESERVATION_LIMIT)(?:\s|$)/,
+    )?.[1];
+    if (code != null) {
+      const type =
+        code === 'INSUFFICIENT_TOKENS' || code === 'TOKEN_ALLOCATION_EXHAUSTED'
+          ? 'INSUFFICIENT_TOKENS'
+          : 'USER_TOKEN_WINDOW_EXHAUSTED';
+      return JSON.stringify({ type });
+    }
+    current = typeof current === 'object' ? readErrorProperty(current, 'cause') : undefined;
+  }
+  return undefined;
 }
 
 export type ModelStreamFailure = 'closed' | 'stalled';

@@ -47,7 +47,13 @@ export default function BalanceError({ json }: ErrorRendererProps) {
     : [];
 
   /** Same figures the balance summary shows: money for `currency`, none at all for `percent` */
+  const code = readString(json, 'message') ?? readString(json, 'type');
   let summary = localize('com_error_limit_reached');
+  if (code === 'INSUFFICIENT_TOKENS') {
+    summary = localize('com_error_gateway_token_balance');
+  } else if (code === 'USER_TOKEN_WINDOW_EXHAUSTED') {
+    summary = localize('com_error_gateway_token_window');
+  }
   if (tokenCost != null && balance != null) {
     if (display === 'percent') {
       summary = localize('com_error_token_balance_hidden');

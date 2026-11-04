@@ -127,6 +127,66 @@ describe('LangChain provider error text', () => {
   });
 
   describe('resolveLangChainError', () => {
+    it('preserves the captured gateway denial through the real ChatOpenAI SDK', async () => {
+      const server = createServer((_request, response) => {
+        response.writeHead(429, { 'Content-Type': 'application/json' });
+        response.end(
+          JSON.stringify({
+            error: {
+              message: 'INSUFFICIENT_TOKENS',
+              type: 'rate_limit_error',
+              code: 'rate_limit_exceeded',
+            },
+          }),
+        );
+      });
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+      const observer = createTerminalRunErrorObserver({
+        logger: { error: jest.fn() },
+        source: '[Agent API]',
+        protectionEnabled: true,
+      });
+      try {
+        const model = new ChatOpenAI({
+          apiKey: 'test-key',
+          model: 'test-model',
+          maxRetries: 0,
+          configuration: {
+            baseURL: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`,
+          },
+        });
+        let caught: unknown;
+        try {
+          await model.invoke('hallo', { callbacks: [observer.modelCallback] });
+        } catch (error) {
+          caught = error;
+        }
+        expect(caught).toBeDefined();
+        expect(observer.getUserFacingError(caught, () => 'untracked')).toBe(
+          JSON.stringify({ type: 'INSUFFICIENT_TOKENS' }),
+        );
+      } finally {
+        server.closeAllConnections();
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+      }
+    });
+
+    it.each([
+      ['INSUFFICIENT_TOKENS', 'INSUFFICIENT_TOKENS'],
+      ['TOKEN_ALLOCATION_EXHAUSTED', 'INSUFFICIENT_TOKENS'],
+      ['USER_TOKEN_WINDOW_EXHAUSTED', 'USER_TOKEN_WINDOW_EXHAUSTED'],
+      ['TOKEN_RESERVATION_LIMIT', 'USER_TOKEN_WINDOW_EXHAUSTED'],
+    ])('preserves gateway %s ahead of the SDK rate-limit classification', (code, type) => {
+      const providerError = Object.assign(new Error(`429 ${code} PRIVATE-PROMPT`), {
+        status: 429,
+        lc_error_code: 'MODEL_RATE_LIMIT',
+      });
+      const wrapped = Object.assign(new Error('graph failed', { cause: providerError }), {
+        lc_error_code: 'MODEL_RATE_LIMIT',
+      });
+      expect(resolveLangChainError(wrapped)).toBe(JSON.stringify({ type }));
+    });
+
     it.each([
       ['MODEL_RATE_LIMIT', ErrorTypes.MODEL_RATE_LIMIT],
       ['MODEL_NOT_FOUND', ErrorTypes.MODEL_NOT_FOUND],

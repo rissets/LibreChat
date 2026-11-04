@@ -771,6 +771,8 @@
   "com_error_invalid_user_key": "Invalid key provided. Please provide a valid key and try again.",
   "com_error_invalid_user_key_provider": "The {{0}} API key you saved could not be read. Update it and try again.",
   "com_error_limit_reached": "You have reached a request limit. Wait a moment and try again.",
+  "com_error_gateway_token_balance": "Your account does not have enough allocated tokens for this request. Request tokens below or ask a Control Panel administrator to allocate tokens to your account.",
+  "com_error_gateway_token_window": "This request exceeds your account's token usage limit for the current period. Wait for the limit to reset or ask a Control Panel administrator to review your token limits.",
   "com_error_logins": "Too many sign-in attempts. Wait a moment and try again.",
   "com_error_message_limit_other": "You have reached your limit of {{0}} messages per {{1}}.",
   "com_error_message_limit_one": "You have reached your limit of one message per {{0}}.",

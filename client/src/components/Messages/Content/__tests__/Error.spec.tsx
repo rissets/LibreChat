@@ -1310,12 +1310,18 @@ describe('Error — agent handoffs within a row', () => {
   });
 });
 
-it.each(['INSUFFICIENT_TOKENS', 'USER_TOKEN_WINDOW_EXHAUSTED'])(
-  'recognizes gateway token policy %s inside an OpenAI rate-limit envelope',
-  (code) => {
-    renderError({
-      error: { code: 'rate_limit_exceeded', message: code, type: 'rate_limit_error' },
-    });
-    expect(screen.getByText(catalog.com_error_limit_reached)).toBeVisible();
-  },
-);
+it.each([
+  ['INSUFFICIENT_TOKENS', 'com_error_gateway_token_balance'],
+  ['USER_TOKEN_WINDOW_EXHAUSTED', 'com_error_gateway_token_window'],
+])('recognizes gateway token policy %s inside an OpenAI rate-limit envelope', (code, copy) => {
+  renderError({
+    error: { code: 'rate_limit_exceeded', message: code, type: 'rate_limit_error' },
+  });
+  expect(screen.getByText(catalog[copy])).toBeVisible();
+});
+
+it('renders a gateway wallet denial preserved through the SDK classification', () => {
+  renderError({ type: 'INSUFFICIENT_TOKENS' });
+  expect(screen.getByText(catalog.com_error_gateway_token_balance)).toBeVisible();
+  expect(document.body.textContent).not.toContain(catalog.com_error_model_rate_limit);
+});

@@ -26,12 +26,15 @@ export function createGovernanceErasure(deps: {
       const hash = String(req.headers['x-approval-payload-hash'] ?? '');
       const checker = String(req.headers['x-checker-id'] ?? '');
       const maker = String(req.headers['x-actor-id'] ?? '');
+      // Only the authenticated governance service can attest a CP admin decision.
+      const directAdmin = req.headers['x-approval-mode'] === 'admin-direct';
       if (
         !identity ||
         !approval ||
         !/^[a-f0-9]{64}$/i.test(hash) ||
+        !maker ||
         !checker ||
-        checker === maker
+        (checker === maker && !directAdmin)
       ) {
         res.status(403).json({ code: 'APPROVED_ERASURE_REQUIRED' });
         return;
@@ -65,6 +68,7 @@ export function createGovernanceErasure(deps: {
             operation: 'approved-managed-user-erasure',
             maker,
             checker,
+            approvalMode: directAdmin ? 'admin-direct' : 'independent',
             approvalId: approval,
             payloadHash: hash,
             commandId: String(req.headers['x-command-id'] ?? ''),

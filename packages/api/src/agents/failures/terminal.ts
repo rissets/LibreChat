@@ -5,6 +5,7 @@ import {
   resolveLangChainError,
   getModelStreamFailure,
   resolveModelStreamError,
+  resolveGatewayTokenError,
   getProviderErrorMessage,
 } from '../errors';
 import { getSafeErrorMetadata, isOwnedAbortError } from '../../utils/errors';
@@ -110,6 +111,7 @@ export function createTerminalRunErrorObserver({
 
       const { status } = getSafeErrorMetadata(upstreamModelError);
       const classifiedError =
+        resolveGatewayTokenError(upstreamModelError) ??
         safelyResolveLangChainError(error) ??
         safelyResolveLangChainError(upstreamModelError) ??
         (status == null || status < 400
@@ -133,10 +135,7 @@ export function createTerminalRunErrorObserver({
       /** Unclassified: the provider's own explanation is the only account of what happened, and a
        *  rejection from a gateway or proxy carries it as the whole point of the 400. The status
        *  headlines it either way, so a deployment withholding provider text loses no taxonomy. */
-      const providerMessage =
-        protectionEnabled !== false
-          ? undefined
-          : upstreamMessage;
+      const providerMessage = protectionEnabled !== false ? undefined : upstreamMessage;
       return `${UPSTREAM_MODEL_ERROR_FALLBACK}\n${JSON.stringify({
         type: ErrorTypes.UPSTREAM_MODEL_ERROR,
         ...(status != null ? { status } : {}),
