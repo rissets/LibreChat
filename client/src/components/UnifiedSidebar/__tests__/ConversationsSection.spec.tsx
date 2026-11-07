@@ -153,6 +153,22 @@ jest.mock('~/components/Conversations', () => {
   return { __esModule: true, Conversations: ConversationsStub };
 });
 
+jest.mock('~/components/UnifiedSidebar/MeetingChatsSection', () => {
+  const { memo } = jest.requireActual('react');
+  const MeetingChatsStub = memo(function MeetingChatsStub(props: {
+    conversations: Array<{ conversationId: string; title: string }>;
+  }) {
+    return (
+      <div data-testid="meeting-chats-stub">
+        {props.conversations.map((convo) => (
+          <span key={convo.conversationId}>{convo.title}</span>
+        ))}
+      </div>
+    );
+  });
+  return { __esModule: true, default: MeetingChatsStub };
+});
+
 jest.mock('~/components/Conversations/ProjectsSection', () => ({
   __esModule: true,
   default: () => <div data-testid="projects-stub" />,
@@ -369,6 +385,45 @@ describe('ConversationsSection project chats', () => {
       search: 'draft',
       projectId: undefined,
     });
+  });
+});
+
+describe('ConversationsSection meeting chats', () => {
+  const meetingChatId =
+    'meeting-11111111-1111-4111-8111-111111111111-22222222-2222-4222-8222-222222222222';
+  const defaultPages = { pages: [{ conversations: [] as unknown[], nextCursor: null }] };
+
+  beforeEach(() => {
+    mockConversationsResult.data = {
+      pages: [
+        {
+          conversations: [
+            { conversationId: 'chat-1', title: 'Chat biasa' },
+            { conversationId: meetingChatId, title: 'Rapat mingguan' },
+          ],
+          nextCursor: null,
+        },
+      ],
+    };
+  });
+
+  afterEach(() => {
+    mockConversationsResult.data = defaultPages;
+  });
+
+  /** Meeting chats share the conversations list but are not ordinary chats, so they
+   *  are listed in their own section above Chats, never inside it. */
+  it('lists meeting chats above Chats, and leaves them out of it', async () => {
+    const { getByTestId } = renderSection();
+    await settleRenders();
+
+    const meetings = getByTestId('meeting-chats-stub');
+    const chats = getByTestId('conversations-stub');
+
+    expect(meetings.textContent).toContain('Rapat mingguan');
+    expect(chats.textContent).toContain('Chat biasa');
+    expect(chats.textContent).not.toContain('Rapat mingguan');
+    expect(meetings.compareDocumentPosition(chats) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 

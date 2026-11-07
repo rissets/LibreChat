@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, useMemo, memo, useRef } from 'react';
 import { useAtomValue } from 'jotai';
 import { useRecoilValue } from 'recoil';
 import type { InfiniteQueryObserverResult } from '@tanstack/react-query';
-import type { ConversationListResponse } from 'librechat-data-provider';
+import type { ConversationListResponse, TConversation } from 'librechat-data-provider';
 import type { List } from 'react-virtualized';
 import {
   useProjectsInfiniteQuery,
@@ -24,9 +24,11 @@ import {
   useScrollFade,
 } from '~/hooks';
 import { chatFacetParamsAtom, useFreshLocalDay } from '~/components/Conversations/facets';
+import { parseMeetingChatPath } from '~/data-provider/Meetings/path';
 import ProjectsSection from '~/components/Conversations/ProjectsSection';
 import ChatFilterMenu from '~/components/Conversations/ChatFilterMenu';
 import PinnedSection from '~/components/Conversations/PinnedSection';
+import MeetingChatsSection from './MeetingChatsSection';
 import ProjectNamesProvider from '~/Providers/ProjectNamesContext';
 import useDrawerViewport from '~/hooks/Nav/useDrawerViewport';
 import useSidebarToggle from '~/hooks/Nav/useSidebarToggle';
@@ -155,6 +157,25 @@ const ConversationsSection = memo(() => {
     [pinnedData?.conversations, conversations, isArchivedView],
   );
 
+  /** Meeting chats ride in the same list as ordinary ones, so they are lifted out
+   *  before the Chats section sees them: that section lists chats alone, and the
+   *  meeting chats get their own section above it. A pinned meeting chat already
+   *  shows under Pinned, so it is left out here the way `groupConversations`
+   *  drops pinned chats from the date groups. */
+  const { meetingConversations, chatConversations } = useMemo(() => {
+    const pinnedIds = new Set(pinnedConversations.map(({ conversationId }) => conversationId));
+    const meetings: TConversation[] = [];
+    const chats: TConversation[] = [];
+    for (const conversation of conversations) {
+      if (!parseMeetingChatPath(conversation.conversationId ?? '')) {
+        chats.push(conversation);
+      } else if (!pinnedIds.has(conversation.conversationId)) {
+        meetings.push(conversation);
+      }
+    }
+    return { meetingConversations: meetings, chatConversations: chats };
+  }, [conversations, pinnedConversations]);
+
   /**
    * Selecting a conversation is the most common close path — it must take
    * the animated route or the drawer stalls on the new conversation's
@@ -257,8 +278,9 @@ const ConversationsSection = memo(() => {
                   membershipUpdatedAt={pinnedUpdatedAt}
                 />
               )}
+              <MeetingChatsSection conversations={meetingConversations} toggleNav={toggleNav} />
               <Conversations
-                conversations={conversations}
+                conversations={chatConversations}
                 moveToTop={moveToTop}
                 toggleNav={toggleNav}
                 containerRef={conversationsRef}
