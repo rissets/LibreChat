@@ -36,7 +36,8 @@ export const pullRequestRefetchInterval = (
 const isSavedConversation = (conversationId: string) =>
   conversationId !== '' &&
   conversationId !== Constants.NEW_CONVO &&
-  conversationId !== Constants.PENDING_CONVO;
+  conversationId !== Constants.PENDING_CONVO &&
+  !/^meeting-/i.test(conversationId);
 
 /**
  * Asks only when the deployment advertises the feature and the conversation is a saved one, so a

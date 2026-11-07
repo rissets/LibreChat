@@ -8,6 +8,7 @@ import type {
   ParentSubagentSummary,
 } from 'librechat-data-provider';
 import { useParentSubagentsQuery } from '~/data-provider';
+import { parseMeetingChatPath } from '~/data-provider/Meetings/path';
 
 type ParentSubagentsContextValue = {
   conversationId: string;
@@ -66,6 +67,9 @@ export function ParentSubagentsProvider({
     conversationId !== '' &&
     conversationId !== Constants.NEW_CONVO &&
     conversationId !== Constants.PENDING_CONVO &&
+    /** Meeting turns run through the Control Panel and never own subagent
+     *  threads, so the meeting gateway denies these reads. */
+    parseMeetingChatPath(conversationId) == null &&
     (observed || evidence);
   // A model switch cannot revoke a conversation's task ownership. Reset only on navigation.
   if (discovery.conversationId !== conversationId || discovery.enabled !== discoveryEnabled) {

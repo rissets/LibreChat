@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import axios from 'axios';
-import type { AxiosRequestConfig, AxiosResponse } from 'axios';
+import type { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
 import type * as t from './types';
 import { TWO_FACTOR_ENROLLMENT_REQUIRED_CODE } from './config';
 import { persistTwoFactorSetupToken } from './twoFactor';
@@ -330,6 +330,10 @@ const startAuthRecovery = (retryRefresh?: boolean) => {
   return state.refreshPromise;
 };
 
+/** Control Panel refused the request because the identity session it was minted from is gone. */
+const isIdentitySessionRevoked = (error: AxiosError<{ code?: string }>) =>
+  ['IDENTITY_SESSION_REVOKED', 'SESSION_REQUIRED'].includes(error.response?.data?.code ?? '');
+
 const redirectToLoginOnce = () => {
   if (isAuthRedirectInProgress()) {
     return;
@@ -533,6 +537,13 @@ if (typeof window !== 'undefined') {
       }
 
       if (error.response.status === 401 && !originalRequest._retry) {
+        /** The identity session that authorizes Control Panel data is gone, so a token
+         *  refresh cannot bring it back: recovering would retry the same refusal and
+         *  leave the meeting surfaces looping on errors. Re-authenticate instead. */
+        if (isIdentitySessionRevoked(error)) {
+          redirectToLoginOnce();
+          return Promise.reject(error);
+        }
         const hasActiveRecovery = getAuthRecoveryState().refreshPromise != null;
         if (!hasActiveRecovery) {
           console.warn('401 error, refreshing token');

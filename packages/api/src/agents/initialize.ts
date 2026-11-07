@@ -2351,12 +2351,11 @@ export async function initializeAgent(
     repositoryInstructionSource: undefined,
   };
   if (hasNativeMeetingContext) {
-    if (actionsEnabled === true || (oauthActionToolNames?.length ?? 0) > 0) {
-      throw new NativeMeetingTurnError('MEETING_TOOL_POLICY_DENIED', 403);
-    }
     /** A meeting answer is produced by the Control Panel, so LibreChat never
      *  needs the agent's own tool set: drop what the meeting policy disallows
-     *  instead of failing the whole turn over a config default. */
+     *  instead of failing the whole turn over a config default. `actionsEnabled`
+     *  is a deployment capability, not this agent's config, so action tools are
+     *  dropped here rather than rejected. */
     const droppedDefs = (loadedToolDefinitions ?? [])
       .filter((def) => !isAllowedMeetingTool(def.name))
       .map((def) => def.name);
@@ -2578,7 +2577,11 @@ export async function initializeAgent(
    * the code-execution pair is background-native and needs no opt-in.
    */
   let backgroundToolNames: string[] | undefined;
-  if (params.backgroundToolsAvailable === true) {
+  /** A meeting turn is answered inside its Control Panel turn, and the CP meeting
+   *  policy never allows `check_background_task`: registering background dispatch
+   *  would add a tool (and a `run_in_background` schema param) the final meeting
+   *  gate must then reject. */
+  if (params.backgroundToolsAvailable === true && !hasNativeMeetingContext) {
     /** Tool names embed `normalizeServerName(server)` (see MCP.js tool keys)
      *  while `mcpConfig` keys the original name, so index the ephemeral
      *  servers by their normalized form. */
@@ -2825,13 +2828,23 @@ export async function initializeAgent(
       }
       return false;
     };
+    const disallowedFinalToolDefs = (toolDefinitions ?? [])
+      .filter((def) => !isAllowedFinalToolDef(def.name))
+      .map((def) => def.name);
     if (
       (effectiveCodeEnvAvailable && !isAllowedMeetingTool(Tools.execute_code)) ||
       (attachedWorkspaceTools && !isAllowedMeetingTool(Tools.execute_code)) ||
       (skillAuthoringAvailable && !isMeetingSkillAuthoringAllowed) ||
       (inlineMemoryRegistered && !isAllowedMeetingTool(Tools.memory)) ||
-      (toolDefinitions ?? []).some((def) => !isAllowedFinalToolDef(def.name))
+      disallowedFinalToolDefs.length > 0
     ) {
+      logger.warn('[meeting] rejected tools not permitted by the meeting policy', {
+        toolDefinitions: disallowedFinalToolDefs,
+        codeEnvAvailable: effectiveCodeEnvAvailable === true,
+        attachedWorkspaceTools: attachedWorkspaceTools != null,
+        skillAuthoringAvailable,
+        inlineMemoryRegistered,
+      });
       throw new NativeMeetingTurnError('MEETING_TOOL_POLICY_DENIED', 403);
     }
   }

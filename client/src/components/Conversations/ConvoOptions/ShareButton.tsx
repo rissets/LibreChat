@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRecoilValue } from 'recoil';
 import { QRCodeSVG } from 'qrcode.react';
 import { useQueryClient } from '@tanstack/react-query';
-import { QueryKeys, dataService } from 'librechat-data-provider';
+import { QueryKeys, Constants, dataService } from 'librechat-data-provider';
 import { useGetSharedLinkQuery } from 'librechat-data-provider/react-query';
 import {
   ESide,
@@ -18,6 +18,7 @@ import {
 } from '@librechat/client';
 import { useGetLatestMessage, useLatestMessageId } from '~/hooks/Messages/useLatestMessage';
 import { useGetStartupConfig, fetchConversationMessages } from '~/data-provider';
+import { parseMeetingChatPath } from '~/data-provider/Meetings/path';
 import SharedLinkCopyButton from './SharedLinkCopyButton';
 import SharedLinkButton from './SharedLinkButton';
 import { buildShareLinkUrl } from '~/utils';
@@ -82,7 +83,15 @@ export default function ShareButton({
 
     return selectedMessageId;
   }, [conversationId, getActiveLatestMessage, latestMessageId, queryClient]);
-  const { data: share, isLoading } = useGetSharedLinkQuery(conversationId);
+  const { data: share, isLoading } = useGetSharedLinkQuery(conversationId, {
+    /* Meeting conversations are projected from the Control Panel and cannot be
+     * shared, so the lookup is refused; skip it instead of showing a failed request. */
+    enabled:
+      !!conversationId &&
+      conversationId !== Constants.NEW_CONVO &&
+      conversationId !== Constants.PENDING_CONVO &&
+      parseMeetingChatPath(conversationId) == null,
+  });
   const shareId = share?.shareId ?? '';
 
   // Keyed on the conversation too: this dialog outlives a switch between conversations,

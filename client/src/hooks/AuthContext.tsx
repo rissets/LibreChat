@@ -122,17 +122,22 @@ const AuthContextProvider = ({
     () =>
       debounce((userContext: TUserContext) => {
         const { token, isAuthenticated, user, redirect } = userContext;
-        setUser(user);
+        const normalizedUser =
+          user && !user.id && '_id' in user && typeof user._id === 'string'
+            ? { ...user, id: user._id }
+            : user;
+        const resolvedUserId = normalizedUser?.id;
+        setUser(normalizedUser);
         setToken(token);
         setTokenHeader(token);
         setIsAuthenticated(isAuthenticated);
         setIsAuthReady(true);
         if (isAuthenticated) {
-          setMeetingSession(user?.id, token);
+          setMeetingSession(resolvedUserId, token);
           setQueriesEnabled(true);
           /** A different account signing in without a logout must not inherit cached audio. */
-          setTTSCacheOwner(user?.id);
-          setPullRequestSessionOwner(user?.id);
+          setTTSCacheOwner(resolvedUserId);
+          setPullRequestSessionOwner(resolvedUserId);
           /**
            * Any accepted full-auth response supersedes a staged enrollment, whichever path minted
            * it. The setup endpoints trust the stored bearer independently of the session, so a

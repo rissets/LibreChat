@@ -45,6 +45,7 @@ export function useOpenMeetingChat(userId: string | undefined, meetingId: string
     retry: false,
     onSuccess: () =>
       Promise.all([
+        cache.invalidateQueries([QueryKeys.meetingWorkspace, userId, meetingId]),
         cache.invalidateQueries([QueryKeys.meetingChats, userId]),
         cache.invalidateQueries([QueryKeys.allConversations]),
       ]),
@@ -57,6 +58,8 @@ export function useMeetingChat(userId: string | undefined, meetingId: string, ch
     {
       enabled: !!userId && !!meetingId && !!chatId,
       retry: false,
+      staleTime: 0,
+      refetchOnMount: 'always',
       refetchInterval: 4000,
     },
   );
@@ -66,7 +69,16 @@ export function useSendMeetingChat(userId: string | undefined, meetingId: string
   return useMeetingMutation(dataService.sendMeetingChat, {
     mutationKey: [MutationKeys.sendMeetingChat, userId, meetingId],
     retry: false,
-    onSuccess: () => cache.invalidateQueries([QueryKeys.meetingChat, userId, meetingId, chatId]),
+    onSuccess: (_data, variables) => {
+      const resolvedChatId = variables.chatId || chatId;
+      return Promise.all([
+        cache.invalidateQueries([QueryKeys.meetingChat, userId, meetingId, resolvedChatId]),
+        cache.invalidateQueries([
+          QueryKeys.messages,
+          `meeting-${meetingId}-${resolvedChatId}`,
+        ]),
+      ]);
+    },
   });
 }
 export function useDeleteMeetingChat(userId: string | undefined, meetingId: string) {

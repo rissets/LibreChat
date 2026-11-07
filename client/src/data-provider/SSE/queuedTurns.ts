@@ -108,7 +108,7 @@ export function useAgentQueuedTurns(
   const query = useQuery({
     queryKey: agentQueuedTurnsQueryKey(conversationId),
     queryFn: () => transport.listQueued(conversationId, knownIds),
-    enabled: enabled && conversationId.length > 0,
+    enabled: enabled && conversationId.length > 0 && !/^meeting-/i.test(conversationId),
     staleTime: 1_000,
     /** A stopped indeterminate row can receive exact proof at any time. Its
      * cache may still be inside `staleTime`, so mount/focus must bypass the

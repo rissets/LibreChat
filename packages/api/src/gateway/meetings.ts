@@ -462,44 +462,67 @@ export function createMeetingGateway(deps: {
               checking = false;
             });
         }, 3000);
-        const response = await c.fetch(c.meetingURL.replace(/\/$/, '') + suffix, {
-          method: write ? 'POST' : 'GET',
-          headers,
-          ...(body ? { body } : {}),
-          signal,
-        });
-        if (!response.ok) {
-          const error = (await response.json().catch(() => ({}))) as { code?: string };
-          throw new MeetingError(
-            error.code && /^[A-Z_]+$/.test(error.code) ? error.code : 'MEETING_UNAVAILABLE',
-            [400, 401, 403, 404, 409, 413, 422, 429].includes(response.status)
-              ? response.status
-              : 503,
-          );
+        let value: unknown;
+        let receipt: string | null = null;
+        const maxAttempts = write || operation === 'confirmDelivery' ? 1 : 2;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          const response = await c.fetch(c.meetingURL.replace(/\/$/, '') + suffix, {
+            method: write ? 'POST' : 'GET',
+            headers,
+            ...(body ? { body } : {}),
+            signal,
+          });
+          if (!response.ok) {
+            const error = (await response.json().catch(() => ({}))) as { code?: string };
+            const code =
+              error.code && /^[A-Z_]+$/.test(error.code) ? error.code : 'MEETING_UNAVAILABLE';
+            if (
+              attempt + 1 < maxAttempts &&
+              ['MEETING_DELIVERY_CHANGED', 'MEETING_LIFECYCLE_CHANGED'].includes(code)
+            ) {
+              continue;
+            }
+            throw new MeetingError(
+              code,
+              [400, 401, 403, 404, 409, 413, 422, 429].includes(response.status)
+                ? response.status
+                : 503,
+            );
+          }
+          value = await response.json();
+          if (denied) throw new MeetingError('IDENTITY_SESSION_REVOKED', 401);
+          await checkIdentity();
+          if (operation === 'confirmDelivery') {
+            if (!controller.signal.aborted && !res.destroyed) res.status(200).json(value);
+            return;
+          }
+          receipt = response.headers.get('X-Meeting-Delivery');
+          if (!receipt) throw new MeetingError('MEETING_DELIVERY_EXPIRED', 403);
+          const confirmation = await c.fetch(c.meetingURL.replace(/\/$/, '') + '/delivery', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ receipt }),
+            signal,
+          });
+          if (!confirmation.ok) {
+            const error = (await confirmation.json().catch(() => ({}))) as { code?: string };
+            const code =
+              error.code && /^[A-Z_]+$/.test(error.code) ? error.code : 'MEETING_ACCESS_DENIED';
+            if (
+              attempt + 1 < maxAttempts &&
+              ['MEETING_DELIVERY_CHANGED', 'MEETING_LIFECYCLE_CHANGED'].includes(code)
+            ) {
+              continue;
+            }
+            throw new MeetingError(
+              code,
+              [401, 403, 404, 409].includes(confirmation.status) ? confirmation.status : 503,
+            );
+          }
+          break;
         }
         const responseStatus = descriptor?.status ?? 200;
-        const value: unknown = await response.json();
-        if (denied) throw new MeetingError('IDENTITY_SESSION_REVOKED', 401);
-        await checkIdentity();
-        if (operation === 'confirmDelivery') {
-          if (!controller.signal.aborted && !res.destroyed) res.status(200).json(value);
-          return;
-        }
-        const receipt = response.headers.get('X-Meeting-Delivery');
         if (!receipt) throw new MeetingError('MEETING_DELIVERY_EXPIRED', 403);
-        const confirmation = await c.fetch(c.meetingURL.replace(/\/$/, '') + '/delivery', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ receipt }),
-          signal,
-        });
-        if (!confirmation.ok) {
-          const error = (await confirmation.json().catch(() => ({}))) as { code?: string };
-          throw new MeetingError(
-            error.code && /^[A-Z_]+$/.test(error.code) ? error.code : 'MEETING_ACCESS_DENIED',
-            [401, 403, 404, 409].includes(confirmation.status) ? confirmation.status : 503,
-          );
-        }
         if (controller.signal.aborted || res.destroyed) return;
         res.setHeader('X-Meeting-Delivery', receipt);
         if (deps.respond) await deps.respond(value, req, res);

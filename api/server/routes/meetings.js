@@ -1,8 +1,39 @@
 const express = require('express');
-const { createMeetingGateway, gatewayConfig } = require('@librechat/api');
+const { meetingChatDetailSchema } = require('librechat-data-provider');
+const {
+  createMeetingGateway,
+  gatewayConfig,
+  mergeMeetingChatDetail,
+} = require('@librechat/api');
 const { requireJwtAuth } = require('~/server/middleware');
+const { logger, CLIENT_MESSAGE_SELECT } = require('@librechat/data-schemas');
 const router = express.Router();
-const handlers = createMeetingGateway({ config: gatewayConfig });
+const logFailure = (status, code, req, res) => {
+  logger.warn(`[meetings] ${req.method} ${req.originalUrl} refused: ${code} (${status})`, {
+    userId: req.user?.id,
+    code,
+    status,
+  });
+  res.status(status).json({ code });
+};
+const handlers = createMeetingGateway({
+  config: gatewayConfig,
+  failure: logFailure,
+});
+const chatHandler = createMeetingGateway({
+  config: gatewayConfig,
+  failure: logFailure,
+  respond: async (value, req, res) => {
+    const detail = meetingChatDetailSchema.parse(value);
+    const conversationId = `meeting-${detail.chat.meeting_id}-${detail.chat.id}`;
+    const { getMessages } = require('~/models');
+    const storedMessages = await getMessages(
+      { user: req.user.id, conversationId },
+      CLIENT_MESSAGE_SELECT,
+    );
+    res.status(200).json(mergeMeetingChatDetail(detail, storedMessages));
+  },
+}).chat;
 router.use(requireJwtAuth);
 router.get('/access', handlers.access);
 router.get('/', handlers.list);
@@ -10,7 +41,7 @@ router.post('/', handlers.create);
 router.get('/shared', handlers.sharedArtifacts);
 router.post('/delivery', handlers.confirmDelivery);
 router.get('/chats', handlers.chats);
-router.get('/chats/:chatId', handlers.chat);
+router.get('/chats/:chatId', chatHandler);
 router.get('/:id/workspace', handlers.workspace);
 router.post('/:id/workspace', handlers.saveWorkspace);
 router.post('/:id/chat', handlers.openChat);

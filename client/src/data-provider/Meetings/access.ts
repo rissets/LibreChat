@@ -101,9 +101,15 @@ export function observeMeetingLifecycle(
   const previous = lifecycles.get(key);
   const snapshot = JSON.stringify([value.generation, value.policy, value.classes]);
   lifecycles.set(key, { generation: value.generation, snapshot });
-  if (previous?.snapshot === snapshot) return;
-  const removals = value.removals.filter((row) => row.generation > (previous?.generation ?? 0));
-  if (previous || removals.length || Object.values(value.classes).some((kind) => !kind.available))
+  if (!previous) {
+    /** A load starts with no baseline: the session transition already erased cached
+     *  meeting data, so treating the first snapshot as a change would abort the reads
+     *  this page just started (blank chat after a refresh). */
+    return;
+  }
+  if (previous.snapshot === snapshot) return;
+  const removals = value.removals.filter((row) => row.generation > previous.generation);
+  if (removals.length || Object.values(value.classes).some((kind) => !kind.available))
     invalidateMeetingAccess(userId, meetingId, 'lifecycle', { value, removals });
 }
 
@@ -120,11 +126,23 @@ export function invalidateMeetingAccess(
     (reason !== 'lifecycle' || lifecycleResource(resource, change));
   if ((reason === 'access' || reason === 'lifecycle') && resourceSelected('meetingChat'))
     clearMeetingAttempts(target);
+  if (reason !== 'hidden') {
+    for (const key of generations.keys()) {
+      const [owner, meeting, resource] = key.split(':');
+      if (
+        matchesResource({ userId: owner, meetingId: meeting || undefined, resource }, target) &&
+        resourceSelected(resource)
+      )
+        generations.set(key, (generations.get(key) ?? 0) + 1);
+    }
+  }
   for (const listener of [...listeners])
     if (matches(listener, target)) listener.clear(reason, change);
-  for (const request of pending)
-    if (matchesResource(request, target) && resourceSelected(request.resource ?? ''))
-      request.controller.abort();
+  if (reason !== 'hidden') {
+    for (const request of pending)
+      if (matchesResource(request, target) && resourceSelected(request.resource ?? ''))
+        request.controller.abort();
+  }
   for (const client of clients) {
     // Ordinary history carries only meeting titles; remove affected projections synchronously.
     const historyKeys = [QueryKeys.allConversations, QueryKeys.archivedConversations];
@@ -171,14 +189,6 @@ export function invalidateMeetingAccess(
       )
         client.getMutationCache().remove(mutation);
   }
-  for (const key of generations.keys()) {
-    const [owner, meeting, resource] = key.split(':');
-    if (
-      matchesResource({ userId: owner, meetingId: meeting || undefined, resource }, target) &&
-      resourceSelected(resource)
-    )
-      generations.set(key, (generations.get(key) ?? 0) + 1);
-  }
 }
 
 export function subscribeMeetingAccessLoss(scope: Scope, clear: Listener['clear']) {
@@ -202,8 +212,11 @@ export function setMeetingSession(userId?: string, token?: string) {
   }
   const next = userId ? userId + ':' + sid : undefined;
   setMeetingAttemptSession(next);
-  if (session !== next) invalidateMeetingAccess(undefined, undefined, 'session');
-  if (session !== next) lifecycles.clear();
+  /** Only an established session transitioning to another (or logging out) invalidates
+   *  meeting access. On initial mount / page refresh, session starts undefined; wiping
+   *  the state then would abort the in-flight queries and clear the active conversation. */
+  if (session !== undefined && session !== next) invalidateMeetingAccess(undefined, undefined, 'session');
+  if (session !== undefined && session !== next) lifecycles.clear();
   session = next;
 }
 
@@ -229,12 +242,7 @@ async function guarded<T>(
       // The rejected projection has not reached cache or callbacks. Obtain one
       // current authorized read before classifying receipt drift as access loss.
       // Mutations never enter this path: an accepted operation is not replayed.
-      if (
-        !refreshRead ||
-        scope.resource !== 'meetings' ||
-        !receiptChanged(error) ||
-        combined.aborted
-      )
+      if (!refreshRead || !receiptChanged(error) || combined.aborted)
         throw error;
       value = await call(combined);
     }
@@ -247,7 +255,7 @@ async function guarded<T>(
       if (
         code === 'MEETING_SOURCE_UNAVAILABLE' ||
         code === 'MEETING_LIFECYCLE_CHANGED' ||
-        (scope.resource === 'meetings' && receiptChanged(error))
+        receiptChanged(error)
       ) {
         // A class may expire independently. Clear body authority now; the separately
         // authorized lifecycle projection identifies which controls remain available.
@@ -255,7 +263,14 @@ async function guarded<T>(
         throw error;
       }
       if (
-        ([401, 403].includes(error.response?.status ?? 0) && code !== 'MEETING_DELIVERY_EXPIRED') ||
+        ([401, 403].includes(error.response?.status ?? 0) &&
+          /** The LibreChat meeting gateway refuses native reads (subagents, tool calls,
+           *  share links) on a meeting conversation; that is not a Control Panel
+           *  access change, so tearing down the meeting data would only cause a refetch
+           *  loop and empty panels. */
+          code !== 'MEETING_DELIVERY_EXPIRED' &&
+          code !== 'MEETING_DELIVERY_CHANGED' &&
+          code !== 'MEETING_CHAT_OPERATION_DENIED') ||
         (code &&
           [
             'MEETING_ARTIFACT_NOT_FOUND',

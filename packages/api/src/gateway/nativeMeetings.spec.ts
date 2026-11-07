@@ -5,6 +5,8 @@ import type { GatewayDeps } from './config';
 import {
   createNativeMeetingGateway,
   formatNativeMeetingContextInstructions,
+  mergeMeetingChatDetail,
+  mergeMeetingMessages,
   rejectGenericMeetingRequests,
   resolveNativeMeetingTurnContext,
   NativeMeetingTurnError,
@@ -263,6 +265,104 @@ it('merges workspace CP turns with stored native messages when opening the same 
     operation,
   ]);
   expect(body[1].parentMessageId).toBe('stored-1');
+});
+
+it('orders newer native turns after earlier CP turns without parent cycles and projects them into workspace chat history', () => {
+  const cpTurn = {
+    id: operation,
+    purpose: 'answer' as const,
+    input_kind: 'text' as const,
+    question: 'hai',
+    context_revision: '1',
+    context_segment_count: 1,
+    context_end_ms: 1000,
+    attempt_id: operation,
+    state: 'completed' as const,
+    receipt_id: null,
+    receipt_state: null,
+    error_code: null,
+    policy_revision: '1',
+    created_at: '2026-11-05T01:00:00Z',
+    provenance: {},
+    content: {
+      answer: 'Halo.',
+      citations: [],
+      summary: [],
+      decisions: [],
+      unresolved: [],
+      actions: [],
+      unknowns: [],
+      enhanced_notes: [],
+      discussion_qa: [],
+    },
+  };
+  const nativeUserId = '11111111-1111-4111-8111-111111111111';
+  const nativeReplyId = '22222222-2222-4222-8222-222222222222';
+  const stored = [
+    {
+      messageId: nativeUserId,
+      conversationId,
+      parentMessageId: operation,
+      text: 'apakah ada tugas yang harus diselesaikan?',
+      sender: 'User',
+      isCreatedByUser: true,
+      createdAt: '2026-11-05T01:05:00Z',
+    },
+    {
+      messageId: nativeReplyId,
+      conversationId,
+      parentMessageId: nativeUserId,
+      text: '',
+      content: [{ type: 'text' as const, text: 'Tidak ada tugas yang teridentifikasi.' }],
+      sender: 'Model',
+      isCreatedByUser: false,
+      createdAt: '2026-11-05T01:05:04Z',
+    },
+  ];
+  const mergedMessages = mergeMeetingMessages(
+    [
+      {
+        messageId: `${operation}-user`,
+        conversationId,
+        parentMessageId: '00000000-0000-0000-0000-000000000000',
+        text: 'hai',
+        sender: 'User',
+        isCreatedByUser: true,
+        createdAt: cpTurn.created_at,
+      },
+      {
+        messageId: operation,
+        conversationId,
+        parentMessageId: `${operation}-user`,
+        text: 'Halo.',
+        sender: 'Meeting copilot',
+        isCreatedByUser: false,
+        createdAt: cpTurn.created_at,
+      },
+    ],
+    stored,
+  );
+  expect(mergedMessages.map((m) => m.messageId)).toEqual([
+    `${operation}-user`,
+    operation,
+    nativeUserId,
+    nativeReplyId,
+  ]);
+  expect(mergedMessages.map((m) => m.parentMessageId)).toEqual([
+    '00000000-0000-0000-0000-000000000000',
+    `${operation}-user`,
+    operation,
+    nativeUserId,
+  ]);
+  const mergedDetail = mergeMeetingChatDetail({ chat: metadata, operations: [cpTurn] }, stored);
+  expect(mergedDetail.operations.map((op) => [op.id, op.question, op.content?.answer])).toEqual([
+    [operation, 'hai', 'Halo.'],
+    [
+      nativeReplyId,
+      'apakah ada tugas yang harus diselesaikan?',
+      'Tidak ada tugas yang teridentifikasi.',
+    ],
+  ]);
 });
 
 it('prevents caching even for malformed meeting read and delete requests', async () => {

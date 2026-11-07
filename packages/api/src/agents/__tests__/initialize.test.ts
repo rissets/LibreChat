@@ -7216,4 +7216,134 @@ describe('initializeAgent — inference trust boundary', () => {
       ),
     ).rejects.toMatchObject({ code: 'MEETING_DELIVERY_CHANGED', status: 409 });
   });
+
+  it('does not register the background poll tool on a meeting turn that allows execute_code', async () => {
+    const meetingConvoId =
+      'meeting-00000000-0000-4000-8000-000000000072-00000000-0000-4000-8000-000000000073';
+    const { agent, req, res, loadTools, db } = createMocks({
+      provider: 'Gateway',
+      overrideProvider: Providers.OPENAI,
+      model: 'bpbatam/qwen-local',
+      loadedToolDefinitions: [
+        { name: Tools.execute_code, description: 'Run code', parameters: {} },
+      ],
+    });
+    agent.tools = [Tools.execute_code];
+    req.nativeMeetingContext = {
+      conversationId: meetingConvoId,
+      meetingId: '00000000-0000-4000-8000-000000000072',
+      chatId: '00000000-0000-4000-8000-000000000073',
+      endpoint: 'Gateway',
+      model: 'bpbatam/qwen-local',
+      revision: 'a'.repeat(64),
+      notesRevision: 2,
+      segmentCount: 1,
+      allowedTools: ['skills', 'skill', Tools.file_search, Tools.execute_code, Tools.memory],
+      receipt: 'receipt-token',
+      instructions: '<meeting_context>\nAuthorized meeting context\n</meeting_context>',
+      context: {
+        revision: 'a'.repeat(64),
+        chat_id: '00000000-0000-4000-8000-000000000073',
+        notes: {
+          id: '00000000-0000-4000-8000-000000000072',
+          revision: 2,
+          text: 'Catatan rapat privat',
+        },
+        segments: [],
+      },
+      confirmDelivery: jest.fn(async () => undefined),
+      toJSON: () => ({}),
+    } as unknown as NonNullable<typeof req.nativeMeetingContext>;
+
+    const initialized = await initializeAgent(
+      {
+        req,
+        res,
+        agent,
+        loadTools,
+        conversationId: meetingConvoId,
+        endpointOption: { endpoint: EModelEndpoint.agents },
+        allowedProviders: new Set([Providers.OPENAI, 'Gateway']),
+        isInitialAgent: true,
+        codeEnvAvailable: true,
+        backgroundToolsAvailable: true,
+      },
+      db,
+    );
+
+    const names = (initialized.toolDefinitions ?? []).map((def) => def.name);
+    expect(names).not.toContain('check_background_task');
+  });
+
+  it('drops action tools on a meeting turn when the actions capability is enabled deployment-wide', async () => {
+    const meetingConvoId =
+      'meeting-00000000-0000-4000-8000-000000000072-00000000-0000-4000-8000-000000000073';
+    const { agent, req, res, loadTools, db } = createMocks({
+      provider: 'Gateway',
+      overrideProvider: Providers.OPENAI,
+      model: 'bpbatam/qwen-local',
+      loadedToolDefinitions: [
+        { name: 'create_file', description: 'Create a file', parameters: {} },
+        { name: 'action_tool_action_domain', description: 'Action', parameters: {} },
+      ],
+    });
+    /** `actionsEnabled` mirrors the deployment capability from librechat.yaml, so it
+     *  is true for every agent. A meeting turn must not fail on it. */
+    loadTools.mockResolvedValueOnce({
+      tools: [],
+      toolContextMap: {},
+      dynamicToolContextMap: {},
+      userMCPAuthMap: undefined,
+      toolRegistry: undefined,
+      toolDefinitions: [
+        { name: 'create_file', description: 'Create a file', parameters: {} },
+        { name: 'action_tool_action_domain', description: 'Action', parameters: {} },
+      ],
+      hasDeferredTools: false,
+      actionsEnabled: true,
+      oauthActionToolNames: ['action_tool_action_domain'],
+    });
+    req.nativeMeetingContext = {
+      conversationId: meetingConvoId,
+      meetingId: '00000000-0000-4000-8000-000000000072',
+      chatId: '00000000-0000-4000-8000-000000000073',
+      endpoint: 'Gateway',
+      model: 'bpbatam/qwen-local',
+      revision: 'a'.repeat(64),
+      notesRevision: 2,
+      segmentCount: 1,
+      allowedTools: ['create_file'],
+      receipt: 'receipt-token',
+      instructions: '<meeting_context>\nAuthorized meeting context\n</meeting_context>',
+      context: {
+        revision: 'a'.repeat(64),
+        chat_id: '00000000-0000-4000-8000-000000000073',
+        notes: {
+          id: '00000000-0000-4000-8000-000000000072',
+          revision: 2,
+          text: 'Catatan rapat privat',
+        },
+        segments: [],
+      },
+      confirmDelivery: jest.fn(async () => undefined),
+      toJSON: () => ({}),
+    } as unknown as NonNullable<typeof req.nativeMeetingContext>;
+
+    const initialized = await initializeAgent(
+      {
+        req,
+        res,
+        agent,
+        loadTools,
+        conversationId: meetingConvoId,
+        endpointOption: { endpoint: EModelEndpoint.agents },
+        allowedProviders: new Set([Providers.OPENAI, 'Gateway']),
+        isInitialAgent: true,
+      },
+      db,
+    );
+
+    expect(initialized.toolDefinitions?.map((def) => def.name)).toEqual(['create_file']);
+  });
+
 });

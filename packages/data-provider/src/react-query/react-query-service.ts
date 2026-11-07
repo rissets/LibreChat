@@ -46,7 +46,9 @@ export const useGetSharedLinkQuery = (
       enabled:
         !!conversationId &&
         conversationId !== Constants.NEW_CONVO &&
-        conversationId !== Constants.PENDING_CONVO,
+        conversationId !== Constants.PENDING_CONVO &&
+        !/^meeting-/i.test(conversationId) &&
+        (config?.enabled ?? true),
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       refetchOnMount: false,

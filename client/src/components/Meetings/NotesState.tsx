@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -35,11 +36,11 @@ const Context = createContext<NotesState | null>(null);
 function NotesSession({
   userId,
   meetingId,
-  children,
+  publish,
 }: {
   userId?: string;
   meetingId: string;
-  children: ReactNode;
+  publish: (value: NotesState) => void;
 }) {
   const workspace = useMeetingWorkspace(userId, meetingId);
   const { beforeSwitch } = useMeetingRuntime();
@@ -146,13 +147,13 @@ function NotesSession({
     return () => window.clearTimeout(timer);
   }, [dirty, saving, failed, conflict, text, flush]);
 
-  const setText = (value: string) => {
+  const setText = useCallback((value: string) => {
     if (current.current.denied) return;
     current.current.text = value;
     updateText(value);
     setDirty(value !== current.current.saved);
     setFailed(false);
-  };
+  }, []);
   const flushAll = useCallback(async () => {
     if (inFlight.current && !(await inFlight.current)) return false;
     while (current.current.text !== current.current.saved) if (!(await flush())) return false;
@@ -166,65 +167,77 @@ function NotesSession({
       }),
     [beforeSwitch, flushAll],
   );
-  const configure = async (settings: Settings) => {
-    if (!(await flushAll())) return false;
-    try {
-      const value = await saveNotes({
-        id: meetingId,
-        expected_revision: current.current.revision,
-        notes: current.current.saved,
-        ...settings,
-      });
-      current.current.revision = value.notes.revision;
-      return true;
-    } catch {
-      setFailed(true);
-      void refetch();
-      return false;
-    }
-  };
-  const resolve = (useServer: boolean) => {
-    const notes = remote.current?.notes;
-    if (!notes) return;
-    current.current.revision = notes.revision;
-    current.current.saved = notes.text;
-    current.current.conflict = false;
-    setConflict(false);
-    setFailed(false);
-    if (useServer) setText(notes.text);
-    else setDirty(current.current.text !== notes.text);
-  };
-  return (
-    <Context.Provider
-      value={{
-        meetingId,
-        text,
-        dirty,
-        saving,
-        failed,
-        conflict,
-        setText,
-        flush: flushAll,
-        configure,
-        resolve,
-      }}
-    >
-      {children}
-    </Context.Provider>
+  const configure = useCallback(
+    async (settings: Settings) => {
+      if (!(await flushAll())) return false;
+      try {
+        const value = await saveNotes({
+          id: meetingId,
+          expected_revision: current.current.revision,
+          notes: current.current.saved,
+          ...settings,
+        });
+        current.current.revision = value.notes.revision;
+        return true;
+      } catch {
+        setFailed(true);
+        void refetch();
+        return false;
+      }
+    },
+    [flushAll, meetingId, refetch, saveNotes],
   );
+  const resolve = useCallback(
+    (useServer: boolean) => {
+      const notes = remote.current?.notes;
+      if (!notes) return;
+      current.current.revision = notes.revision;
+      current.current.saved = notes.text;
+      current.current.conflict = false;
+      setConflict(false);
+      setFailed(false);
+      if (useServer) setText(notes.text);
+      else setDirty(current.current.text !== notes.text);
+    },
+    [setText],
+  );
+  const value = useMemo<NotesState>(
+    () => ({
+      meetingId,
+      text,
+      dirty,
+      saving,
+      failed,
+      conflict,
+      setText,
+      flush: flushAll,
+      configure,
+      resolve,
+    }),
+    [meetingId, text, dirty, saving, failed, conflict, setText, flushAll, configure, resolve],
+  );
+  useLayoutEffect(() => {
+    publish(value);
+  }, [publish, value]);
+  return null;
 }
 
 export function MeetingNotesProvider({ children }: { children: ReactNode }) {
   const runtime = useMeetingRuntime();
-  if (!runtime.session) return <>{children}</>;
+  const [state, setState] = useState<NotesState | null>(null);
+  const value = runtime.session && state?.meetingId === runtime.session.id ? state : null;
   return (
-    <NotesSession
-      key={runtime.userId + ':' + runtime.session.id}
-      userId={runtime.userId}
-      meetingId={runtime.session.id}
-    >
+    <Context.Provider value={value}>
+      {runtime.session && (
+        <NotesSession
+          key={runtime.userId + ':' + runtime.session.id}
+          userId={runtime.userId}
+          meetingId={runtime.session.id}
+          publish={setState}
+        />
+      )}
       {children}
-    </NotesSession>
+    </Context.Provider>
   );
 }
 export function useMeetingNotes(meetingId: string) {

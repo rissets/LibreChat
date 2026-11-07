@@ -1282,8 +1282,19 @@ class BaseClient {
       return [];
     }
 
-    const messages =
+    let messages =
       (await db.getMessages({ conversationId, user: this.user }, '+privateTextTokens')) ?? [];
+    if (this.options?.req?.nativeMeetingContext != null) {
+      const { getProjectedMeetingMessages, mergeMeetingMessages } = require('@librechat/api');
+      messages = mergeMeetingMessages(getProjectedMeetingMessages(conversationId), messages);
+      if (
+        messages.length > 0 &&
+        !messages.some((entry) => (entry.messageId ?? entry.id) === parentMessageId)
+      ) {
+        parentMessageId =
+          messages[messages.length - 1].messageId ?? messages[messages.length - 1].id;
+      }
+    }
     /** A client that reads beyond the walk below (which stops at a checkpoint
      *  summary) receives every row here; the rest keep nothing. */
     this.onHistoryLoaded?.(messages);

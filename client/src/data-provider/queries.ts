@@ -96,6 +96,9 @@ async function hasActiveSharedLink(
   conversationId: string,
   signal?: AbortSignal,
 ): Promise<boolean | undefined> {
+  if (/^meeting-/i.test(conversationId)) {
+    return false;
+  }
   try {
     const link = await dataService.getSharedLink(conversationId, signal);
     return link.shareId != null;

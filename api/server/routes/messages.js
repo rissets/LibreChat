@@ -94,7 +94,7 @@ router.use(
     config: gatewayConfig,
     loadMessages: async (req, conversationId) => {
       const { getMessages } = require('~/models');
-      return getMessages({ user: req.user.id, conversationId });
+      return getMessages({ user: req.user.id, conversationId }, CLIENT_MESSAGE_SELECT);
     },
   }).messages,
 );

@@ -33,7 +33,10 @@ export default function useTraceControl({
   enabled?: boolean;
 }): TraceControl {
   const setTraceConversation = useSetAtom(traceViewerConversationAtom);
-  const persisted = conversationId != null && !UNPERSISTED_IDS.has(conversationId);
+  const persisted =
+    conversationId != null &&
+    !UNPERSISTED_IDS.has(conversationId) &&
+    !/^meeting-/i.test(conversationId);
   const eligible = enabled && persisted && resolveTraceViewerConfig(traceViewer).enabled;
 
   const { data } = useConversationTraceAvailabilityQuery(conversationId ?? '', {

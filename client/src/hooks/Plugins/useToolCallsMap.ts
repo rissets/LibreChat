@@ -1,6 +1,7 @@
 import { ToolCallResult } from 'librechat-data-provider';
 import { useMemo } from 'react';
 import { useGetToolCalls } from '~/data-provider';
+import { parseMeetingChatPath } from '~/data-provider/Meetings/path';
 import { mapToolCalls, logger } from '~/utils';
 
 type ToolCallsMap = {
@@ -16,6 +17,9 @@ export default function useToolCallsMap({
     { conversationId },
     {
       select: (res) => mapToolCalls(res),
+      /** Meeting turns persist through the Control Panel, so LibreChat holds no
+       *  tool-call records for that conversation and the gateway denies the read. */
+      enabled: parseMeetingChatPath(conversationId) == null,
     },
   );
 
