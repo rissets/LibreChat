@@ -76,6 +76,8 @@ function UnifiedSidebar({
 
   const links = useUnifiedSidebarLinks();
   const isInsightsRoute = location.pathname.startsWith('/insights');
+  const isMeetingRoute = location.pathname.startsWith('/meetings');
+  const routeActiveId = isInsightsRoute ? 'insights' : isMeetingRoute ? 'meetings' : undefined;
   const panelExpanded = expanded && !isInsightsRoute;
 
   /** The aside's max width is a viewport percentage, so the announced range has to track
@@ -256,7 +258,7 @@ function UnifiedSidebar({
             onNewChat={handleCollapse}
             switchToHistory={switchToHistory}
             onLeaveInsights={handleLeaveInsights}
-            routeActiveId={isInsightsRoute ? 'insights' : undefined}
+            routeActiveId={routeActiveId}
           />
           {/* Above the panel rather than inside it: the marketplace is a
               destination like the panels themselves, not a row of whichever
@@ -271,7 +273,7 @@ function UnifiedSidebar({
           <MobileShortcutTargets
             links={links}
             onLeaveInsights={handleLeaveInsights}
-            routeActiveId={isInsightsRoute ? 'insights' : undefined}
+            routeActiveId={routeActiveId}
           />
           <MobileBottomBar links={links} />
         </ActivePanelProvider>

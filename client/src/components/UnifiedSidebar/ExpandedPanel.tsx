@@ -1,4 +1,4 @@
-import { memo, useCallback, Suspense } from 'react';
+import { memo, useCallback, useEffect, useState, Suspense } from 'react';
 import { SquarePen } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { Skeleton, Sidebar, Button, TooltipAnchor } from '@librechat/client';
@@ -64,6 +64,7 @@ const NavIconButton = memo(function NavIconButton({
   onCollapse,
   onNavigate,
   onLeaveInsights,
+  onSelect,
 }: {
   link: NavLink;
   isActive: boolean;
@@ -73,12 +74,14 @@ const NavIconButton = memo(function NavIconButton({
   onCollapse?: () => void;
   onNavigate?: () => void;
   onLeaveInsights?: () => void;
+  onSelect: (id: string) => void;
 }) {
   const localize = useLocalize();
   const tooltipSide = inlineSide(useDirection(), 'end');
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLButtonElement>) => {
+      onSelect(link.id);
       if (link.onClick) {
         link.onClick(e);
         onNavigate?.();
@@ -97,7 +100,17 @@ const NavIconButton = memo(function NavIconButton({
         onLeaveInsights?.();
       }
     },
-    [link, isActive, setActive, expanded, onExpand, onCollapse, onNavigate, onLeaveInsights],
+    [
+      link,
+      isActive,
+      setActive,
+      expanded,
+      onExpand,
+      onCollapse,
+      onNavigate,
+      onLeaveInsights,
+      onSelect,
+    ],
   );
 
   return (
@@ -145,6 +158,14 @@ function ExpandedPanel({
   const { active, setActive } = useActivePanel();
   const effectiveActive = resolveActivePanel(active, links);
   const isInsightsRoute = location.pathname.startsWith('/insights');
+  const isMeetingRoute = location.pathname.startsWith('/meetings');
+  const [selection, setSelection] = useState<{ pathname: string; id: string } | null>(null);
+  const selectedId = selection?.pathname === location.pathname ? selection.id : undefined;
+  useEffect(() => setSelection(null), [location.pathname]);
+  const handleSelect = useCallback(
+    (id: string) => setSelection(id === 'meetings' ? null : { pathname: location.pathname, id }),
+    [location.pathname],
+  );
 
   const toggleLabel = expanded ? 'com_nav_close_sidebar' : 'com_nav_open_sidebar';
   const toggleClick = expanded ? onCollapse : onExpand;
@@ -182,9 +203,11 @@ function ExpandedPanel({
             key={link.id}
             link={link}
             isActive={
-              link.id === 'insights'
-                ? isInsightsRoute
-                : !isInsightsRoute && link.id === effectiveActive
+              isInsightsRoute
+                ? link.id === 'insights'
+                : isMeetingRoute
+                  ? link.id === (selectedId ?? 'meetings')
+                  : link.id === effectiveActive
             }
             expanded={expanded ?? true}
             setActive={setActive}
@@ -192,6 +215,7 @@ function ExpandedPanel({
             onCollapse={onCollapse}
             onNavigate={onNavigate}
             onLeaveInsights={isInsightsRoute ? onLeaveInsights : undefined}
+            onSelect={handleSelect}
           />
         ))}
       </div>

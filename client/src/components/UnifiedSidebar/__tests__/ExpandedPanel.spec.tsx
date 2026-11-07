@@ -106,7 +106,9 @@ function renderPanel({
   onNavigate,
   initialPanel = DEFAULT_PANEL,
   switchToHistory = true,
+  initialPath = '/',
 }: {
+  initialPath?: string;
   expanded?: boolean;
   links?: NavLink[];
   onCollapse?: jest.Mock;
@@ -118,7 +120,7 @@ function renderPanel({
   getDefaultStore().set(activePanelAtom, initialPanel);
 
   const result = render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialPath]}>
       <QueryClientProvider client={createQueryClient()}>
         <RecoilRoot>
           <ActivePanelProvider>
@@ -143,6 +145,49 @@ describe('ExpandedPanel', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     localStorage.clear();
+  });
+
+  it.each(['/meetings', '/meetings/123'])(
+    'highlights meeting instead of chat on %s',
+    (initialPath) => {
+      renderPanel({
+        initialPath,
+        links: [
+          ...createLinks(),
+          { title: 'com_meeting_title', icon: NotebookPen, id: 'meetings', onClick: jest.fn() },
+        ],
+      });
+      expect(screen.getByTestId('nav-panel-meetings')).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByTestId('nav-panel-conversations')).toHaveAttribute(
+        'aria-pressed',
+        'false',
+      );
+    },
+  );
+
+  it('highlights the selected panel when switching away from meeting', () => {
+    renderPanel({
+      initialPath: '/meetings',
+      links: [
+        ...createLinks(),
+        { title: 'com_meeting_title', icon: NotebookPen, id: 'meetings', onClick: jest.fn() },
+      ],
+    });
+    fireEvent.click(screen.getByTestId('nav-panel-prompts'));
+    expect(screen.getByTestId('nav-panel-prompts')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('nav-panel-meetings')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it.each(['/c/meeting-123', '/c/ordinary-chat'])('highlights chat on %s', (initialPath) => {
+    renderPanel({
+      initialPath,
+      links: [
+        ...createLinks(),
+        { title: 'com_meeting_title', icon: NotebookPen, id: 'meetings', onClick: jest.fn() },
+      ],
+    });
+    expect(screen.getByTestId('nav-panel-conversations')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('nav-panel-meetings')).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('collapses without passing the click event as an after-slide callback', () => {
