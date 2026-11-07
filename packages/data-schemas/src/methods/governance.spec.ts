@@ -23,6 +23,15 @@ beforeAll(async () => {
   });
   applyGovernance(schema);
   mongoose.model('Skill', schema);
+  mongoose.model(
+    'File',
+    new Schema({
+      user: Schema.Types.ObjectId,
+      file_id: String,
+      filename: String,
+      tenantId: String,
+    }),
+  );
   mongoose.model('Group', groupSchema);
   mongoose.model('AclEntry', aclEntrySchema);
   mongoose.model('User', new Schema({ idOnTheSource: String, role: String, tenantId: String }));
@@ -176,6 +185,37 @@ it('materializes managed assignments into native view/use ACL groups and preserv
       await mongoose.models.Group.countDocuments({ idOnTheSource: 'bpbatam:asset:' + policy }),
     ).toBe(1);
   });
+});
+
+it('exposes and searches native filenames in file inventory', async () => {
+  const user = new mongoose.Types.ObjectId();
+  await mongoose.models.File.create({
+    user,
+    file_id: 'file-test',
+    filename: 'synthetic-document.txt',
+    tenantId: 'file-test',
+  });
+  const repo = createGovernanceRepository(mongoose);
+  const page = await repo.page!('files', String(user), 'file-test', {
+    page: 1,
+    page_size: 10,
+    search: 'synthetic-document',
+    sort_by: 'display_name',
+    sort_order: 'asc',
+    filter_by: '',
+    filter_value: '',
+    available: false,
+    owner_ids: [String(user)],
+  });
+  expect(page.total).toBe(1);
+  expect(page.resources[0]).toMatchObject({
+    resource_id: 'file-test',
+    filename: 'synthetic-document.txt',
+    name: 'synthetic-document.txt',
+  });
+  expect((await repo.list('files', String(user), 'file-test', '', 10))[0].filename).toBe(
+    'synthetic-document.txt',
+  );
 });
 
 it('pages metadata in Mongo after tenant, ownership, search and sorting, without exposing content', async () => {

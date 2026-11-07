@@ -35,6 +35,7 @@ a{text-underline-offset:.2em}
 .bp-page footer{padding-top:24px;border-top:1px solid var(--bp-border);color:var(--bp-muted);font-size:13px}
 .bp-note{background:var(--bp-soft);padding:16px 20px;border-radius:12px}
 @media(max-width:640px){.bp-page{padding:24px 16px}.bp-page header{align-items:flex-start;flex-direction:column}.bp-page nav{gap:12px 16px}.bp-page h1{font-size:28px}.bp-brand img{width:170px}}
-@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
+/* Brand-page motion must not create transitions on the application subtree. */
+@media(prefers-reduced-motion:reduce){.bp-page,.bp-page *,.bp-page *::before,.bp-page *::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
 
 .bp-logo-standard{width:204px;height:50px}

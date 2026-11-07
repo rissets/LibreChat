@@ -124,6 +124,7 @@ import {
   hydrateChatProjectContextResources,
 } from '../projects/context';
 import { assertChatProjectInstructions, ChatProjectResourcesChangedError } from '../projects/turn';
+import { NativeMeetingTurnError } from '../gateway/nativeMeetings';
 import { extractAgentContent, extractSkillContent } from '../protection/adapters/submissions';
 import { createConfiguredContentInspector, inspectContent } from '../protection/runtime';
 import { assertAgentAttachmentLimits, isModelBoundAttachmentFile } from './attachments';
@@ -1244,8 +1245,43 @@ export async function initializeAgent(
     useChatProjectContext ?? params.req?.chatProjectContextEnabled === true;
   assertToolOptionsWithinLimits(suppliedAgent.tool_options);
   const inputAgent = restoreAgentInferenceInput(suppliedAgent);
-  const agent = shouldUseChatProjectContext ? { ...inputAgent } : inputAgent;
+  const hasNativeMeetingContext = runtime.nativeMeetingContext != null;
+  const agent =
+    shouldUseChatProjectContext || hasNativeMeetingContext ? { ...inputAgent } : inputAgent;
   const { user, appConfig } = runtime;
+  const allowedMeetingTools =
+    hasNativeMeetingContext && runtime.nativeMeetingContext
+      ? new Set(runtime.nativeMeetingContext.allowedTools ?? [])
+      : null;
+  const isAllowedMeetingTool = (toolName: string | undefined): boolean =>
+    typeof toolName === 'string' &&
+    toolName.length > 0 &&
+    toolName !== Tools.web_search &&
+    (allowedMeetingTools?.has(toolName) ?? false);
+  if (hasNativeMeetingContext && runtime.nativeMeetingContext) {
+    if (conversationId !== runtime.nativeMeetingContext.conversationId) {
+      throw new NativeMeetingTurnError('MEETING_CHAT_OPERATION_DENIED', 403);
+    }
+    if (
+      normalizeEndpointName(agent.provider) !==
+      normalizeEndpointName(runtime.nativeMeetingContext.endpoint)
+    ) {
+      throw new NativeMeetingTurnError('MANAGED_ENDPOINT_REQUIRED', 403);
+    }
+    if (agent.model !== runtime.nativeMeetingContext.model) {
+      throw new NativeMeetingTurnError('MODEL_NOT_ASSIGNED', 403);
+    }
+    if (
+      (agent.actions?.length ?? 0) > 0 ||
+      (agent.edges?.length ?? 0) > 0 ||
+      (agent.agent_ids?.length ?? 0) > 0 ||
+      agent.subagents?.enabled === true ||
+      (agent.subagents?.agent_ids?.length ?? 0) > 0 ||
+      (agent.subagents?.graphs?.length ?? 0) > 0
+    ) {
+      throw new NativeMeetingTurnError('MEETING_TOOL_POLICY_DENIED', 403);
+    }
+  }
   const requestFileOwnerId = user?.id;
   const requestFileOwnerScope: FileOwnerScope | undefined = requestFileOwnerId
     ? { userId: requestFileOwnerId, tenantId: user?.tenantId }
@@ -1558,6 +1594,16 @@ export async function initializeAgent(
 
   const effectiveToolNames =
     extraAllowedToolNames.length > 0 ? [...baseToolNames, ...extraAllowedToolNames] : baseToolNames;
+  const isMeetingSkillAuthoringAllowed =
+    isAllowedMeetingTool('create_file') && isAllowedMeetingTool('edit_file');
+  if (hasNativeMeetingContext) {
+    if (
+      effectiveToolNames.some((tool) => !isAllowedMeetingTool(tool)) ||
+      (skillAuthoringAvailable && !isMeetingSkillAuthoringAllowed)
+    ) {
+      throw new NativeMeetingTurnError('MEETING_TOOL_POLICY_DENIED', 403);
+    }
+  }
   const requestedToolNames = effectiveToolNames;
   const provider = agent.provider;
   agent.endpoint = provider;
@@ -1600,6 +1646,20 @@ export async function initializeAgent(
   });
 
   const llmConfig = options.llmConfig as Record<string, unknown>;
+  if (hasNativeMeetingContext && runtime.nativeMeetingContext) {
+    if (
+      typeof llmConfig?.model !== 'string' ||
+      llmConfig.model !== runtime.nativeMeetingContext.model
+    ) {
+      throw new NativeMeetingTurnError('MODEL_NOT_ASSIGNED', 403);
+    }
+    if (
+      hasProviderWebSearch(options.tools, llmConfig) ||
+      (options.tools ?? []).some((tool) => !isAllowedMeetingTool(getToolName(tool)))
+    ) {
+      throw new NativeMeetingTurnError('MEETING_TOOL_POLICY_DENIED', 403);
+    }
+  }
   const webSearchDenied =
     hasProviderWebSearch(options.tools, llmConfig) &&
     !(await resolveWebSearchGrant({
@@ -2255,7 +2315,7 @@ export async function initializeAgent(
     loadToolsResult = await callLoadTools(baseToolNames);
   }
 
-  const {
+  let {
     toolRegistry,
     toolContextMap,
     dynamicToolContextMap,
@@ -2290,6 +2350,32 @@ export async function initializeAgent(
     codeExecutionContext: undefined,
     repositoryInstructionSource: undefined,
   };
+  if (hasNativeMeetingContext) {
+    if (actionsEnabled === true || (oauthActionToolNames?.length ?? 0) > 0) {
+      throw new NativeMeetingTurnError('MEETING_TOOL_POLICY_DENIED', 403);
+    }
+    /** A meeting answer is produced by the Control Panel, so LibreChat never
+     *  needs the agent's own tool set: drop what the meeting policy disallows
+     *  instead of failing the whole turn over a config default. */
+    const droppedDefs = (loadedToolDefinitions ?? [])
+      .filter((def) => !isAllowedMeetingTool(def.name))
+      .map((def) => def.name);
+    const droppedTools = (structuredTools ?? [])
+      .filter((tool) => !isAllowedMeetingTool(getToolName(tool)))
+      .map((tool) => getToolName(tool));
+    if (droppedDefs.length > 0 || droppedTools.length > 0) {
+      logger.warn('[meeting] dropped tools not permitted for a meeting turn', {
+        toolDefinitions: droppedDefs,
+        tools: droppedTools,
+      });
+      loadedToolDefinitions = (loadedToolDefinitions ?? []).filter((def) =>
+        isAllowedMeetingTool(def.name),
+      );
+      structuredTools = (structuredTools ?? []).filter((tool) =>
+        isAllowedMeetingTool(getToolName(tool)),
+      );
+    }
+  }
   const trustedCodeExecutionContext = loadedCodeExecutionContext ?? codeExecutionContext;
   const attachedWorkspaceOperations =
     trustedCodeExecutionContext.environmentType === 'attached'
@@ -2700,6 +2786,68 @@ export async function initializeAgent(
     recordCapabilityToolNames(AgentCapabilities.skills, skillResult.toolNames);
   }
 
+  if (hasNativeMeetingContext) {
+    const isAllowedFinalToolDef = (name: string): boolean => {
+      if (isAllowedMeetingTool(name)) return true;
+      if (
+        name !== Tools.web_search &&
+        isAllowedMeetingTool(Tools.execute_code) &&
+        capabilityToolNames.get(AgentCapabilities.execute_code)?.includes(name)
+      ) {
+        return true;
+      }
+      if (
+        name !== Tools.web_search &&
+        isAllowedMeetingTool(Tools.memory) &&
+        capabilityToolNames.get(AgentCapabilities.memory)?.includes(name)
+      ) {
+        return true;
+      }
+      if (
+        !skillAuthoringAvailable &&
+        (!attachedWorkspaceTools || isAllowedMeetingTool(Tools.execute_code)) &&
+        (name === 'skill' || name === 'read_file') &&
+        capabilityToolNames.get(AgentCapabilities.skills)?.includes(name)
+      ) {
+        return true;
+      }
+      if (
+        name !== Tools.web_search &&
+        skillAuthoringAvailable &&
+        isMeetingSkillAuthoringAllowed &&
+        (name === 'skill' ||
+          name === 'read_file' ||
+          name === 'create_file' ||
+          name === 'edit_file') &&
+        capabilityToolNames.get(AgentCapabilities.skills)?.includes(name)
+      ) {
+        return true;
+      }
+      return false;
+    };
+    if (
+      (effectiveCodeEnvAvailable && !isAllowedMeetingTool(Tools.execute_code)) ||
+      (attachedWorkspaceTools && !isAllowedMeetingTool(Tools.execute_code)) ||
+      (skillAuthoringAvailable && !isMeetingSkillAuthoringAllowed) ||
+      (inlineMemoryRegistered && !isAllowedMeetingTool(Tools.memory)) ||
+      (toolDefinitions ?? []).some((def) => !isAllowedFinalToolDef(def.name))
+    ) {
+      throw new NativeMeetingTurnError('MEETING_TOOL_POLICY_DENIED', 403);
+    }
+  }
+
+  if (
+    hasNativeMeetingContext &&
+    runtime.nativeMeetingContext?.instructions &&
+    !agent.additional_instructions?.includes(runtime.nativeMeetingContext.instructions)
+  ) {
+    assertModelBoundContent({
+      filters: appConfig?.filters,
+      agents: [{ additional_instructions: runtime.nativeMeetingContext.instructions }],
+    });
+    appendAdditionalInstructions(agent, runtime.nativeMeetingContext.instructions);
+  }
+
   /**
    * Intent labels run LAST, after every registration step — the skill
    * catalog above both appends its own definition and REPLACES upgraded ones
@@ -2911,6 +3059,10 @@ export async function initializeAgent(
       filters: appConfig?.filters,
       files: [{ content: queuedFileContext }],
     });
+  }
+
+  if (hasNativeMeetingContext && runtime.nativeMeetingContext) {
+    await runtime.nativeMeetingContext.confirmDelivery(params.signal);
   }
 
   /**

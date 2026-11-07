@@ -15,6 +15,7 @@ const mongoSanitize = require('express-mongo-sanitize');
 const { logger, runAsSystem } = require('@librechat/data-schemas');
 const {
   isEnabled,
+  rejectGenericMeetingRequests,
   issueCsp,
   apiNotFound,
   createMetrics,
@@ -372,6 +373,7 @@ const startServer = async () => {
   app.use(excludeRumBodyParser(express.json({ limit: '3mb' })));
   app.use(excludeRumBodyParser(express.urlencoded({ extended: true, limit: '3mb' })));
   app.use(handleJsonParseError);
+  app.use('/api', rejectGenericMeetingRequests);
 
   /**
    * Express 5 Compatibility: Make req.query writable for mongoSanitize
@@ -435,6 +437,7 @@ const startServer = async () => {
   app.use('/api/insights', routes.insights);
   app.use('/api/bpbatam/native', require('./routes/bpbatamAdmin'));
   app.use('/api/bpbatam', routes.bpbatam);
+  app.use('/api/meetings', require('./routes/meetings'));
   app.use('/api/gateway', require('./routes/gatewaySelf'));
   app.use('/api/admin', require('@librechat/api').managedAdminGate, routes.adminAuth);
   app.use('/api/admin/config', routes.adminConfig);

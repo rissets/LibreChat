@@ -89,6 +89,40 @@ describe('managed gateway boundary', () => {
   });
 });
 
+it('keeps the exact verified identity session request-local when the user document is reused', async () => {
+  Object.assign(process.env, {
+    BPBATAM_GATEWAY_ENDPOINT: 'Managed',
+    BPBATAM_BRIDGE_URL: 'https://gateway.test/api/bpbatam',
+    BPBATAM_LC_CLIENT_ID: 'meeting-session-test',
+    BPBATAM_LC_CLIENT_SECRET: 'fixture',
+    OPENID_ISSUER: 'https://idp.test/realms/meeting-session',
+  });
+  const user = {
+    provider: 'openid',
+    openidIssuer: process.env.OPENID_ISSUER,
+    openidId: '00000000-0000-4000-8000-000000000001',
+  };
+  const transport = jest.spyOn(global, 'fetch').mockImplementation(async (url) => {
+    let value: object = { enabled: true };
+    if (String(url).endsWith('/token')) value = { access_token: 'fixture', expires_in: 300 };
+    else if (String(url).endsWith('/sessions')) value = [{ id: 'session-a' }, { id: 'session-b' }];
+    return new Response(JSON.stringify(value), { status: 200 });
+  });
+  try {
+    const [first, second] = await Promise.all([
+      validateManagedJwtUser(user, { identitySessionId: 'session-a' }),
+      validateManagedJwtUser(user, { identitySessionId: 'session-b' }),
+    ]);
+    expect(first).toMatchObject({ identitySessionId: 'session-a' });
+    expect(second).toMatchObject({ identitySessionId: 'session-b' });
+    expect(user).not.toHaveProperty('identitySessionId');
+    expect(await validateManagedJwtUser(user, { identitySessionId: 'forged-session' })).toBeNull();
+  } finally {
+    transport.mockRestore();
+    delete process.env.BPBATAM_GATEWAY_ENDPOINT;
+  }
+});
+
 it('admits only a bounded signed trigger on the verified workload route and rechecks identity status', async () => {
   Object.assign(process.env, {
     BPBATAM_GATEWAY_ENDPOINT: 'Managed',

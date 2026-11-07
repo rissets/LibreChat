@@ -48,6 +48,7 @@ import {
 import { resetChatFilterSessionAtom } from '~/components/Conversations/chatFilters';
 import { TAuthConfig, TUserContext, TAuthContext, TResError } from '~/common';
 import { resetFacetsAtom } from '~/components/Conversations/facets';
+import { setMeetingSession } from '~/data-provider/Meetings/access';
 import useTimeout from './useTimeout';
 import store from '~/store';
 
@@ -64,6 +65,7 @@ if (import.meta.hot) {
  * that reliably sees the transition. Both are cleared together so neither can be added to an exit
  * path the other was wired into. */
 const endSessionClientState = (): void => {
+  setMeetingSession();
   getDefaultStore().set(resetChatFilterSessionAtom);
   getDefaultStore().set(resetFacetsAtom);
   clearRetainedFileDeletions();
@@ -126,6 +128,7 @@ const AuthContextProvider = ({
         setIsAuthenticated(isAuthenticated);
         setIsAuthReady(true);
         if (isAuthenticated) {
+          setMeetingSession(user?.id, token);
           setQueriesEnabled(true);
           /** A different account signing in without a logout must not inherit cached audio. */
           setTTSCacheOwner(user?.id);
@@ -249,6 +252,7 @@ const AuthContextProvider = ({
 
   const logout = useCallback(
     (redirect?: string) => {
+      setMeetingSession();
       clearPostLoginRedirect();
       clearTwoFactorSetupToken();
       if (redirect) {
@@ -261,6 +265,7 @@ const AuthContextProvider = ({
 
   const completeAuthentication = useCallback(
     (authenticatedToken: string, authenticatedUser: t.TUser) => {
+      setMeetingSession(authenticatedUser.id, authenticatedToken);
       const redirect =
         getPostLoginRedirect(new URLSearchParams(window.location.search)) ?? '/c/new';
       /** The enrollment credential has done its job; do not leave it live in the tab. */

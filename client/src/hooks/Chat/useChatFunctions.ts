@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { cloneDeep } from 'lodash';
 import { useStore, useSetAtom } from 'jotai';
 import { useNavigate } from 'react-router-dom';
+import { parseMeetingChatPath } from '~/data-provider/Meetings/path';
 import { useQueryClient } from '@tanstack/react-query';
 import { hasPendingAssistantParent } from '@librechat/chat';
 import {
@@ -302,7 +303,12 @@ export default function useChatFunctions({
 
     setShowStopButton(false);
 
-    const ephemeralAgent = getEphemeralAgent(conversationId ?? Constants.NEW_CONVO);
+    const isMeeting = Boolean(parseMeetingChatPath(conversationId ?? ''));
+    let ephemeralAgent = getEphemeralAgent(conversationId ?? Constants.NEW_CONVO);
+    if (isMeeting && ephemeralAgent) {
+      const { web_search: _ws, mcp: _mcp, ask_user_question: _auq, ...rest } = ephemeralAgent;
+      ephemeralAgent = { ...rest, web_search: false, mcp: [], ask_user_question: false };
+    }
     const endpointsConfig = queryClient.getQueryData<TEndpointsConfig>([QueryKeys.endpoints]);
     /**
      * Manual skill selection resolution:

@@ -14,6 +14,7 @@ import {
 } from '@librechat/client';
 import type { TConversation, TMessage, TFeedback } from 'librechat-data-provider';
 import { useMessagesIsSubmitting, useOptionalMessagesOperations } from '~/Providers';
+import { parseMeetingChatPath } from '~/data-provider/Meetings/workspace';
 import { useGenerationsByLatest, useLocalize } from '~/hooks';
 import { hasEditablePart } from './Content/editableParts';
 import { Fork } from '~/components/Conversations';
@@ -184,7 +185,8 @@ const HoverButtons = ({
   }
 
   const { isCreatedByUser, error } = message;
-  const isSubagentThreadReadOnly = conversation.subagentThread != null;
+  const isMeeting = !!parseMeetingChatPath(conversation.conversationId ?? '');
+  const isSubagentThreadReadOnly = conversation.subagentThread != null || isMeeting;
 
   const onEdit = () => {
     if (isEditing) {
@@ -199,24 +201,28 @@ const HoverButtons = ({
   return (
     <div className="group visible flex justify-center gap-0.5 self-end focus-within:outline-hidden lg:justify-start">
       {/* Text to Speech */}
-      {TextToSpeech && !error && !isActiveStreamingMessage && speechText.length > 0 && (
-        <MessageAudio
-          index={index}
-          isLast={isLast}
-          messageId={message.messageId}
-          content={speechText}
-          renderButton={(props) => (
-            <HoverButton
-              onClick={props.onClick}
-              title={props.title}
-              icon={props.icon}
-              isActive={props.isActive}
-              isLast={isLast}
-              dataTestId={isLast && !isCreatedByUser ? 'read-aloud-button' : undefined}
-            />
-          )}
-        />
-      )}
+      {!isMeeting &&
+        TextToSpeech &&
+        !error &&
+        !isActiveStreamingMessage &&
+        speechText.length > 0 && (
+          <MessageAudio
+            index={index}
+            isLast={isLast}
+            messageId={message.messageId}
+            content={speechText}
+            renderButton={(props) => (
+              <HoverButton
+                onClick={props.onClick}
+                title={props.title}
+                icon={props.icon}
+                isActive={props.isActive}
+                isLast={isLast}
+                dataTestId={isLast && !isCreatedByUser ? 'read-aloud-button' : undefined}
+              />
+            )}
+          />
+        )}
 
       {/* Copy Button */}
       {!isActiveStreamingMessage && (
@@ -251,7 +257,7 @@ const HoverButtons = ({
 
       {/* Fork Button: withheld on a failed turn, whose copy would carry the provider's error as an
           ordinary answer. The error card's "Branch without files" copies up to the turn before. */}
-      {!error && !isActiveStreamingMessage && (
+      {!isMeeting && !error && !isActiveStreamingMessage && (
         <Fork
           messageId={message.messageId}
           conversationId={conversation.conversationId}
@@ -262,9 +268,13 @@ const HoverButtons = ({
       )}
 
       {/* Feedback Buttons */}
-      {!error && !isActiveStreamingMessage && !isCreatedByUser && handleFeedback != null && (
-        <Feedback handleFeedback={handleFeedback} feedback={message.feedback} isLast={isLast} />
-      )}
+      {!isMeeting &&
+        !error &&
+        !isActiveStreamingMessage &&
+        !isCreatedByUser &&
+        handleFeedback != null && (
+          <Feedback handleFeedback={handleFeedback} feedback={message.feedback} isLast={isLast} />
+        )}
 
       {/* Regenerate Button */}
       {!isSubagentThreadReadOnly && regenerateEnabled && (

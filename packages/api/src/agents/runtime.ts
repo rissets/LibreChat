@@ -1,5 +1,6 @@
 import type { AppConfig, IConversation, IUser } from '@librechat/data-schemas';
 import type { TFile } from 'librechat-data-provider';
+import type { ResolvedNativeMeetingTurnContext } from '../gateway/nativeMeetings';
 import type { ResolvedChatProjectContext } from '../projects/context';
 import type { RequestBody, ServerRequest } from '~/types';
 
@@ -22,6 +23,8 @@ export interface AgentExecutionContext {
   resolvedConversation?: Partial<IConversation> | null;
   /** Authoritative per-turn project context; server-only and never request body data. */
   chatProjectContext?: ResolvedChatProjectContext | null;
+  /** Authoritative per-turn meeting context; server-only and never request body data. */
+  nativeMeetingContext?: ResolvedNativeMeetingTurnContext | null;
   /** Metadata-only project files hydrated once per request for enabled file search tools. */
   chatProjectFiles?: TFile[];
   /** Shares in-flight project-context resource hydration across graph agents. */
@@ -42,6 +45,7 @@ export function createAgentExecutionContext({
   resolvedConversation,
   hasResolvedConversation = false,
   chatProjectContext,
+  nativeMeetingContext,
   chatProjectFiles,
   chatProjectContextResourcesPromise,
   chatProjectFilesPromise,
@@ -55,6 +59,7 @@ export function createAgentExecutionContext({
   resolvedConversation?: Partial<IConversation> | null;
   hasResolvedConversation?: boolean;
   chatProjectContext?: ResolvedChatProjectContext | null;
+  nativeMeetingContext?: ResolvedNativeMeetingTurnContext | null;
   chatProjectFiles?: TFile[];
   chatProjectContextResourcesPromise?: Promise<ResolvedChatProjectContext>;
   chatProjectFilesPromise?: Promise<TFile[]>;
@@ -67,6 +72,7 @@ export function createAgentExecutionContext({
     turnStartedAt,
     conversationCreatedAt,
     ...(chatProjectContext !== undefined ? { chatProjectContext } : {}),
+    ...(nativeMeetingContext !== undefined ? { nativeMeetingContext } : {}),
     ...(chatProjectContextResourcesPromise !== undefined
       ? { chatProjectContextResourcesPromise }
       : {}),
@@ -96,6 +102,7 @@ export function createRequestAgentExecutionContext(
     resolvedConversation: req.resolvedConversation,
     hasResolvedConversation: Object.prototype.hasOwnProperty.call(req, 'resolvedConversation'),
     chatProjectContext: req.chatProjectContext,
+    nativeMeetingContext: req.nativeMeetingContext,
     chatProjectFiles: req.chatProjectFiles,
     chatProjectContextResourcesPromise: req.chatProjectContextResourcesPromise,
     chatProjectFilesPromise: req.chatProjectFilesPromise,

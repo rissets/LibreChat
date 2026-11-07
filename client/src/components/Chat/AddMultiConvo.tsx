@@ -3,7 +3,7 @@ import { Button, TooltipAnchor } from '@librechat/client';
 import useMultiConvo from '~/hooks/Conversations/useMultiConvo';
 import { useLocalize } from '~/hooks';
 
-function AddMultiConvo() {
+function StandardAddMultiConvo() {
   const localize = useLocalize();
   const { show, addConversation } = useMultiConvo();
 
@@ -30,4 +30,24 @@ function AddMultiConvo() {
   );
 }
 
-export default AddMultiConvo;
+export default function AddMultiConvo({ disabledReason }: { disabledReason?: string }) {
+  const localize = useLocalize();
+  if (!disabledReason) return <StandardAddMultiConvo />;
+  return (
+    <TooltipAnchor
+      description={disabledReason}
+      render={
+        <Button
+          size="icon"
+          className="size-9"
+          variant="header-action"
+          aria-disabled="true"
+          aria-label={localize('com_ui_add_multi_conversation')}
+          data-testid="add-multi-convo-button"
+        >
+          <PlusCircle className="icon-sm" aria-hidden="true" />
+        </Button>
+      }
+    />
+  );
+}

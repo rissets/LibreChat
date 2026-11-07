@@ -18,6 +18,11 @@ import AgentError from './AgentError';
  * `errorRenderers` instead.
  */
 export const errorCopy: Record<string, TranslationKeys> = {
+  MEETING_CHAT_ACCEPTED: 'com_meeting_assistant_pending',
+  MEETING_CHAT_PROCESSING: 'com_meeting_assistant_pending',
+  MEETING_CHAT_UNCERTAIN: 'com_meeting_assistant_uncertain',
+  MEETING_CHAT_REJECTED: 'com_meeting_assistant_rejected',
+  MEETING_CHAT_CANCELLED: 'com_meeting_chat_cancelled',
   [ErrorTypes.MODERATION]: 'com_error_moderation',
   [ErrorTypes.INVALID_ACTION]: 'com_error_invalid_action_error',
   [ErrorTypes.MODELS_NOT_LOADED]: 'com_error_models_not_loaded',

@@ -55,6 +55,7 @@ import {
   PendingToolApprovalButton,
   PendingToolApprovalPanel,
 } from '~/components/Chat/approval/Review';
+import { parseMeetingChatPath } from '~/data-provider/Meetings/workspace';
 import useComposerRestore from '~/hooks/Input/useComposerRestore';
 import { useChatSettings } from '~/Providers/ChatSettingsContext';
 import usePastedTextEdit from '~/hooks/Files/usePastedTextEdit';
@@ -63,6 +64,7 @@ import AskUserQuestionPopover from './AskUserQuestionPopover';
 import useComposerItems from '~/hooks/Input/useComposerItems';
 import useAttachTarget from '~/hooks/Input/useAttachTarget';
 import { chatDirectionAtom } from '~/store/chatDirection';
+import MeetingVoice from '~/components/Meetings/Question';
 import Hints, { composerHintId } from './Composer/Hints';
 import PastedTextDialog from './Files/PastedTextDialog';
 import DuringRunSendButton from './DuringRunSendButton';
@@ -232,13 +234,17 @@ const ChatForm = memo(function ChatForm({
     () => conversation?.conversationId ?? Constants.NEW_CONVO,
     [conversation?.conversationId],
   );
+  const isMeeting = !!parseMeetingChatPath(conversationId);
   const isNewConversation = conversationId === '' || conversationId === Constants.NEW_CONVO;
   /**
    * The quote feature merges excerpts server-side in `BaseClient.sendMessage`,
    * which the Assistants endpoints bypass, so hide the UI there rather than
    * letting users queue quotes the assistant never receives.
    */
-  const quotesEnabled = useMemo(() => !isAssistantsEndpoint(endpoint), [endpoint]);
+  const quotesEnabled = useMemo(
+    () => !isMeeting && !isAssistantsEndpoint(endpoint),
+    [endpoint, isMeeting],
+  );
 
   const invalidAssistant = useMemo(
     () =>
@@ -317,7 +323,8 @@ const ChatForm = memo(function ChatForm({
     setFiles,
     textAreaRef,
     conversationId,
-    isSubmitting,
+    // CP acknowledges meeting sends before consuming the draft; no pending-key swap.
+    isSubmitting: !isMeeting && isSubmitting,
     // While a question pause is live the composer is the answer box: drafts
     // swap to the answer's own key, and the conversation draft is restored
     // when the question resolves.
@@ -414,7 +421,7 @@ const ChatForm = memo(function ChatForm({
     conversationId,
     conversation,
     codeEnvironmentMode: codeWorkspace.mode,
-    isSubmitting,
+    isSubmitting: !isMeeting && isSubmitting,
     answerModeActive: composerReserved,
     composerDisabled: isPreparingFromUrl,
     files,
@@ -533,11 +540,11 @@ const ChatForm = memo(function ChatForm({
   const atCommandEnabled = useRecoilValue(store.atCommand);
   const idleActions = useMemo(
     () => ({
-      prompts: hasPromptsAccess && slashCommandEnabled,
-      mentions: atCommandEnabled,
+      prompts: !isMeeting && hasPromptsAccess && slashCommandEnabled,
+      mentions: !isMeeting && atCommandEnabled,
       attach: attachTarget.canAttach,
     }),
-    [hasPromptsAccess, slashCommandEnabled, atCommandEnabled, attachTarget.canAttach],
+    [isMeeting, hasPromptsAccess, slashCommandEnabled, atCommandEnabled, attachTarget.canAttach],
   );
   const { submitText: submitAnswerText } = answerMode;
   const dictationAnswerModeActive = answerMode.composerAnswers;
@@ -573,7 +580,7 @@ const ChatForm = memo(function ChatForm({
     deferComposerReset: dictationAnswerModeActive,
     disabled: speechDisabled,
     autoSendText,
-    speechToText: SpeechToText,
+    speechToText: !isMeeting && SpeechToText,
     index,
   });
   /** The waveform stands in for the placeholder until words arrive, and is
@@ -665,7 +672,7 @@ const ChatForm = memo(function ChatForm({
                 filesLoading ||
                 isPreparingFromUrl ||
                 disableInputs ||
-                !codeWorkspace.canSubmit ||
+                (!isMeeting && !codeWorkspace.canSubmit) ||
                 isNotAppendable ||
                 answerMode.composerLocked ||
                 (isSubmitting && !answerMode.composerAnswers)
@@ -674,6 +681,7 @@ const ChatForm = memo(function ChatForm({
           ),
     [
       codeWorkspace.canSubmit,
+      isMeeting,
       isPreparingFromUrl,
       endpoint,
       duringRunSlot,
@@ -759,7 +767,7 @@ const ChatForm = memo(function ChatForm({
         {/* Primary composer owns the selection popup so split-view doesn't double it. */}
         {index === 0 && quotesEnabled && <QuoteButton conversationId={conversationId} />}
         <div className="relative flex w-full flex-col">
-          {steering.enabled && (
+          {!isMeeting && steering.enabled && (
             <Queue
               steering={steering}
               conversationId={conversationId}
@@ -789,26 +797,32 @@ const ChatForm = memo(function ChatForm({
             </div>
           )}
           <div className="flex w-full items-center">
-            <Mention
-              index={index}
-              popoverAtom={plusPopoverAtom}
-              newConversation={generateConversation}
-              textAreaRef={textAreaRef}
-              commandChar="+"
-              placeholder="com_ui_add_model_preset"
-              includeAssistants={false}
-            />
-            <Mention
-              index={index}
-              popoverAtom={mentionPopoverAtom}
-              newConversation={newConversation}
-              textAreaRef={textAreaRef}
-            />
-            <PromptsCommand index={index} textAreaRef={textAreaRef} submitPrompt={submitPrompt} />
-            {index === 0 && (
+            {!isMeeting && (
+              <Mention
+                index={index}
+                popoverAtom={plusPopoverAtom}
+                newConversation={generateConversation}
+                textAreaRef={textAreaRef}
+                commandChar="+"
+                placeholder="com_ui_add_model_preset"
+                includeAssistants={false}
+              />
+            )}
+            {!isMeeting && (
+              <Mention
+                index={index}
+                popoverAtom={mentionPopoverAtom}
+                newConversation={newConversation}
+                textAreaRef={textAreaRef}
+              />
+            )}
+            {!isMeeting && (
+              <PromptsCommand index={index} textAreaRef={textAreaRef} submitPrompt={submitPrompt} />
+            )}
+            {!isMeeting && index === 0 && (
               <AskUserQuestionPopover conversationId={conversationId} textAreaRef={textAreaRef} />
             )}
-            {index === 0 && conversationId != null && (
+            {!isMeeting && index === 0 && conversationId != null && (
               <PendingToolApprovalPanel
                 conversationId={conversationId}
                 triggerRef={approvalTriggerRef}
@@ -818,7 +832,7 @@ const ChatForm = memo(function ChatForm({
               index={index}
               textAreaRef={textAreaRef}
               conversationId={conversationId}
-              agentId={conversation?.agent_id}
+              agentId={isMeeting ? undefined : conversation?.agent_id}
             />
             <div
               ref={composerBoxRef}
@@ -979,12 +993,12 @@ const ChatForm = memo(function ChatForm({
                 conversationId={conversationId}
                 specName={conversation?.spec}
                 isSubmitting={isSubmitting}
-                observeToolAuthorization={showTools}
+                observeToolAuthorization={!isMeeting && showTools}
               >
                 <Bar
                   index={index}
                   disabled={disableInputs}
-                  agentId={conversation?.agent_id}
+                  agentId={isMeeting ? undefined : conversation?.agent_id}
                   /* The RAW endpoint, not the effective type above: the attach
                      destinations resolve the provider from its name, so a
                      custom endpoint reduced to `custom` loses the uploads its
@@ -1001,21 +1015,26 @@ const ChatForm = memo(function ChatForm({
                   setFilesLoading={setFilesLoading}
                   canAttach={attachTarget.canAttach}
                   anchorRef={composerBoxRef}
-                  showTools={showTools}
+                  showTools={isMeeting || showTools}
                   isSubmitting={isSubmitting}
-                  showSpeech={SpeechToText}
+                  showSpeech={!isMeeting && SpeechToText}
                   speechDisabled={speechDisabled}
+                  speechSlot={
+                    isMeeting ? <MeetingVoice conversationId={conversationId} /> : undefined
+                  }
                   dictation={dictation}
                   approvalSlot={
                     <div className="flex items-center gap-1.5">
-                      <CodeApprovalMenu
-                        conversation={conversation}
-                        addedConversation={addedConvo}
-                        codeEnvironmentMode={codeWorkspace.mode}
-                        setConversation={setConversation}
-                        disabled={disableInputs}
-                      />
-                      {index === 0 && conversationId != null && (
+                      {!isMeeting && (
+                        <CodeApprovalMenu
+                          conversation={conversation}
+                          addedConversation={addedConvo}
+                          codeEnvironmentMode={codeWorkspace.mode}
+                          setConversation={setConversation}
+                          disabled={disableInputs}
+                        />
+                      )}
+                      {!isMeeting && index === 0 && conversationId != null && (
                         <PendingToolApprovalButton
                           conversationId={conversationId}
                           triggerRef={approvalTriggerRef}
@@ -1026,9 +1045,9 @@ const ChatForm = memo(function ChatForm({
                   actionSlot={actionSlot}
                   hasAddedConversation={addedConvo != null}
                 />
-                <ToolDialogs />
+                {!isMeeting && <ToolDialogs />}
               </BadgeRowProvider>
-              {TextToSpeech && automaticPlayback && <AutoPlayAudio index={index} />}
+              {!isMeeting && TextToSpeech && automaticPlayback && <AutoPlayAudio index={index} />}
             </div>
           </div>
           {/* Sibling of the composer row, not a child: inside that flex-row it

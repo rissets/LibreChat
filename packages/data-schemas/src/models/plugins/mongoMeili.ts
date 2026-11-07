@@ -184,14 +184,19 @@ const buildIndexableQuery = (
   excludeFromIndexPath?: string,
 ): FilterQuery<unknown> => {
   const retentionFilter = buildRetentionIndexableQuery(schema);
+  const meetingFilter = hasSchemaPath(schema, 'conversationId')
+    ? { conversationId: { $not: /^meeting-/i } }
+    : null;
 
-  if (excludeFromIndexPath == null) {
-    return retentionFilter;
+  const filters = [retentionFilter];
+  if (meetingFilter) {
+    filters.push(meetingFilter);
+  }
+  if (excludeFromIndexPath != null) {
+    filters.push({ [excludeFromIndexPath]: { $exists: false } });
   }
 
-  return {
-    $and: [retentionFilter, { [excludeFromIndexPath]: { $exists: false } }],
-  };
+  return filters.length === 1 ? filters[0] : { $and: filters };
 };
 
 /**
@@ -218,8 +223,15 @@ export const buildExcludedIndexedQuery = (
   };
 };
 
-const isExcludedFromIndex = (doc: DocumentWithMeiliIndex, excludeFromIndexPath?: string): boolean =>
-  excludeFromIndexPath != null && !_.isNil(_.get(doc, excludeFromIndexPath));
+const isExcludedFromIndex = (
+  doc: DocumentWithMeiliIndex,
+  excludeFromIndexPath?: string,
+): boolean => {
+  if (typeof doc.conversationId === 'string' && /^meeting-/i.test(doc.conversationId)) {
+    return true;
+  }
+  return excludeFromIndexPath != null && !_.isNil(_.get(doc, excludeFromIndexPath));
+};
 
 const hasActiveExpiration = (expiredAt?: Date | null): boolean =>
   _.isNil(expiredAt) || new Date(expiredAt).getTime() > Date.now();

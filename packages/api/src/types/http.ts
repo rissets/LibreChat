@@ -9,6 +9,7 @@ import type {
 } from 'librechat-data-provider';
 import type { IUser, AppConfig, IConversation } from '@librechat/data-schemas';
 import type { Request } from 'express';
+import type { ResolvedNativeMeetingTurnContext } from '../gateway/nativeMeetings';
 import type { ResolvedChatProjectContext } from '../projects/context';
 
 /**
@@ -47,6 +48,8 @@ export type ServerRequest = Request<unknown, unknown, RequestBody> & {
   resolvedConversation?: Partial<IConversation> | null;
   /** Authoritative server-only project context for the current turn. */
   chatProjectContext?: ResolvedChatProjectContext | null;
+  /** Authoritative server-only meeting context for a native meeting chat turn. */
+  nativeMeetingContext?: ResolvedNativeMeetingTurnContext | null;
   /** Metadata-only project files hydrated once per request. */
   chatProjectFiles?: TFile[];
   /** Request-scoped in-flight project-context resource hydration. */

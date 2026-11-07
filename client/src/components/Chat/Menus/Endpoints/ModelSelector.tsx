@@ -1,4 +1,3 @@
-import { useGatewayAccount } from '~/data-provider/Gateway';
 import React, { useMemo } from 'react';
 import { TooltipAnchor } from '@librechat/client';
 import { getConfigDefaults } from 'librechat-data-provider';
@@ -12,10 +11,14 @@ import {
 import { ModelSelectorProvider, useModelSelectorContext } from './ModelSelectorContext';
 import { useShortcutAriaKey, useShortcutHint } from '~/hooks/useKeyboardShortcuts';
 import { ModelSelectorChatProvider } from './ModelSelectorChatContext';
+import { useGatewayAccount } from '~/data-provider/Gateway';
 import { getSelectedIcon, getDisplayValue } from './utils';
 import { CustomMenu as Menu } from './CustomMenu';
 import DialogManager from './DialogManager';
 import { useLocalize } from '~/hooks';
+
+const modelSelectorTriggerClassName =
+  'border-border-chrome bg-presentation text-text-primary hover:bg-surface-active-alt rounded-theme-control my-1 flex h-9 max-w-full items-center gap-2 border px-3 py-2 text-sm';
 
 const defaultInterface = getConfigDefaults().interface;
 
@@ -75,7 +78,7 @@ function ModelSelectorContent() {
         <button
           data-testid="model-selector-button"
           aria-keyshortcuts={modelSelectorAriaKey}
-          className="border-border-chrome bg-presentation text-text-primary hover:bg-surface-active-alt rounded-theme-control my-1 flex h-9 max-w-full items-center gap-2 border px-3 py-2 text-sm"
+          className={modelSelectorTriggerClassName}
           aria-label={localize('com_ui_select_model')}
         >
           {selectedIcon && React.isValidElement(selectedIcon) && (
@@ -131,7 +134,31 @@ function ModelSelectorContent() {
   );
 }
 
-export default function ModelSelector({ startupConfig }: ModelSelectorProps) {
+export default function ModelSelector({
+  startupConfig,
+  managedLabel,
+}: ModelSelectorProps & { managedLabel?: string }) {
+  const localize = useLocalize();
+  if (managedLabel) {
+    return (
+      <div className="relative flex max-w-[60vw] min-w-0 flex-col items-center gap-2 sm:max-w-xs">
+        <TooltipAnchor
+          description={localize('com_meeting_managed_model')}
+          render={
+            <button
+              type="button"
+              data-testid="model-selector-button"
+              aria-label={localize('com_meeting_managed_model')}
+              aria-disabled="true"
+              className={modelSelectorTriggerClassName}
+            >
+              <span className="truncate text-start">{managedLabel}</span>
+            </button>
+          }
+        />
+      </div>
+    );
+  }
   const interfaceConfig = startupConfig?.interface ?? defaultInterface;
   const modelSpecs = startupConfig?.modelSpecs?.list ?? [];
 

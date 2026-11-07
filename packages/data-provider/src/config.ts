@@ -3052,6 +3052,7 @@ export const interfaceSchema = z
     parameters: z.boolean().optional(),
     multiConvo: z.boolean().optional(),
     bookmarks: z.boolean().optional(),
+    meetingCopilot: z.boolean().optional(),
     memories: z.boolean().optional(),
     presets: z.boolean().optional(),
     prompts: z
@@ -3306,6 +3307,7 @@ export const interfaceSchema = z
     presets: true,
     multiConvo: true,
     bookmarks: true,
+    meetingCopilot: false,
     memories: true,
     prompts: {
       use: true,

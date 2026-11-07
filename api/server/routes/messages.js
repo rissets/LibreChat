@@ -9,6 +9,8 @@ const {
 } = require('librechat-data-provider');
 const {
   unescapeLaTeX,
+  createNativeMeetingGateway,
+  gatewayConfig,
   countTokens,
   sendFeedbackScore,
   traceIdForMessage,
@@ -87,6 +89,15 @@ const storedMessageMutationMiddleware = [
 ];
 
 router.use(requireJwtAuth);
+router.use(
+  createNativeMeetingGateway({
+    config: gatewayConfig,
+    loadMessages: async (req, conversationId) => {
+      const { getMessages } = require('~/models');
+      return getMessages({ user: req.user.id, conversationId });
+    },
+  }).messages,
+);
 router.post(
   '/:conversationId/owner-text',
   createPrivateTextView({

@@ -57,7 +57,11 @@ export interface LoadAgentParams {
   req: {
     user?: { id?: string; role?: string };
     config?: AppConfig;
+    nativeMeetingContext?: {
+      allowedTools?: readonly string[];
+    };
     body?: {
+      conversationId?: string;
       promptPrefix?: string;
       ephemeralAgent?: TEphemeralAgent;
     };
@@ -81,11 +85,52 @@ export async function loadEphemeralAgent(
   if (spec != null && spec !== '') {
     modelSpec = modelSpecs?.list?.find((s) => s.name === spec) ?? null;
   }
-  const defaults = modelSpec ? undefined : req.config?.endpoints?.agents?.defaultTools;
+  const rawDefaults = modelSpec ? undefined : req.config?.endpoints?.agents?.defaultTools;
+  const isMeetingTurn =
+    req.nativeMeetingContext != null ||
+    (typeof req.body?.conversationId === 'string' && /^meeting-/i.test(req.body.conversationId));
+  const allowedMeetingTools = isMeetingTurn
+    ? new Set(
+        (req.nativeMeetingContext?.allowedTools ?? []).filter((tool) => tool !== Tools.web_search),
+      )
+    : null;
+  const defaults =
+    rawDefaults && allowedMeetingTools
+      ? {
+          ...(rawDefaults.skills !== undefined ? { skills: rawDefaults.skills } : {}),
+          ...(rawDefaults.artifacts !== undefined ? { artifacts: rawDefaults.artifacts } : {}),
+          ...(rawDefaults.execute_code === true && allowedMeetingTools.has(Tools.execute_code)
+            ? { execute_code: true }
+            : {}),
+          ...(rawDefaults.file_search === true && allowedMeetingTools.has(Tools.file_search)
+            ? { file_search: true }
+            : {}),
+          ...(rawDefaults.memory === true && allowedMeetingTools.has(Tools.memory)
+            ? { memory: true }
+            : {}),
+          ...(rawDefaults.ask_user_question === true &&
+          allowedMeetingTools.has(ASK_USER_QUESTION_TOOL_NAME)
+            ? { ask_user_question: true }
+            : {}),
+          ...(Array.isArray(rawDefaults.mcp)
+            ? {
+                mcp: rawDefaults.mcp.filter((server) => allowedMeetingTools.has(server)),
+              }
+            : {}),
+          ...(Array.isArray(rawDefaults.tools)
+            ? {
+                tools: rawDefaults.tools.filter((toolId) => allowedMeetingTools.has(toolId)),
+              }
+            : {}),
+        }
+      : rawDefaults;
   const { tools: defaultToolIds, ...defaultSelections } = defaults ?? {};
   const ephemeralAgent: TEphemeralAgent | undefined = defaults
     ? { ...defaultSelections, ...req.body?.ephemeralAgent }
     : req.body?.ephemeralAgent;
+  if (isMeetingTurn && ephemeralAgent) {
+    ephemeralAgent.web_search = false;
+  }
   if (defaults) {
     req.body ??= {};
     // Skill and MCP instruction initialization reads the effective request selection.

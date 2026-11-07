@@ -26,6 +26,7 @@ import {
   updateConvoInAllQueries,
   logger,
 } from '~/utils';
+import { parseMeetingChatPath } from '~/data-provider/Meetings/path';
 import { useApplyModelSpecEffects } from '~/hooks/Agents';
 import { startupConfigKey } from '~/data-provider';
 import store from '~/store';
@@ -254,13 +255,21 @@ const useNavigateToConvo = (index = 0) => {
 
     let convo = { ...conversation };
     const endpointsConfig = queryClient.getQueryData<TEndpointsConfig>([QueryKeys.endpoints]);
-    if (!convo.endpoint || !endpointsConfig?.[convo.endpoint]) {
+    const isMeetingConvo = Boolean(parseMeetingChatPath(convo.conversationId ?? ''));
+    if (
+      !convo.endpoint ||
+      !endpointsConfig?.[convo.endpoint] ||
+      (isMeetingConvo && (!convo.model || convo.model === 'meeting-copilot'))
+    ) {
       /* undefined/removed endpoint edge case */
       const modelsConfig = queryClient.getQueryData<TModelsConfig>([QueryKeys.models]);
-      const defaultEndpoint = getDefaultEndpoint({
-        convoSetup: conversation,
-        endpointsConfig,
-      });
+      const defaultEndpoint =
+        isMeetingConvo && convo.endpoint && endpointsConfig?.[convo.endpoint]
+          ? convo.endpoint
+          : getDefaultEndpoint({
+              convoSetup: conversation,
+              endpointsConfig,
+            });
 
       const endpointType = getEndpointField(endpointsConfig, defaultEndpoint, 'type');
       if (!conversation.endpointType && endpointType) {

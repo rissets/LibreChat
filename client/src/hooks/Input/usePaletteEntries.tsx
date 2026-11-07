@@ -39,6 +39,7 @@ import { getStatusColor, getStatusTextKey } from '~/components/MCP/mcpServerUtil
 import { filterSkillsForPopover } from '~/components/Chat/Input/SkillsCommand';
 import { useAgentsMapContext, useBadgeRowContext } from '~/Providers';
 import { useSkillsInfiniteQuery } from '~/data-provider';
+import { parseMeetingChatPath } from '~/data-provider/Meetings/path';
 import { ephemeralAgentByConvoId } from '~/store';
 import { favoriteKey } from './useToolFavorites';
 import useLocalize from '~/hooks/useLocalize';
@@ -601,6 +602,14 @@ export default function usePaletteEntries({
           status: getServerStatus(server.serverName),
         });
       }
+    }
+
+    if (parseMeetingChatPath(conversationId)) {
+      return entries.filter(
+        (entry) =>
+          entry.section === 'skill' ||
+          (entry.section === 'tool' && ['artifacts', 'file_search'].includes(entry.itemId)),
+      );
     }
 
     return entries;

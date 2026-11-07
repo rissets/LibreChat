@@ -2,6 +2,11 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import ChatView from '../ChatView';
 
+jest.mock('~/hooks/Meetings/useMeetingConversation', () => ({
+  __esModule: true,
+  default: () => ({ isMeeting: false, unavailable: false }),
+}));
+
 let mockConversation: Record<string, unknown> | null;
 
 jest.mock('react-router-dom', () => ({

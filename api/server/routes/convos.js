@@ -2,6 +2,8 @@ const multer = require('multer');
 const express = require('express');
 const {
   reportLocatorTraversalFailure,
+  createNativeMeetingGateway,
+  gatewayConfig,
   isEnabled,
   normalizeLimit,
   normalizeSortDirection,
@@ -213,7 +215,32 @@ const conversationPullRequestsHandler = createConversationPullRequestsHandler({
   env: process.env,
   userToken: pullRequestUserToken,
 });
+const nativeMeetings = createNativeMeetingGateway({
+  config: gatewayConfig,
+  onDeleteConversation: async (req, conversationId) => {
+    try {
+      const { deleteConvos, deleteMessages } = require('~/models');
+      await deleteConvos(req.user.id, { conversationId }, { allowEmpty: true });
+      await deleteMessages({ user: req.user.id, conversationId });
+      GenerationJobManager.abortJob(conversationId);
+    } catch (err) {
+      logger.warn(
+        '[convos] Failed to purge local records for deleted meeting chat',
+        getSafeErrorMetadata(err),
+      );
+    }
+  },
+  loadConversation: async (req, conversationId) => {
+    const { getConvo } = require('~/models');
+    return getConvo(req.user.id, conversationId);
+  },
+  loadMessages: async (req, conversationId) => {
+    const { getMessages } = require('~/models');
+    return getMessages({ user: req.user.id, conversationId });
+  },
+});
 router.use(requireJwtAuth);
+router.use(nativeMeetings.conversations);
 
 const isValidProjectFilter = (projectId) =>
   !projectId || projectId === 'unassigned' || /^[a-f\d]{24}$/i.test(projectId);
@@ -252,19 +279,20 @@ router.get('/', async (req, res) => {
       return res.status(400).json({ error: filterError });
     }
 
-    const result = await db.getConvosByCursor(req.user.id, {
-      cursor,
-      limit,
-      isArchived,
-      pinned,
-      tags,
-      search,
-      sortBy,
-      sortDirection,
-      projectId,
-      ...filters,
-    });
-    res.status(200).json(result);
+    await nativeMeetings.sendList(req, res, () =>
+      db.getConvosByCursor(req.user.id, {
+        cursor,
+        limit,
+        isArchived,
+        pinned,
+        tags,
+        search,
+        sortBy,
+        sortDirection,
+        projectId,
+        ...filters,
+      }),
+    );
   } catch (error) {
     logger.error('Error fetching conversations', error);
     res.status(500).json({ error: 'Error fetching conversations' });

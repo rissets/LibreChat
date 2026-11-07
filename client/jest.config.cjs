@@ -26,6 +26,7 @@ module.exports = {
   //   },
   // },
   moduleNameMapper: {
+    '\\?url$': '<rootDir>/test/urlMock.cjs',
     '\\.(css)$': 'identity-obj-proxy',
     /** Mirror the vite resolve.alias so tests parse math with the same tokenizer as production. */
     '^micromark-extension-math$': 'micromark-extension-llm-math',

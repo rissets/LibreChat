@@ -783,13 +783,20 @@ const initializeClientWithProvider = async ({
     skillsCapabilityEnabled,
     ephemeralSkillsToggle,
   });
-  const primarySkillAuthoringAvailable = canAuthorSkillFiles({
-    agent: primaryAgent,
-    scopedEditableSkillIds: primaryScopedEditableSkillIds,
-    skillCreateAllowed,
-    skillsCapabilityEnabled,
-    ephemeralSkillsToggle,
-  });
+  const isMeetingSkillAuthoringAllowed =
+    !req.nativeMeetingContext ||
+    (Array.isArray(req.nativeMeetingContext.allowedTools) &&
+      req.nativeMeetingContext.allowedTools.includes('create_file') &&
+      req.nativeMeetingContext.allowedTools.includes('edit_file'));
+  const primarySkillAuthoringAvailable =
+    isMeetingSkillAuthoringAllowed &&
+    canAuthorSkillFiles({
+      agent: primaryAgent,
+      scopedEditableSkillIds: primaryScopedEditableSkillIds,
+      skillCreateAllowed,
+      skillsCapabilityEnabled,
+      ephemeralSkillsToggle,
+    });
   const primaryConfig = await initializeAgent(
     {
       useChatProjectContext: true,

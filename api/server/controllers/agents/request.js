@@ -29,6 +29,7 @@ const {
   startAgentProjectContextResolution,
   assertChatProjectInstructions,
   getChatProjectTurnFailure,
+  getNativeMeetingTurnFailure,
   resolveConversationAnchor,
   getAgentStartupTelemetry,
   acceptAgentStartupTelemetry,
@@ -136,6 +137,15 @@ function getInitializationFailure(error) {
   const projectFailure = getChatProjectTurnFailure(error);
   if (projectFailure) {
     return projectFailure;
+  }
+
+  const meetingFailure = getNativeMeetingTurnFailure(error);
+  if (meetingFailure) {
+    return {
+      status: meetingFailure.status,
+      code: meetingFailure.code,
+      error: meetingFailure.code,
+    };
   }
 
   const metadata = getAgentErrorMetadata(error);
@@ -1878,7 +1888,8 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
      * source instead keeps its local loopback response open until the provider
      * invocation exists, so an accepted HTTP result can never retire text that
      * died between job creation and provider startup. */
-    if (!hasQueuedTurnAdmissionSource) {
+    const isMeetingTurn = req.nativeMeetingContext != null;
+    if (!hasQueuedTurnAdmissionSource && !isMeetingTurn) {
       sendGenerationStarted();
     }
 
@@ -2014,6 +2025,9 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
       requestBody: mcpRequestBody,
     });
     startupTelemetry?.mark('client_initialized');
+    if (isMeetingTurn) {
+      sendGenerationStarted();
+    }
     client = result.client;
     const normalizedMCPRequestBody = createMCPRuntimeRequestBody({
       messageId: mcpRequestBody.messageId,
@@ -2299,7 +2313,11 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
         job.abortController.signal.addEventListener('abort', abortTitleOnJobAbort, { once: true });
       }
       const titleEligible =
-        addTitle && parentMessageId === Constants.NO_PARENT && isNewConvo && !req.body?.isTemporary;
+        addTitle &&
+        parentMessageId === Constants.NO_PARENT &&
+        isNewConvo &&
+        !req.body?.isTemporary &&
+        !req.nativeMeetingContext;
       const emitTitleEvent = ({ conversationId: titleConversationId, title }) => {
         titleEventPromise = (async () => {
           if (!acceptsTitleEvents || titleAbortController.signal.aborted) {
@@ -3025,7 +3043,8 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
           parentMessageId === Constants.NO_PARENT &&
           isNewConvo &&
           !terminalWasAborted &&
-          !preemptIncomplete;
+          !preemptIncomplete &&
+          !req.nativeMeetingContext;
 
         // Save user message BEFORE sending final event to avoid race condition
         // where client refetch happens before database is updated

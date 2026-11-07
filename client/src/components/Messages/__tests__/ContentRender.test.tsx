@@ -1,9 +1,18 @@
 import React from 'react';
 import { RecoilRoot } from 'recoil';
-import { render, screen, within } from '@testing-library/react';
+import { dataService } from 'librechat-data-provider';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import type { Agent, TConversation, TMessage } from 'librechat-data-provider';
 import type { TMessageChatContext } from '~/common';
+import { MeetingAudioSession } from '~/components/Meetings/audio';
 import ContentRender from '../ContentRender';
+
+jest.mock('librechat-data-provider', () => {
+  const actual = jest.requireActual('librechat-data-provider');
+  return { ...actual, dataService: { ...actual.dataService } };
+});
+jest.mock('~/hooks/AuthContext', () => ({ useAuthContext: () => ({ user: { id: 'owner' } }) }));
 
 const mockRenders = { parts: 0 };
 
@@ -167,4 +176,84 @@ describe('ContentRender resume author header', () => {
 
     expect(screen.getByTestId('parts')).toBeEmptyDOMElement();
   });
+});
+
+it('renders CP context, authenticated sources and speech on the native agents message path and updates metadata-only revisions', async () => {
+  const meetingId = '10000000-0000-4000-8000-000000000091';
+  const chatId = '20000000-0000-4000-8000-000000000091';
+  const operationId = '30000000-0000-4000-8000-000000000091';
+  const segmentId = '40000000-0000-4000-8000-000000000091';
+  const evidence = jest.spyOn(dataService, 'getMeetingEvidence').mockResolvedValue({
+    context_revision: '2',
+    segment: {
+      id: segmentId,
+      revision: 3,
+      text: 'Approved private note',
+      start_ms: 0,
+      end_ms: 1000,
+      speaker: null,
+      state: 'note',
+    },
+  });
+  const speech = jest.spyOn(dataService, 'getMeetingSpeech').mockResolvedValue({ speech: null });
+  jest.spyOn(dataService, 'getMeetingTranscript').mockImplementation(() => new Promise(() => {}));
+  const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const message = {
+    ...assistantMessage,
+    endpoint: 'agents',
+    conversationId: `meeting-${meetingId}-${chatId}`,
+    metadata: {
+      meeting: {
+        meeting_id: meetingId,
+        chat_id: chatId,
+        operation_id: operationId,
+        state: 'completed',
+        context_end_ms: 1000,
+        citations: [{ segment_id: segmentId, revision: 3 }],
+      },
+    },
+  };
+  const view = (value: TMessage) => (
+    <QueryClientProvider client={cache}>
+      <RecoilRoot>
+        <MeetingAudioSession>
+          <ContentRender
+            message={value}
+            chatContext={chatContext}
+            siblingIdx={0}
+            siblingCount={1}
+            setSiblingIdx={setSiblingIdx}
+            currentEditId={null}
+            setCurrentEditId={setCurrentEditId}
+          />
+        </MeetingAudioSession>
+      </RecoilRoot>
+    </QueryClientProvider>
+  );
+  const rendered = render(view(message));
+  expect(screen.getByText(/com_meeting_workspace_context_until/)).toHaveTextContent('00:01');
+  fireEvent.click(screen.getByRole('button', { name: 'com_meeting_workspace_source 1' }));
+  expect(await screen.findByText('Approved private note')).toBeInTheDocument();
+  expect(evidence).toHaveBeenCalledWith(
+    meetingId,
+    operationId,
+    segmentId,
+    3,
+    expect.any(AbortSignal),
+  );
+  const details = screen.getByText('com_meeting_workspace_listen').closest('details')!;
+  details.open = true;
+  fireEvent(details, new Event('toggle'));
+  await waitFor(() =>
+    expect(speech).toHaveBeenCalledWith(meetingId, operationId, expect.any(AbortSignal)),
+  );
+  rendered.rerender(
+    view({
+      ...message,
+      metadata: { meeting: { ...message.metadata.meeting, context_end_ms: 9000 } },
+    }),
+  );
+  expect(screen.getByText(/com_meeting_workspace_context_until/)).toHaveTextContent('00:09');
+  rendered.unmount();
+  cache.clear();
 });

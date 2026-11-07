@@ -22,6 +22,7 @@ interface ManagedUser {
   openidIssuer?: string;
   provider?: string;
   tenantId?: string;
+  identitySessionId?: string;
 }
 let cachedToken: { value: string; expires: number; client: string } | undefined;
 export async function machineToken(c: GatewayDeps): Promise<string> {
@@ -45,7 +46,10 @@ export async function machineToken(c: GatewayDeps): Promise<string> {
   };
   return token.access_token;
 }
-async function identitySessions(c: GatewayDeps, subject: string): Promise<Array<{ id: string }>> {
+export async function identitySessions(
+  c: GatewayDeps,
+  subject: string,
+): Promise<Array<{ id: string }>> {
   if (!/^[a-f0-9-]{36}$/i.test(subject)) throw new Error('SUBJECT_INVALID');
   const admin = c.issuer.replace('/realms/', '/admin/realms/');
   const headers = { Authorization: 'Bearer ' + (await machineToken(c)) };
@@ -99,7 +103,9 @@ export async function validateManagedJwtUser<T extends ManagedUser>(
     }
     if (typeof payload.identitySessionId !== 'string') return null;
     const sessions = await identitySessions(c, user.openidId);
-    return sessions.some((s) => s.id === payload.identitySessionId) ? user : null;
+    if (!sessions.some((s) => s.id === payload.identitySessionId)) return null;
+    // Request-only context, taken from the verified JWT, never from a caller header/body.
+    return { ...user, identitySessionId: payload.identitySessionId };
   } catch {
     return null;
   }

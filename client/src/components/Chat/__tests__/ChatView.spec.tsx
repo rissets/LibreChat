@@ -60,7 +60,10 @@ jest.mock('../Footer', () => ({
   useConfiguredFooter: () => mockConfiguredFooter,
   useLandingFooter: () => mockLandingFooter,
 }));
-jest.mock('../Landing', () => ({ __esModule: true, default: () => <div /> }));
+jest.mock('../Landing', () => ({
+  __esModule: true,
+  default: () => <div data-testid="native-landing" />,
+}));
 jest.mock('~/components/Lia', () => ({ __esModule: true, default: () => null }));
 jest.mock('../Messages/MessagesView', () => ({ __esModule: true, default: () => <div /> }));
 jest.mock('../Input/ChatForm', () => ({
@@ -266,4 +269,17 @@ describe('ChatView landing footer', () => {
       expect.objectContaining({ footerBelow: true }),
     );
   });
+});
+
+test('renders the ordinary landing and composer for an empty meeting conversation', () => {
+  mockParams.mockReturnValue({
+    conversationId:
+      'meeting-10000000-0000-4000-8000-000000000001-40000000-0000-4000-8000-000000000001',
+  });
+  mockConversation.mockReturnValue(null);
+  render(<ChatView />);
+  expect(screen.getByTestId('native-landing')).toBeInTheDocument();
+  expect(mockChatFormProps).toHaveBeenLastCalledWith(
+    expect.objectContaining({ isLandingPage: true, placeholder: undefined }),
+  );
 });

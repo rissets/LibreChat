@@ -1,3 +1,4 @@
+import { MemoryRouter } from 'react-router-dom';
 import { render, screen } from '@testing-library/react';
 import type { MenuItemProps } from '~/common';
 
@@ -287,4 +288,16 @@ describe('HeaderMenu', () => {
     expect(temporaryRow).toBeDefined();
     expect(labels()).toContain('com_ui_temporary');
   });
+});
+
+test('offers only the supported meeting action from the regular more menu', () => {
+  render(
+    <MemoryRouter>
+      <HeaderMenu meetingId="10000000-0000-4000-8000-000000000001" />
+    </MemoryRouter>,
+  );
+  expect(screen.getByTestId('header-overflow-menu')).toBeInTheDocument();
+  expect(labels()).toEqual(['com_meeting_runtime_return']);
+  expect(screen.queryByText('share')).not.toBeInTheDocument();
+  expect(screen.queryByText('export')).not.toBeInTheDocument();
 });

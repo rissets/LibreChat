@@ -36,7 +36,7 @@ const descriptors: Record<string, Descriptor> = {
   'agent-api-keys': { model: 'AgentApiKey', owner: 'userId', id: '_id' },
 };
 const projection =
-  '_id id name title description version serverName tag file_id bytes type provider model tools endpoint conversationId shareId createdAt updatedAt created_at updated_at enabled isTemporary remoteGovernanceDisabled governanceQuarantined governanceRevision governanceDisabledFor productionId numberOfGenerations deletingAt deleting agent_id cadence timezone nextRunAt disabledReason runCount failureCount lastRun.status lastRun.conversationId lastRun.firedAt lastRun.scheduledFor';
+  '_id id name title filename description version serverName tag file_id bytes type provider model tools endpoint conversationId shareId createdAt updatedAt created_at updated_at enabled isTemporary remoteGovernanceDisabled governanceQuarantined governanceRevision governanceDisabledFor productionId numberOfGenerations deletingAt deleting agent_id cadence timezone nextRunAt disabledReason runCount failureCount lastRun.status lastRun.conversationId lastRun.firedAt lastRun.scheduledFor';
 const aclKinds: Record<string, string> = {
   agents: 'agent',
   skills: 'skill',
@@ -213,7 +213,14 @@ export function createGovernanceRepository(
           display_name: {
             $ifNull: [
               '$name',
-              { $ifNull: ['$title', { $ifNull: ['$serverName', { $toString: '$' + d.id }] }] },
+              {
+                $ifNull: [
+                  '$title',
+                  {
+                    $ifNull: ['$filename', { $ifNull: ['$serverName', { $toString: '$' + d.id }] }],
+                  },
+                ],
+              },
             ],
           },
         };

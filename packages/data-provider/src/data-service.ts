@@ -1,4 +1,19 @@
+import { z } from 'zod';
+import {
+  meetingWorkspaceSchema,
+  meetingChatsSchema,
+  meetingChatSchema,
+  meetingChatDetailSchema,
+} from './meetingWorkspace';
+import type { TMeetingWorkspaceInput, TMeetingChatMessageInput } from './meetingWorkspace';
 import type { AxiosResponse } from 'axios';
+import type {
+  TMeetingAudioInput,
+  TMeetingCaptureInput,
+  TMeetingAssistantInput,
+  TMeetingSpeechInput,
+  TMeetingPlaybackInput,
+} from './meetings';
 import type {
   TTracePage,
   TTracePageParams,
@@ -8,12 +23,40 @@ import type {
 } from './types/traces';
 import type { TInsightsAccessResponse, TInsightsParams, TInsightsResponse } from './types/insights';
 import type { ScheduleMCPConsentView, ConfirmScheduleMCPConsent } from './types/scheduleConsent';
+import type { TMeetingCorrectionInput, TMeetingReviewInput } from './meetingFinalization';
+import type { TMeetingShareInput, TMeetingShareRevokeInput } from './meetingSharing';
 import type { CodeSetupAttempt, CodeSetupApprovalRequest } from './codeSetup';
 import type { TFileConfig } from './file-config';
 import type * as tl from './types/tools';
 import type * as t from './types';
+import {
+  meetingAssistantSchema,
+  meetingAssistantHistorySchema,
+  meetingEvidenceSchema,
+  meetingAccessSchema,
+  meetingSessionSchema,
+  meetingSessionsSchema,
+  meetingCaptureSchema,
+  meetingAudioAckSchema,
+  meetingTranscriptSchema,
+  meetingSpeechSchema,
+  meetingSpeechStatusSchema,
+  meetingPlaybackSchema,
+} from './meetings';
+import {
+  meetingRecipientsSchema,
+  meetingSharesSchema,
+  meetingShareSchema,
+  meetingSharedArtifactsSchema,
+  meetingSharedResultSchema,
+  meetingSharedEvidenceSchema,
+  meetingSharedAnswerSchema,
+} from './meetingSharing';
+import { meetingFinalizationSchema, meetingFinalEvidenceSchema } from './meetingFinalization';
 import { codeSetupAttemptSchema, codeSetupApprovalRequestSchema } from './codeSetup';
 import { TOOL_CALL_PREVIEWS_PARAM, TOOL_CALL_PREVIEWS_VERSION } from './previews';
+import { meetingVoiceSchema, meetingVoiceHistorySchema } from './meetingVoice';
+import { meetingLifecycleSchema } from './meetingLifecycle';
 import * as permissions from './accessPermissions';
 import * as endpoints from './api-endpoints';
 import { uploadEventStream } from './upload';
@@ -1915,4 +1958,346 @@ export function revokeScheduleMCPConsent(id: string, expectedRevision: string): 
   return request.deleteWithOptions(endpoints.scheduleMCPConsent(id), {
     data: { expectedRevision },
   });
+}
+
+async function confirmMeetingResponse(response: AxiosResponse<unknown>, signal?: AbortSignal) {
+  const receipt: unknown = response.headers['x-meeting-delivery'];
+  if (typeof receipt !== 'string' || !receipt) throw new Error('MEETING_DELIVERY_EXPIRED');
+  const confirmed = (await request.post(
+    endpoints.meetings() + '/delivery',
+    { receipt },
+    { signal },
+  )) as { allowed?: boolean };
+  if (confirmed.allowed !== true) throw new Error('MEETING_DELIVERY_EXPIRED');
+  return response.data;
+}
+async function meetingGet(path: string, options: { signal?: AbortSignal }) {
+  const response = await request.getResponse<unknown>(path, options);
+  const receipt: unknown = response.headers['x-meeting-delivery'];
+  if (typeof receipt !== 'string' || !receipt) throw new Error('MEETING_DELIVERY_EXPIRED');
+  return response.data;
+}
+async function meetingPost(path: string, body: unknown, options: { signal?: AbortSignal }) {
+  return confirmMeetingResponse(
+    await request.postResponse<unknown>(path, body, options),
+    options.signal,
+  );
+}
+
+export async function getMeetingAccess(signal?: AbortSignal) {
+  return meetingAccessSchema.parse(await meetingGet(endpoints.meetingAccess(), { signal }));
+}
+export async function getMeetingRecipients(id: string, q: string, signal?: AbortSignal) {
+  return meetingRecipientsSchema.parse(
+    await meetingGet(endpoints.meetingRecipients(id, q), { signal }),
+  );
+}
+export async function getMeetingShares(id: string, signal?: AbortSignal) {
+  return meetingSharesSchema.parse(await meetingGet(endpoints.meetingShares(id), { signal }));
+}
+export async function shareMeeting(
+  { id, ...body }: TMeetingShareInput & { id: string },
+  signal?: AbortSignal,
+) {
+  return meetingShareSchema.parse(await meetingPost(endpoints.meetingShares(id), body, { signal }));
+}
+export async function revokeMeetingShare(
+  { id, grantId, ...body }: TMeetingShareRevokeInput & { id: string; grantId: string },
+  signal?: AbortSignal,
+) {
+  return meetingShareSchema.parse(
+    await meetingPost(
+      endpoints.meetingShares(id) + '/' + encodeURIComponent(grantId) + '/revoke',
+      body,
+      { signal },
+    ),
+  );
+}
+export async function getMeetingSharedArtifacts(signal?: AbortSignal) {
+  return meetingSharedArtifactsSchema.parse(
+    await meetingGet(endpoints.meetingSharedArtifacts(), { signal }),
+  );
+}
+export async function getMeetingSharedResult(id: string, version: number, signal?: AbortSignal) {
+  return meetingSharedResultSchema.parse(
+    await meetingGet(endpoints.meetingSharedResult(id, version), { signal }),
+  );
+}
+export async function getMeetingSharedEvidence(
+  id: string,
+  version: number,
+  segmentId: string,
+  revision: number,
+  signal?: AbortSignal,
+) {
+  return meetingSharedEvidenceSchema.parse(
+    await meetingGet(endpoints.meetingSharedEvidence(id, version, segmentId, revision), {
+      signal,
+    }),
+  );
+}
+export async function getMeetingSharedAnswer(id: string, answerId: string, signal?: AbortSignal) {
+  return meetingSharedAnswerSchema.parse(
+    await meetingGet(endpoints.meeting(id) + '/shared/answers/' + encodeURIComponent(answerId), {
+      signal,
+    }),
+  );
+}
+export async function getMeetingSharedAnswerEvidence(
+  id: string,
+  answerId: string,
+  segmentId: string,
+  revision: number,
+  signal?: AbortSignal,
+) {
+  return meetingEvidenceSchema.parse(
+    await meetingGet(
+      endpoints.meeting(id) +
+        '/shared/answers/' +
+        encodeURIComponent(answerId) +
+        '/evidence/' +
+        encodeURIComponent(segmentId) +
+        '?revision=' +
+        revision,
+      { signal },
+    ),
+  );
+}
+export async function getMeetings(signal?: AbortSignal, page?: number) {
+  return meetingSessionsSchema.parse(
+    await meetingGet(endpoints.meetings() + (page ? '?page=' + page : ''), { signal }),
+  );
+}
+export async function getMeeting(id: string, signal?: AbortSignal) {
+  return meetingSessionSchema.parse(await meetingGet(endpoints.meeting(id), { signal }));
+}
+export async function createMeeting(
+  body: { title: string; meeting_date?: string; agenda?: string },
+  signal?: AbortSignal,
+) {
+  return meetingSessionSchema.parse(await meetingPost(endpoints.meetings(), body, { signal }));
+}
+export async function getMeetingLifecycle(id: string, signal?: AbortSignal) {
+  return meetingLifecycleSchema.parse(await meetingGet(endpoints.meetingLifecycle(id), { signal }));
+}
+export async function getMeetingTranscript(id: string, signal?: AbortSignal) {
+  return meetingTranscriptSchema.parse(
+    await meetingGet(endpoints.meetingTranscript(id), { signal }),
+  );
+}
+export async function changeMeetingCapture(
+  { id, ...body }: TMeetingCaptureInput & { id: string },
+  signal?: AbortSignal,
+) {
+  return meetingCaptureSchema.parse(
+    await meetingPost(endpoints.meetingCapture(id), body, { signal }),
+  );
+}
+export async function submitMeetingAudio(
+  { id, ...body }: TMeetingAudioInput & { id: string },
+  signal?: AbortSignal,
+) {
+  return meetingAudioAckSchema.parse(
+    await meetingPost(endpoints.meetingAudio(id), body, { signal }),
+  );
+}
+
+export async function getMeetingAssistant(id: string, signal?: AbortSignal) {
+  return meetingAssistantHistorySchema.parse(
+    await meetingGet(endpoints.meeting(id) + '/assistant', { signal }),
+  );
+}
+export async function getMeetingVoice(id: string, signal?: AbortSignal) {
+  return meetingVoiceHistorySchema.parse(await meetingGet(endpoints.meetingVoice(id), { signal }));
+}
+export async function beginMeetingVoice(
+  { id, operation_id }: { id: string; operation_id: string },
+  signal?: AbortSignal,
+) {
+  return meetingVoiceSchema.parse(
+    await meetingPost(endpoints.meetingVoice(id), { operation_id }, { signal }),
+  );
+}
+export async function submitMeetingVoice(
+  { id, operationId, audio_base64 }: { id: string; operationId: string; audio_base64: string },
+  signal?: AbortSignal,
+) {
+  return meetingVoiceSchema.parse(
+    await meetingPost(
+      endpoints.meetingVoiceOperation(id, operationId) + '/audio',
+      { audio_base64 },
+      { signal },
+    ),
+  );
+}
+export async function cancelMeetingVoice(
+  { id, operationId }: { id: string; operationId: string },
+  signal?: AbortSignal,
+) {
+  return meetingVoiceSchema.parse(
+    await meetingPost(endpoints.meetingVoiceOperation(id, operationId) + '/cancel', {}, { signal }),
+  );
+}
+export async function askMeetingAssistant(
+  { id, ...body }: TMeetingAssistantInput & { id: string },
+  signal?: AbortSignal,
+) {
+  return meetingAssistantSchema.parse(
+    await meetingPost(endpoints.meeting(id) + '/assistant', body, { signal }),
+  );
+}
+export async function getMeetingEvidence(
+  id: string,
+  operationId: string,
+  segmentId: string,
+  revision: number,
+  signal?: AbortSignal,
+) {
+  return meetingEvidenceSchema.parse(
+    await meetingGet(
+      endpoints.meeting(id) +
+        '/assistant/' +
+        encodeURIComponent(operationId) +
+        '/evidence/' +
+        encodeURIComponent(segmentId) +
+        '?revision=' +
+        revision,
+      { signal },
+    ),
+  );
+}
+
+export async function getMeetingSpeech(id: string, answerId: string, signal?: AbortSignal) {
+  return meetingSpeechStatusSchema.parse(
+    await meetingGet(
+      endpoints.meeting(id) + '/assistant/' + encodeURIComponent(answerId) + '/speech',
+      { signal },
+    ),
+  );
+}
+export async function prepareMeetingSpeech(
+  { id, answerId, ...body }: TMeetingSpeechInput & { id: string; answerId: string },
+  signal?: AbortSignal,
+) {
+  return meetingSpeechSchema.parse(
+    await meetingPost(
+      endpoints.meeting(id) + '/assistant/' + encodeURIComponent(answerId) + '/speech',
+      body,
+      { signal },
+    ),
+  );
+}
+export async function changeMeetingPlayback(
+  { id, speechId, ...body }: TMeetingPlaybackInput & { id: string; speechId: string },
+  signal?: AbortSignal,
+) {
+  return meetingPlaybackSchema.parse(
+    await meetingPost(
+      endpoints.meeting(id) + '/speech/' + encodeURIComponent(speechId) + '/playback',
+      body,
+      { signal },
+    ),
+  );
+}
+
+export async function correctMeetingResult(
+  { id, ...body }: TMeetingCorrectionInput & { id: string },
+  signal?: AbortSignal,
+) {
+  return meetingFinalizationSchema.parse(
+    await meetingPost(endpoints.meetingFinalCorrections(id), body, { signal }),
+  );
+}
+export async function reviewMeetingResult(
+  { id, ...body }: TMeetingReviewInput & { id: string },
+  signal?: AbortSignal,
+) {
+  return meetingFinalizationSchema.parse(
+    await meetingPost(endpoints.meetingFinalReview(id), body, { signal }),
+  );
+}
+export async function getMeetingFinalization(id: string, version?: number, signal?: AbortSignal) {
+  return meetingFinalizationSchema.parse(
+    await meetingGet(endpoints.meetingFinalization(id, version), { signal }),
+  );
+}
+export async function finalizeMeeting(
+  { id, request_id }: { id: string; request_id: string },
+  signal?: AbortSignal,
+) {
+  return meetingFinalizationSchema.parse(
+    await meetingPost(endpoints.meetingFinalization(id), { request_id }, { signal }),
+  );
+}
+export async function retryMeetingFinalization(
+  {
+    id,
+    request_id,
+  }: {
+    id: string;
+    request_id: string;
+  },
+  signal?: AbortSignal,
+) {
+  return meetingFinalizationSchema.parse(
+    await meetingPost(endpoints.meetingFinalizationRetry(id), { request_id }, { signal }),
+  );
+}
+export async function getMeetingFinalEvidence(
+  id: string,
+  segmentId: string,
+  version: number,
+  revision: number,
+  signal?: AbortSignal,
+) {
+  return meetingFinalEvidenceSchema.parse(
+    await meetingGet(endpoints.meetingFinalEvidence(id, segmentId, version, revision), { signal }),
+  );
+}
+
+export async function getMeetingWorkspace(id: string, signal?: AbortSignal) {
+  return meetingWorkspaceSchema.parse(
+    await meetingGet(endpoints.meeting(id) + '/workspace', { signal }),
+  );
+}
+export async function saveMeetingWorkspace(
+  { id, ...body }: TMeetingWorkspaceInput & { id: string },
+  signal?: AbortSignal,
+) {
+  return meetingWorkspaceSchema.parse(
+    await meetingPost(endpoints.meeting(id) + '/workspace', body, { signal }),
+  );
+}
+export async function getMeetingChats(signal?: AbortSignal) {
+  return meetingChatsSchema.parse(await meetingGet(endpoints.meetings() + '/chats', { signal }));
+}
+export async function openMeetingChat({ id }: { id: string }, signal?: AbortSignal) {
+  return meetingChatSchema.parse(
+    await meetingPost(endpoints.meeting(id) + '/chat', {}, { signal }),
+  );
+}
+export async function getMeetingChat(chatId: string, signal?: AbortSignal) {
+  return meetingChatDetailSchema.parse(
+    await meetingGet(endpoints.meetings() + '/chats/' + encodeURIComponent(chatId), { signal }),
+  );
+}
+export async function sendMeetingChat(
+  { id, chatId, ...body }: TMeetingChatMessageInput & { id: string; chatId: string },
+  signal?: AbortSignal,
+) {
+  return meetingAssistantSchema.parse(
+    await meetingPost(
+      endpoints.meeting(id) + '/chat/' + encodeURIComponent(chatId) + '/messages',
+      body,
+      { signal },
+    ),
+  );
+}
+export async function deleteMeetingChat(
+  { id, chat_id }: { id: string; chat_id: string },
+  signal?: AbortSignal,
+) {
+  return z
+    .object({ deleted: z.literal(true), chat_id: z.string().uuid() })
+    .parse(await meetingPost(endpoints.meeting(id) + '/chat/delete', { chat_id }, { signal }));
 }

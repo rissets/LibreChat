@@ -34,7 +34,7 @@ const buildDefaultConvo = ({
   }
 
   const availableModels = models;
-  const model = lastConversationSetup?.model ?? lastSelectedModel?.[endpoint] ?? '';
+  const model = (lastConversationSetup?.model || lastSelectedModel?.[endpoint]) ?? '';
 
   let possibleModels: string[];
 

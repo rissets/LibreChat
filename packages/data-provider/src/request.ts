@@ -27,6 +27,17 @@ async function _post(url: string, data?: any, options?: AxiosRequestConfig) {
   return response.data;
 }
 
+async function _postResponse<T>(
+  url: string,
+  data: unknown,
+  options?: AxiosRequestConfig,
+): Promise<AxiosResponse<T>> {
+  return axios.post<T>(url, JSON.stringify(data), {
+    ...options,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
 async function _postMultiPart(url: string, formData: FormData, options?: AxiosRequestConfig) {
   const response = await axios.post(url, formData, {
     ...options,
@@ -559,6 +570,7 @@ export default {
   get: _get,
   getResponse: _getResponse,
   post: _post,
+  postResponse: _postResponse,
   postMultiPart: _postMultiPart,
   postTTS: _postTTS,
   put: _put,

@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { RecoilRoot } from 'recoil';
+import { webcrypto } from 'node:crypto';
 import { DndProvider } from 'react-dnd';
 import { useForm } from 'react-hook-form';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-import { QueryKeys, EModelEndpoint } from 'librechat-data-provider';
-import { act, render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, useNavigate, useLocation } from 'react-router-dom';
+import { dataService, QueryKeys, EModelEndpoint } from 'librechat-data-provider';
+import { act, render, renderHook, screen, fireEvent, waitFor } from '@testing-library/react';
 import { filesFamily, isSubmittingFamily, resetSubmitting } from '@librechat/chat/react';
 import { Provider as JotaiProvider, createStore, getDefaultStore, useAtom } from 'jotai';
 import {
@@ -17,14 +18,21 @@ import {
 import type { TConversation } from 'librechat-data-provider';
 import type { Transport } from '~/hooks/Chat/contract';
 import type { ChatFormValues } from '~/common';
+import { getNewConversationDraftId, getDraft, setDraft, clearAllDrafts } from '~/utils/drafts';
 import { ChatTransportContext, defaultChatTransport } from '~/Providers/ChatTransportContext';
-import { getNewConversationDraftId, getDraft, setDraft } from '~/utils/drafts';
+import { MeetingRuntimeProvider } from '~/components/Meetings/Runtime';
+import useMeetingConversation from '~/hooks/Meetings/useMeetingConversation';
 import { ChatContext, ChatFormProvider } from '~/Providers';
 import { AuthContextProvider } from '~/hooks/AuthContext';
 import { SteerHostTestProvider } from 'test/steerHost';
 import { startupConfigKey } from '~/data-provider';
 import ChatForm from '../ChatForm';
 import store from '~/store';
+
+jest.mock('librechat-data-provider', () => {
+  const actual = jest.requireActual('librechat-data-provider');
+  return { ...actual, dataService: { ...actual.dataService } };
+});
 
 const initialConversation = {
   conversationId: 'new',
@@ -59,9 +67,20 @@ function Harness({
   speechSettingsInitialized?: boolean;
 }) {
   const [files, setFiles] = useAtom(filesFamily(0));
-  const [isSubmitting] = useAtom(isSubmittingFamily(0));
+  const [genericIsSubmitting] = useAtom(isSubmittingFamily(0));
   const [, setFilesLoading] = useState(false);
   const methods = useForm<ChatFormValues>({ defaultValues: { text: '' } });
+  const native = useMeetingConversation({
+    conversationId: conversation.conversationId ?? undefined,
+    userId: 'owner',
+    onAccepted: (text) => {
+      if (methods.getValues('text').trim() !== text) return;
+      methods.reset();
+      clearAllDrafts(conversation.conversationId);
+    },
+  });
+  const isSubmitting = native.isMeeting ? native.isSubmitting : genericIsSubmitting;
+  const send = native.isMeeting ? native.ask : onAsk;
   const chatHelpers = useMemo<React.ContextType<typeof ChatContext>>(
     () => ({
       index: 0,
@@ -83,7 +102,7 @@ function Harness({
       useLiveAttachments: () => ({}),
       feedbackEnabled: false,
       setMessages: () => undefined,
-      ask: onAsk,
+      ask: send,
       regenerate: () => undefined,
       setSiblingIdx: () => undefined,
       abortScroll: false,
@@ -95,7 +114,7 @@ function Harness({
       handleRegenerate: () => undefined,
       handleContinue: () => undefined,
     }),
-    [conversation, files, setFiles, isSubmitting, onAsk],
+    [conversation, files, setFiles, isSubmitting, send],
   );
   return (
     <ChatFormProvider {...methods}>
@@ -123,6 +142,14 @@ function mountComposer(
     routePending = false,
     speechSettingsInitialized = false,
     liveRun = false,
+    onAsk = ask,
+  }: {
+    pathname?: string;
+    query?: string;
+    routePending?: boolean;
+    speechSettingsInitialized?: boolean;
+    liveRun?: boolean;
+    onAsk?: typeof ask;
   } = {},
 ) {
   const queryClient = new QueryClient({
@@ -141,6 +168,13 @@ function mountComposer(
   queryClient.setQueryData([QueryKeys.name, EModelEndpoint.agents], { expiresAt: '' });
   queryClient.setQueryData([QueryKeys.name, EModelEndpoint.assistants], { expiresAt: '' });
   queryClient.setQueryData([QueryKeys.messages, conversation.conversationId], []);
+  queryClient.setQueryData(
+    [
+      QueryKeys.messages,
+      'meeting-10000000-0000-4000-8000-000000000081-20000000-0000-4000-8000-000000000081',
+    ],
+    [],
+  );
   queryClient.setQueryData([QueryKeys.messages, 'other-chat'], []);
   queryClient.setQueryData([QueryKeys.messages, 'chat-b'], []);
   queryClient.setQueryData([QueryKeys.assistant, EModelEndpoint.assistants, 'asst_test'], {
@@ -161,6 +195,35 @@ function mountComposer(
     [EModelEndpoint.openAI]: { order: 0 },
     [EModelEndpoint.agents]: { order: 1 },
   });
+  queryClient.setQueryData([QueryKeys.meeting, 'owner', '10000000-0000-4000-8000-000000000081'], {
+    id: '10000000-0000-4000-8000-000000000081',
+    title: 'Planning',
+    created_at: '',
+    revision: 1,
+    capture_state: 'not_started',
+    finalization_state: 'not_requested',
+    visibility: 'private',
+    artifact_classes: [],
+  });
+  queryClient.setQueryData(
+    [QueryKeys.meetingLifecycle, 'owner', '10000000-0000-4000-8000-000000000081'],
+    {
+      classes: {
+        meeting: { available: true },
+        transcript: { available: true },
+        answers: { available: true },
+      },
+      meeting_id: '10000000-0000-4000-8000-000000000081',
+      policy: {
+        seconds: { processing_audio: 300 },
+        configured: true,
+        clocks: {},
+        policy_revisions: [],
+      },
+      generation: 1,
+      removals: [],
+    },
+  );
   let navigate: ReturnType<typeof useNavigate>;
   let location: ReturnType<typeof useLocation>;
   function NavigationBridge() {
@@ -206,14 +269,27 @@ function mountComposer(
     <Harness
       conversation={conversation}
       routePending={routePending}
+      onAsk={onAsk}
       speechSettingsInitialized={speechSettingsInitialized}
     />,
     {
       wrapper,
     },
   );
-  return { ...view, navigate: (to: string) => navigate(to), getLocation: () => location };
+  return {
+    ...view,
+    navigate: (to: string) => navigate(to),
+    getLocation: () => location,
+    queryClient,
+  };
 }
+
+beforeEach(() => {
+  Object.defineProperty(crypto, 'subtle', {
+    configurable: true,
+    value: webcrypto.subtle,
+  });
+});
 
 afterEach(() => {
   resetSubmitting(getDefaultStore());
@@ -901,5 +977,79 @@ describe('ChatForm URL submission', () => {
     expect(screen.queryByText('Sending...')).not.toBeInTheDocument();
     await act(async () => jest.advanceTimersByTime(4000));
     expect(ask).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('native meeting composer drafts', () => {
+  const meetingId = '10000000-0000-4000-8000-000000000081';
+  const chatId = '20000000-0000-4000-8000-000000000081';
+  const conversation = {
+    ...initialConversation,
+    conversationId: `meeting-${meetingId}-${chatId}`,
+  };
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    localStorage.clear();
+    sessionStorage.clear();
+    jest.spyOn(dataService, 'getMessagesByConvoId').mockResolvedValue([]);
+    jest.spyOn(dataService, 'getMeeting').mockResolvedValue({
+      id: meetingId,
+      title: 'Planning',
+      created_at: '',
+      revision: 1,
+      capture_state: 'not_started',
+      finalization_state: 'not_requested',
+      visibility: 'private',
+      artifact_classes: [],
+    });
+    jest.spyOn(dataService, 'getMeetingLifecycle').mockImplementation(() => new Promise(() => {}));
+  });
+  afterEach(() => jest.useRealTimers());
+
+  it('submits turn through native ask and clears composer upon acceptance', async () => {
+    const onAsk = jest.fn().mockReturnValue(true);
+    const view = mountComposer(conversation, { query: '', onAsk });
+    await act(async () => jest.advanceTimersByTime(100));
+    setDraft({ id: conversation.conversationId, value: 'What was decided?' });
+    expect(getDraft(conversation.conversationId)).toBe('What was decided?');
+    const { result } = renderHook(
+      () =>
+        useMeetingConversation({
+          conversationId: conversation.conversationId,
+          userId: 'owner',
+          onSubmit: onAsk,
+          onAccepted: () => clearAllDrafts(conversation.conversationId),
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={view.queryClient}>
+            <MeetingRuntimeProvider>{children}</MeetingRuntimeProvider>
+          </QueryClientProvider>
+        ),
+      },
+    );
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    act(() => {
+      result.current.ask({ text: 'What was decided?' });
+    });
+    expect(onAsk).toHaveBeenCalledWith({ text: 'What was decided?' }, {});
+    expect(getDraft(conversation.conversationId)).toBe('');
+    view.unmount();
+  });
+
+  it('preserves draft across unmount and restore', async () => {
+    const view = mountComposer(conversation, { query: '' });
+    await act(async () => jest.advanceTimersByTime(100));
+    const input = screen.getByTestId('text-input');
+    fireEvent.change(input, { target: { value: 'Unsent draft' } });
+    fireEvent.input(input, { target: { value: 'Unsent draft' } });
+    await act(async () => jest.advanceTimersByTime(100));
+    expect(input).toHaveValue('Unsent draft');
+    view.unmount();
+    const restored = mountComposer(conversation, { query: '' });
+    await act(async () => jest.advanceTimersByTime(100));
+    expect(screen.getByTestId('text-input')).toHaveValue('Unsent draft');
+    restored.unmount();
   });
 });

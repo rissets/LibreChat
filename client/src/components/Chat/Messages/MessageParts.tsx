@@ -16,6 +16,7 @@ import { getHeaderHoverLabel } from '~/components/Chat/Messages/ui/HeaderLabel';
 import { revealOnRowHoverClasses, messageFooterClasses } from './styles';
 import MessageRow from '~/components/Chat/Messages/ui/MessageRow';
 import MessageIcon from '~/components/Chat/Messages/MessageIcon';
+import MeetingContext from '~/components/Meetings/Context';
 import { showThinkingAtom } from '~/store/showThinking';
 import Elapsed, { shouldShowElapsed } from './Elapsed';
 import ContentParts from './Content/ContentParts';
@@ -197,6 +198,7 @@ function MessageParts(props: TMessageProps) {
               />
             </ErrorSourceProvider>
           </AuthorContext.Provider>
+          {!edit && <MeetingContext message={message} />}
         </MessageRow>
       </div>
     </div>

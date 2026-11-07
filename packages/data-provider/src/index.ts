@@ -112,3 +112,10 @@ export * from './types/scheduleConsent';
 export * from './approval';
 
 export * from './codeSetup';
+
+export * from './meetings';
+export * from './meetingWorkspace';
+export * from './meetingVoice';
+export * from './meetingFinalization';
+export * from './meetingLifecycle';
+export * from './meetingSharing';

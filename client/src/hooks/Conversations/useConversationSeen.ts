@@ -7,6 +7,7 @@ import {
   hasServerFetchedReply,
   isConversationUnseen,
 } from '~/utils';
+import { parseMeetingChatPath } from '~/data-provider/Meetings/path';
 import { consumeFocusSuppression } from './notificationNavigation';
 import { useMarkConversationSeenMutation } from '~/data-provider';
 
@@ -130,7 +131,11 @@ export default function useConversationSeen(
 
   const markSeenIfCaughtUp = useCallback(
     (retryMessages = false) => {
-      if (!conversationId || conversationId === Constants.NEW_CONVO) {
+      if (
+        !conversationId ||
+        conversationId === Constants.NEW_CONVO ||
+        parseMeetingChatPath(conversationId)
+      ) {
         return;
       }
       if (!isNearBottomRef.current || !document.hasFocus()) {
@@ -271,7 +276,11 @@ export default function useConversationSeen(
   }, [retryOnFocus]);
 
   useEffect(() => {
-    if (!conversationId || conversationId === Constants.NEW_CONVO) {
+    if (
+      !conversationId ||
+      conversationId === Constants.NEW_CONVO ||
+      parseMeetingChatPath(conversationId)
+    ) {
       return;
     }
     const unsubscribe = queryClient.getQueryCache().subscribe((event) => {

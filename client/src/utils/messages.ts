@@ -656,6 +656,7 @@ export function areMessageFieldsEqual(
     prevMsg.messageId === nextMsg.messageId &&
     prevMsg.text === nextMsg.text &&
     prevMsg.privacyRevision === nextMsg.privacyRevision &&
+    prevMsg.metadata?.meeting === nextMsg.metadata?.meeting &&
     prevMsg.error === nextMsg.error &&
     prevMsg.unfinished === nextMsg.unfinished &&
     /** Read by the row: `useGenerationsByLatest` gates the Continue button on it and

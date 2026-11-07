@@ -945,6 +945,18 @@ describe('Message Operations', () => {
       );
       expect(logger.info).not.toHaveBeenCalled();
     });
+
+    it('should accept canonical meeting-<uuid>-<uuid> conversation IDs', async () => {
+      const meetingConvoId = `meeting-${uuidv4()}-${uuidv4()}`;
+      mockMessageData.conversationId = meetingConvoId;
+      mockMessageData.text = 'Meeting message text';
+
+      await saveMessage(mockCtx, mockMessageData, { context: 'message-save-test' });
+
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining(`Invalid conversation ID: ${meetingConvoId}`),
+      );
+    });
   });
 
   describe('bulkSaveMessages', () => {

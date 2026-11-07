@@ -17,6 +17,7 @@ import {
   useUpdateConversationMutation,
 } from '~/data-provider';
 import { cn, logger, setDocumentTitle, isConversationUnseen, hasRealTitle } from '~/utils';
+import { parseMeetingChatPath } from '~/data-provider/Meetings/workspace';
 import { isCodeConversation } from '~/components/Chat/PullRequest/code';
 import PullRequestRowMark from '~/components/Chat/PullRequest/RowMark';
 import { useNavigateToConvo, useLocalize, useShiftKey } from '~/hooks';
@@ -62,6 +63,7 @@ function Conversation({
   showProjectBadge = false,
 }: ConversationProps) {
   const params = useParams();
+  const isMeeting = !!parseMeetingChatPath(conversation.conversationId ?? '');
   const localize = useLocalize();
   const { showToast } = useToastContext();
   const { navigateToConvo } = useNavigateToConvo();
@@ -139,7 +141,7 @@ function Conversation({
       pinned: conversation.pinned === true,
     }),
   });
-  dragConnector(draggable && canHoverPointer && !renaming ? containerRef : null);
+  dragConnector(!isMeeting && draggable && canHoverPointer && !renaming ? containerRef : null);
 
   useEffect(() => {
     if (title !== previousTitle.current) {
@@ -305,7 +307,7 @@ function Conversation({
     isArchived: conversation.isArchived === true,
     retainView,
     renameHandler: handleRename,
-    canRename,
+    canRename: canRename && !isMeeting,
     isActiveConvo,
     isUnseen,
     conversationId,

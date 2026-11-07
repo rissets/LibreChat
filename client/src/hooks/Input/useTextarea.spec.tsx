@@ -172,6 +172,20 @@ const renderTextareaHook = (initialAnswerModeActive = false) => {
   return { ...hook, rerender, textArea };
 };
 
+it('uses the native message placeholder for a managed meeting without requiring an Agent', () => {
+  mockConversation = {
+    endpoint: 'agents',
+    conversationId:
+      'meeting-10000000-0000-4000-8000-000000000001-40000000-0000-4000-8000-000000000001',
+  };
+  mockLocalize.mockClear();
+  renderTextareaHook();
+  expect(mockLocalize).toHaveBeenCalledWith('com_meeting_copilot');
+  expect(mockLocalize).toHaveBeenCalledWith('com_endpoint_message_new', {
+    0: 'com_meeting_copilot',
+  });
+});
+
 describe('useTextarea long-paste fallback', () => {
   beforeEach(() => {
     jest.clearAllMocks();

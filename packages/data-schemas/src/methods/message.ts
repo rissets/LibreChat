@@ -19,7 +19,11 @@ import { tenantStorage } from '~/config/tenantContext';
 import logger from '~/config/winston';
 
 /** Simple UUID v4 regex to replace zod validation */
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_PART = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+const CONVERSATION_ID_REGEX = new RegExp(
+  `^(?:${UUID_PART}|meeting-${UUID_PART}-${UUID_PART})$`,
+  'i',
+);
 const MAX_STORED_USER_SUBMITTED_PATHS = 256;
 const MAX_NORMALIZED_USER_SUBMITTED_PATHS = MAX_STORED_USER_SUBMITTED_PATHS + 1;
 const MAX_STORED_USER_SUBMITTED_FIELD_PATHS = MAX_NORMALIZED_USER_SUBMITTED_PATHS;
@@ -1157,7 +1161,7 @@ export function createMessageMethods(
     }
 
     const conversationId = params.conversationId as string | undefined;
-    if (!conversationId || !UUID_REGEX.test(conversationId)) {
+    if (!conversationId || !CONVERSATION_ID_REGEX.test(conversationId)) {
       logger.warn(
         `Invalid conversation ID: ${conversationId} (context: ${metadata?.context ?? 'n/a'})`,
       );
@@ -4262,7 +4266,7 @@ export function createMessageMethods(
       !input.userId ||
       !input.messageId ||
       !input.privacyRevision ||
-      !UUID_REGEX.test(input.conversationId)
+      !CONVERSATION_ID_REGEX.test(input.conversationId)
     ) {
       return null;
     }
@@ -4296,7 +4300,11 @@ export function createMessageMethods(
     conversationId: string;
     messageIds: readonly string[];
   }): Promise<PrivateTextRead[]> {
-    if (!input.userId || !UUID_REGEX.test(input.conversationId) || input.messageIds.length > 50) {
+    if (
+      !input.userId ||
+      !CONVERSATION_ID_REGEX.test(input.conversationId) ||
+      input.messageIds.length > 50
+    ) {
       throw new Error('Invalid private message read.');
     }
     const activeTenant = tenantStorage.getStore()?.tenantId;

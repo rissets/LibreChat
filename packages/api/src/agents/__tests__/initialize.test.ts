@@ -6966,4 +6966,254 @@ describe('initializeAgent — inference trust boundary', () => {
       modelKwargs: { seed: 7 },
     });
   });
+
+  it('injects resolved native meeting context into additional_instructions and enforces turn binding, endpoint, model, and web search policy', async () => {
+    const meetingConvoId =
+      'meeting-00000000-0000-4000-8000-000000000072-00000000-0000-4000-8000-000000000073';
+    const { agent, req, res, loadTools, db } = createMocks({
+      provider: 'Gateway',
+      overrideProvider: Providers.OPENAI,
+      model: 'bpbatam/qwen-local',
+    });
+    const confirmDelivery = jest.fn(async () => undefined);
+    const nativeMeetingContext = {
+      conversationId: meetingConvoId,
+      meetingId: '00000000-0000-4000-8000-000000000072',
+      chatId: '00000000-0000-4000-8000-000000000073',
+      endpoint: 'Gateway',
+      model: 'bpbatam/qwen-local',
+      revision: 'a'.repeat(64),
+      notesRevision: 2,
+      segmentCount: 1,
+      allowedTools: [] as readonly string[],
+      receipt: 'receipt-token',
+      instructions: '<meeting_context>\nAuthorized meeting context: private notes and transcript snapshot\n</meeting_context>',
+      context: {
+        revision: 'a'.repeat(64),
+        chat_id: '00000000-0000-4000-8000-000000000073',
+        notes: {
+          id: '00000000-0000-4000-8000-000000000072',
+          revision: 2,
+          text: 'Catatan rapat privat',
+        },
+        segments: [],
+      },
+      confirmDelivery,
+      toJSON: () => ({
+        conversationId: meetingConvoId,
+        meetingId: '00000000-0000-4000-8000-000000000072',
+        chatId: '00000000-0000-4000-8000-000000000073',
+        endpoint: 'Gateway',
+        model: 'bpbatam/qwen-local',
+        revision: 'a'.repeat(64),
+        notesRevision: 2,
+        segmentCount: 1,
+        allowedTools: [] as readonly string[],
+      }),
+    };
+    req.nativeMeetingContext = nativeMeetingContext;
+
+    const initialized = await initializeAgent(
+      {
+        req,
+        res,
+        agent: {
+          ...agent,
+          instructions: 'Trusted system instruction {{current_date}}',
+        },
+        loadTools,
+        conversationId: meetingConvoId,
+        endpointOption: { endpoint: EModelEndpoint.agents },
+        allowedProviders: new Set([Providers.OPENAI, 'Gateway']),
+        isInitialAgent: true,
+      },
+      db,
+    );
+    expect(confirmDelivery).toHaveBeenCalledTimes(1);
+    expect(initialized.additional_instructions).toContain(nativeMeetingContext.instructions);
+    // Trusted system instructions with temporal variables must precede untrusted meeting context.
+    expect(
+      initialized.additional_instructions!.indexOf('Trusted system instruction'),
+    ).toBeLessThan(
+      initialized.additional_instructions!.indexOf(nativeMeetingContext.instructions),
+    );
+
+    await expect(
+      initializeAgent(
+        {
+          req,
+          res,
+          agent,
+          loadTools,
+          conversationId: 'ordinary-conversation',
+          endpointOption: { endpoint: EModelEndpoint.agents },
+          allowedProviders: new Set([Providers.OPENAI, 'Gateway']),
+          isInitialAgent: true,
+        },
+        db,
+      ),
+    ).rejects.toMatchObject({ code: 'MEETING_CHAT_OPERATION_DENIED', status: 403 });
+
+    await expect(
+      initializeAgent(
+        {
+          req,
+          res,
+          agent: { ...agent, model: 'unassigned/model' },
+          loadTools,
+          conversationId: meetingConvoId,
+          endpointOption: { endpoint: EModelEndpoint.agents },
+          allowedProviders: new Set([Providers.OPENAI, 'Gateway']),
+          isInitialAgent: true,
+        },
+        db,
+      ),
+    ).rejects.toMatchObject({ code: 'MODEL_NOT_ASSIGNED', status: 403 });
+
+    await expect(
+      initializeAgent(
+        {
+          req,
+          res,
+          agent: { ...agent, provider: Providers.OPENAI },
+          loadTools,
+          conversationId: meetingConvoId,
+          endpointOption: { endpoint: EModelEndpoint.agents },
+          allowedProviders: new Set([Providers.OPENAI, 'Gateway']),
+          isInitialAgent: true,
+        },
+        db,
+      ),
+    ).rejects.toMatchObject({ code: 'MANAGED_ENDPOINT_REQUIRED', status: 403 });
+
+    // Saved agent tools, web_search, memory, code execution, actions, edges, and subagents are denied when not in allowedTools.
+    for (const disallowedAgent of [
+      { ...agent, tools: [Tools.web_search] },
+      { ...agent, tools: ['mcp_external_tool'] },
+      { ...agent, tools: [Tools.execute_code] },
+      { ...agent, tools: [Tools.memory] },
+      { ...agent, actions: ['domain_action_1'] },
+      { ...agent, edges: [{ from: 'agent-1', to: 'agent-2', edgeType: 'handoff' as const }] },
+      { ...agent, subagents: { enabled: true } },
+    ]) {
+      await expect(
+        initializeAgent(
+          {
+            req,
+            res,
+            agent: disallowedAgent,
+            loadTools,
+            conversationId: meetingConvoId,
+            endpointOption: { endpoint: EModelEndpoint.agents },
+            allowedProviders: new Set([Providers.OPENAI, 'Gateway']),
+            isInitialAgent: true,
+            memoryAvailable: true,
+            codeEnvAvailable: true,
+          },
+          db,
+        ),
+      ).rejects.toMatchObject({ code: 'MEETING_TOOL_POLICY_DENIED', status: 403 });
+    }
+
+    // Skill-contributed allowed-tools that are not in nativeMeetingContext.allowedTools are rejected.
+    const { Types } = await import('mongoose');
+    const skillId = new Types.ObjectId();
+    await expect(
+      initializeAgent(
+        {
+          req,
+          res,
+          agent,
+          loadTools,
+          conversationId: meetingConvoId,
+          endpointOption: { endpoint: EModelEndpoint.agents },
+          allowedProviders: new Set([Providers.OPENAI, 'Gateway']),
+          isInitialAgent: true,
+          accessibleSkillIds: [skillId],
+          manualSkills: ['meeting-helper'],
+        },
+        {
+          ...db,
+          listSkillsByAccess: async () => ({ skills: [], has_more: false, after: null }),
+          getSkillByName: jest.fn().mockResolvedValue({
+            _id: skillId,
+            name: 'meeting-helper',
+            description: 'Helper',
+            body: '# Meeting helper',
+            author: { toString: () => req.user?.id } as unknown as import('mongoose').Types.ObjectId,
+            allowedTools: ['mcp_unverified_tool'],
+          }),
+        },
+      ),
+    ).rejects.toMatchObject({ code: 'MEETING_TOOL_POLICY_DENIED', status: 403 });
+
+    // Provider-native web search and post-getOptions model override are rejected.
+    mockGetProviderConfig.mockReturnValueOnce({
+      getOptions: jest.fn().mockResolvedValue({
+        llmConfig: { model: 'bpbatam/qwen-local', maxTokens: 4096 },
+        tools: [{ type: 'web_search_preview' }],
+      }),
+      overrideProvider: Providers.OPENAI,
+    });
+    await expect(
+      initializeAgent(
+        {
+          req,
+          res,
+          agent,
+          loadTools,
+          conversationId: meetingConvoId,
+          endpointOption: { endpoint: EModelEndpoint.agents },
+          allowedProviders: new Set([Providers.OPENAI, 'Gateway']),
+          isInitialAgent: true,
+        },
+        db,
+      ),
+    ).rejects.toMatchObject({ code: 'MEETING_TOOL_POLICY_DENIED', status: 403 });
+
+    mockGetProviderConfig.mockReturnValueOnce({
+      getOptions: jest.fn().mockResolvedValue({
+        llmConfig: { model: 'overridden/model', maxTokens: 4096 },
+      }),
+      overrideProvider: Providers.OPENAI,
+    });
+    await expect(
+      initializeAgent(
+        {
+          req,
+          res,
+          agent,
+          loadTools,
+          conversationId: meetingConvoId,
+          endpointOption: { endpoint: EModelEndpoint.agents },
+          allowedProviders: new Set([Providers.OPENAI, 'Gateway']),
+          isInitialAgent: true,
+        },
+        db,
+      ),
+    ).rejects.toMatchObject({ code: 'MODEL_NOT_ASSIGNED', status: 403 });
+
+    // Delivery confirmation failure at the end of initializeAgent aborts initialization.
+    confirmDelivery.mockRejectedValueOnce(
+      Object.assign(new Error('MEETING_DELIVERY_CHANGED'), {
+        code: 'MEETING_DELIVERY_CHANGED',
+        status: 409,
+      }),
+    );
+    await expect(
+      initializeAgent(
+        {
+          req,
+          res,
+          agent,
+          loadTools,
+          conversationId: meetingConvoId,
+          endpointOption: { endpoint: EModelEndpoint.agents },
+          allowedProviders: new Set([Providers.OPENAI, 'Gateway']),
+          isInitialAgent: true,
+        },
+        db,
+      ),
+    ).rejects.toMatchObject({ code: 'MEETING_DELIVERY_CHANGED', status: 409 });
+  });
 });

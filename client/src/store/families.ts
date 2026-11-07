@@ -17,6 +17,7 @@ import {
   storeEndpointSettings,
   logger,
 } from '~/utils';
+import { parseMeetingChatPath } from '~/data-provider/Meetings/path';
 import { useSetConvoContext } from '~/Providers/SetConvoContext';
 
 const conversationByIndex = atomFamily<TConversation | null, string | number>({
@@ -25,6 +26,8 @@ const conversationByIndex = atomFamily<TConversation | null, string | number>({
   effects: [
     ({ onSet, node }) => {
       onSet(async (newValue, oldValue) => {
+        // Meeting projections never become a default model/provider for ordinary chats.
+        if (parseMeetingChatPath(newValue?.conversationId ?? '')) return;
         const index = Number(node.key.split('__')[1]);
         logger.log('conversation', 'Setting conversation:', {
           index,

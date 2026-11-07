@@ -24,6 +24,7 @@ import SiblingSwitch from '~/components/Chat/Messages/SiblingSwitch';
 import HoverButtons from '~/components/Chat/Messages/HoverButtons';
 import MessageRow from '~/components/Chat/Messages/ui/MessageRow';
 import MessageIcon from '~/components/Chat/Messages/MessageIcon';
+import MeetingContext from '~/components/Meetings/Context';
 import { showThinkingAtom } from '~/store/showThinking';
 import SubRow from '~/components/Chat/Messages/SubRow';
 import { AuthorContext } from '~/Providers';
@@ -253,6 +254,7 @@ const ContentRender = memo(function ContentRender({
           )}
         </ErrorSourceProvider>
       </AuthorContext.Provider>
+      {!edit && <MeetingContext message={msg} />}
       {/** A turn that ran out of agent steps is incomplete, not broken. Rendered
        *   here rather than inside `ContentParts` because it is a message-level
        *   outcome, and `ContentParts` also serves surfaces (subagent panels,

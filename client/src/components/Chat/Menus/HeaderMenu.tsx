@@ -1,5 +1,7 @@
 import { useState, useId } from 'react';
 import * as Ariakit from '@ariakit/react';
+import { ArrowUpRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { PermissionTypes, Permissions } from 'librechat-data-provider';
 import { DropdownPopup, TooltipAnchor, Button } from '@librechat/client';
 import { BookmarkFilledIcon, BookmarkIcon } from '@radix-ui/react-icons';
@@ -22,7 +24,7 @@ import { cn } from '~/utils';
  * behaviour and visibility rule comes from the hook that also drives its
  * desktop button, so the two surfaces cannot drift apart.
  */
-export default function HeaderMenu({
+function StandardHeaderMenu({
   startupConfig,
   trace,
   className,
@@ -192,4 +194,53 @@ export default function HeaderMenu({
       {pullRequest.dialog}
     </BookmarkContext.Provider>
   );
+}
+
+/** Managed chats offer only actions supported by the meeting transport. */
+function MeetingMenu({ meetingId }: { meetingId: string }) {
+  const localize = useLocalize();
+  const navigate = useNavigate();
+  const menuId = useId();
+  const [isOpen, setIsOpen] = useState(false);
+  return (
+    <DropdownPopup
+      portal
+      menuId={menuId}
+      focusLoop
+      unmountOnHide
+      isOpen={isOpen}
+      setIsOpen={setIsOpen}
+      items={[
+        {
+          id: 'open-meeting',
+          label: localize('com_meeting_runtime_return'),
+          icon: <ArrowUpRight className="size-4" aria-hidden="true" />,
+          onClick: () => navigate('/meetings/' + encodeURIComponent(meetingId)),
+        },
+      ]}
+      trigger={
+        <TooltipAnchor
+          description={localize('com_ui_more_options')}
+          render={
+            <Ariakit.MenuButton
+              aria-label={localize('com_ui_more_options')}
+              data-testid="header-overflow-menu"
+              render={
+                <Button size="icon" variant="header-action" className="relative size-9 shrink-0" />
+              }
+            >
+              <Ellipsis className="icon-md" aria-hidden="true" />
+            </Ariakit.MenuButton>
+          }
+        />
+      }
+    />
+  );
+}
+
+export default function HeaderMenu({
+  meetingId,
+  ...props
+}: React.ComponentProps<typeof StandardHeaderMenu> & { meetingId?: string }) {
+  return meetingId ? <MeetingMenu meetingId={meetingId} /> : <StandardHeaderMenu {...props} />;
 }

@@ -4,6 +4,7 @@ import { DropdownPopup, Spinner } from '@librechat/client';
 import { Ellipsis, Archive, ArchiveRestore, Mail, Pen, Pin, Trash } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import type { ConvoMenuHandlers, ConvoMenuLoading } from './Controller';
+import { parseMeetingChatPath } from '~/data-provider/Meetings/workspace';
 import useDrawerViewport from '~/hooks/Nav/useDrawerViewport';
 import { cn, rowActionClasses } from '~/utils';
 import ConvoMenuController from './Controller';
@@ -57,6 +58,7 @@ function ConvoOptions({
   contextMenuPosition?: { x: number; y: number };
 }) {
   const localize = useLocalize();
+  const isMeeting = !!parseMeetingChatPath(conversationId ?? '');
   const isSmallScreen = useDrawerViewport();
 
   const menuId = useId();
@@ -68,7 +70,8 @@ function ConvoOptions({
      same element across the row's hover. What the menu does is kept off it until the menu is
      first used: opened, shift-held for the quick actions, or asked to delete. From then on it
      stays, because a request it started has to land in the handlers that made it. */
-  const showQuickActions = isShiftHeld && isActiveConvo && !isPopoverActive && !showDeleteDialog;
+  const showQuickActions =
+    !isMeeting && isShiftHeld && isActiveConvo && !isPopoverActive && !showDeleteDialog;
   const [armed, setArmed] = useState(false);
   if (!armed && (isPopoverActive || showDeleteDialog || showQuickActions)) {
     setArmed(true);
@@ -104,6 +107,7 @@ function ConvoOptions({
     () => [
       {
         label: localize(isPinned ? 'com_ui_unpin' : 'com_ui_pin'),
+        show: !isMeeting,
         onClick: handlePinClick,
         hideOnClick: false,
         icon: isPinLoading ? (
@@ -117,17 +121,19 @@ function ConvoOptions({
         onClick: handleMarkUnreadClick,
         /* The conversation on screen is definitionally read: its own seen triggers would
            clear the flag the moment it is set. */
-        show: !isActiveConvo && !isUnseen,
+        show: !isMeeting && !isActiveConvo && !isUnseen,
         icon: <Mail className="icon-sm text-text-primary me-2" aria-hidden="true" />,
       },
       {
         label: localize('com_ui_rename'),
+        show: !isMeeting,
         onClick: renameHandler,
         disabled: !canRename,
         icon: <Pen className="icon-sm text-text-primary me-2" aria-hidden="true" />,
       },
       {
         label: localize(isArchived ? 'com_ui_unarchive' : 'com_ui_archive'),
+        show: !isMeeting,
         onClick: handleArchiveClick,
         hideOnClick: false,
         icon: renderArchiveIcon(isArchiveLoading, isArchived, 'icon-sm me-2 text-text-primary'),
@@ -146,6 +152,7 @@ function ConvoOptions({
     ],
     [
       localize,
+      isMeeting,
       isPinned,
       isUnseen,
       isActiveConvo,

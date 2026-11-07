@@ -33,6 +33,8 @@ import {
   CodeHighlightThrottleContext,
   normalizeCodeHighlightThrottleMs,
 } from '~/components/Chat/Messages/Content/Parts/useLazyHighlight';
+import { MeetingRuntimeProvider, MeetingRecordingStrip } from '~/components/Meetings/Runtime';
+import { MeetingNotesProvider } from '~/components/Meetings/NotesState';
 import KeyboardShortcutsDialog from '~/components/Nav/KeyboardShortcutsDialog';
 import { SteerHostProvider, appSteerHost } from '~/Providers/SteerHostContext';
 import KeyboardDeleteDialog from '~/components/Nav/KeyboardDeleteDialog';
@@ -221,7 +223,14 @@ function RootLayout() {
                         ready={isConfigReady && configError == null}
                         userId={user?.id}
                       >
-                        <Outlet />
+                        <MeetingRuntimeProvider userId={user?.id}>
+                          <MeetingRecordingStrip />
+                          <div className="min-h-0 flex-1 overflow-hidden">
+                            <MeetingNotesProvider>
+                              <Outlet />
+                            </MeetingNotesProvider>
+                          </div>
+                        </MeetingRuntimeProvider>
                       </MCPAppsPolicyProvider>
                     </div>
                     {/* Without the strip the scrim exists only for the travel:

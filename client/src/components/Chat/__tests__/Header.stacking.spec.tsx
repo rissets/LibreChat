@@ -3,6 +3,7 @@ import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/react';
 import Header from '../Header';
 
+const mockRoute = { current: 'convo-1' };
 const mockEndpoint = { current: 'agents' };
 const mockSmallScreen = { current: false };
 const codeConversation = {
@@ -15,7 +16,7 @@ const mockConversation: { current: Record<string, unknown> | null } = {
 };
 
 jest.mock('react-router-dom', () => ({
-  useParams: () => ({ conversationId: 'convo-1' }),
+  useParams: () => ({ conversationId: mockRoute.current }),
 }));
 jest.mock('recoil', () => ({
   useRecoilValue: (selector: string) =>
@@ -31,7 +32,10 @@ jest.mock('librechat-data-provider', () => ({
     jest.requireActual('librechat-data-provider').isForcedTemporaryRetention,
 }));
 jest.mock('~/data-provider', () => ({ useGetStartupConfig: () => ({ data: undefined }) }));
-jest.mock('~/hooks', () => ({ useHasAccess: () => false }));
+jest.mock('~/hooks', () => ({
+  useHasAccess: () => false,
+  useLocalize: () => (key: string) => key,
+}));
 jest.mock('~/Providers', () => ({
   useChatContext: () => ({ conversation: mockConversation.current }),
 }));
@@ -63,7 +67,13 @@ jest.mock('../BackgroundTasks', () => ({
 jest.mock('../PullRequest', () => ({
   PullRequestChip: jest.fn(() => <div data-testid="conversation-pull-request" />),
 }));
-jest.mock('../Menus/Endpoints/ModelSelector', () => () => null);
+jest.mock(
+  '../Menus/Endpoints/ModelSelector',
+  () =>
+    ({ managedLabel }: { managedLabel?: string }) => (
+      <button data-testid="model-selector-button">{managedLabel}</button>
+    ),
+);
 jest.mock('../ExportAndShareMenu', () => () => null);
 jest.mock('../SubagentThreadLink', () => () => null);
 jest.mock('../Menus/BookmarkMenu', () => () => null);
@@ -79,6 +89,7 @@ describe('Header stacking', () => {
     backgroundTasks.mockClear();
     pullRequestChip.mockClear();
     headerMenu.mockClear();
+    mockRoute.current = 'convo-1';
     mockEndpoint.current = 'agents';
     mockSmallScreen.current = false;
     mockConversation.current = codeConversation;
@@ -154,4 +165,16 @@ describe('Header stacking', () => {
     render(<Header />);
     expect(headerMenu.mock.calls[0][0].pullRequestConversationId).toBeUndefined();
   });
+});
+
+test('keeps the native selector and more menu for meeting chats without a custom back header', () => {
+  mockRoute.current =
+    'meeting-10000000-0000-4000-8000-000000000001-40000000-0000-4000-8000-000000000001';
+  render(<Header />);
+  expect(screen.getByTestId('model-selector-button')).toHaveTextContent('com_meeting_copilot');
+  expect(screen.queryByText('com_meeting_workspace_back_to_meeting')).not.toBeInTheDocument();
+  expect(jest.requireMock('../Menus').HeaderMenu).toHaveBeenLastCalledWith(
+    expect.objectContaining({ meetingId: '10000000-0000-4000-8000-000000000001' }),
+    expect.anything(),
+  );
 });

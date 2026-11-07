@@ -7,6 +7,8 @@ export interface GatewayDeps {
   endpoint: string;
   audience: string;
   publicAPIURL?: string;
+  meetingURL?: string;
+  tenantId?: string;
 }
 /** Deployment trust/credential configuration cannot be overridden by a user's config profile. */
 export function gatewayConfig(): GatewayDeps | null {
@@ -29,5 +31,7 @@ export function gatewayConfig(): GatewayDeps | null {
     endpoint,
     audience: process.env.BPBATAM_SERVICE_AUDIENCE ?? 'bpbatam-gateway',
     publicAPIURL: process.env.BPBATAM_PUBLIC_API_URL,
+    meetingURL: process.env.BPBATAM_MEETING_URL,
+    tenantId: process.env.BPBATAM_TENANT_ID ?? 'bp-batam',
   };
 }

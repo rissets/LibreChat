@@ -14,6 +14,7 @@ import {
   useToastContext,
 } from '@librechat/client';
 import type { TMessage } from 'librechat-data-provider';
+import { parseMeetingChatPath } from '~/data-provider/Meetings/workspace';
 import { useDeleteConversationMutation } from '~/data-provider';
 import { useLocalize, useNewConvo } from '~/hooks';
 import { NotificationSeverity } from '~/common';
@@ -99,12 +100,16 @@ export function DeleteConversationDialog({
       <OGDialogHeader>
         <OGDialogTitle>{localize('com_ui_delete_conversation')}</OGDialogTitle>
       </OGDialogHeader>
-      <div id="delete-conversation-description" className="w-full truncate">
-        <Trans
-          i18nKey="com_ui_delete_confirm_strong"
-          values={{ title }}
-          components={{ strong: <strong /> }}
-        />
+      <div id="delete-conversation-description" className="w-full">
+        {parseMeetingChatPath(conversationId) ? (
+          localize('com_meeting_workspace_delete_explanation')
+        ) : (
+          <Trans
+            i18nKey="com_ui_delete_confirm_strong"
+            values={{ title }}
+            components={{ strong: <strong /> }}
+          />
+        )}
       </div>
       <div className="flex justify-end gap-4 pt-4">
         <OGDialogClose asChild>

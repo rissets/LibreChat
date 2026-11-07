@@ -10,8 +10,16 @@ const {
   GenerationJobManager,
   getSafeErrorMetadata,
   validateChatMessageIds,
+  createNativeMeetingGateway,
+  gatewayConfig,
 } = require('@librechat/api');
-const { PermissionTypes, Permissions, PermissionBits } = require('librechat-data-provider');
+const {
+  AgentCapabilities,
+  Tools,
+  PermissionTypes,
+  Permissions,
+  PermissionBits,
+} = require('librechat-data-provider');
 const {
   moderateText,
   // validateModel,
@@ -36,6 +44,22 @@ const checkAgentAccess = generateCheckAccess({
 });
 const checkAgentResourceAccess = canAccessAgentFromBody({
   requiredPermission: PermissionBits.VIEW,
+});
+
+const nativeMeetings = createNativeMeetingGateway({
+  config: gatewayConfig,
+  logger,
+  policy: () => ({
+    environment: process.env.NODE_ENV,
+    localityVerified: true,
+    allowedTools: [
+      AgentCapabilities.skills,
+      'skill',
+      Tools.file_search,
+      Tools.execute_code,
+      Tools.memory,
+    ],
+  }),
 });
 
 /**
@@ -78,6 +102,7 @@ router.use(checkAgentAccess);
 router.use(checkAgentResourceAccess);
 router.use(validateConvoAccess);
 router.use(guardSubagentThreadTurn);
+router.use(nativeMeetings.enforceTurn);
 router.use(buildEndpointOption);
 
 const controller = async (req, res, next) => {

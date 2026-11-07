@@ -693,3 +693,39 @@ export const graphToken = (scopes: string) =>
   `${BASE_URL}/api/auth/graph-token?scopes=${encodeURIComponent(scopes)}`;
 
 export const resetToolApprovalGrants = (): string => `${BASE_URL}/api/agents/tools/approvals/reset`;
+
+export const meetings = () => `${BASE_URL}/api/meetings`;
+export const meetingAccess = () => `${meetings()}/access`;
+export const meeting = (id: string) => `${meetings()}/${encodeURIComponent(id)}`;
+export const meetingRecipients = (id: string, q: string) =>
+  `${meeting(id)}/recipients?${new URLSearchParams({ q })}`;
+export const meetingShares = (id: string) => `${meeting(id)}/sharing`;
+export const meetingSharedArtifacts = () => `${meetings()}/shared`;
+export const meetingSharedResult = (id: string, version: number) =>
+  `${meeting(id)}/shared?${new URLSearchParams({ version: String(version) })}`;
+export const meetingSharedEvidence = (
+  id: string,
+  version: number,
+  segmentId: string,
+  revision: number,
+) =>
+  `${meeting(id)}/shared/evidence/${encodeURIComponent(segmentId)}?${new URLSearchParams({ version: String(version), revision: String(revision) })}`;
+export const meetingCapture = (id: string) => `${meeting(id)}/capture`;
+export const meetingAudio = (id: string) => `${meeting(id)}/audio`;
+export const meetingTranscript = (id: string) => `${meeting(id)}/transcript`;
+export const meetingLifecycle = (id: string) => `${meeting(id)}/lifecycle`;
+export const meetingVoice = (id: string) => `${meeting(id)}/voice-questions`;
+export const meetingVoiceOperation = (id: string, operationId: string) =>
+  `${meetingVoice(id)}/${encodeURIComponent(operationId)}`;
+export const meetingFinalization = (id: string, version?: number) =>
+  `${meeting(id)}/finalization${version == null ? '' : '?version=' + encodeURIComponent(String(version))}`;
+export const meetingFinalizationRetry = (id: string) => `${meetingFinalization(id)}/retry`;
+export const meetingFinalCorrections = (id: string) => `${meetingFinalization(id)}/corrections`;
+export const meetingFinalReview = (id: string) => `${meetingFinalization(id)}/review`;
+export const meetingFinalEvidence = (
+  id: string,
+  segmentId: string,
+  version: number,
+  revision: number,
+) =>
+  `${meetingFinalization(id)}/evidence/${encodeURIComponent(segmentId)}?${new URLSearchParams({ version: String(version), revision: String(revision) })}`;

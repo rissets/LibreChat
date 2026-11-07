@@ -26,6 +26,7 @@ import {
   checkIfScrollable,
 } from '~/utils';
 import { useAssistantsMapContext } from '~/Providers/AssistantsMapContext';
+import { parseMeetingChatPath } from '~/data-provider/Meetings/workspace';
 import { useLatestMessageMeta } from '~/hooks/Messages/useLatestMessage';
 import { useChatFormContext, useUploadModalContext } from '~/Providers';
 import useComposerBindings from '~/hooks/Input/useComposerBindings';
@@ -185,6 +186,11 @@ export default function useTextarea({
       const currentEndpoint = conversation?.endpoint ?? '';
       const currentAgentId = conversation?.agent_id ?? '';
       const currentAssistantId = conversation?.assistant_id ?? '';
+      if (parseMeetingChatPath(conversation?.conversationId ?? ''))
+        return (
+          placeholder ??
+          localize('com_endpoint_message_new', { 0: localize('com_meeting_copilot') })
+        );
       if (isAgent && (!currentAgentId || !agentsMap?.[currentAgentId])) {
         return localize('com_endpoint_agent_placeholder');
       } else if (

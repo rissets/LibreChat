@@ -231,3 +231,18 @@ it('reconciles a remounted chat route with conversation state retained by the sh
   await waitFor(() => expect(screen.getByTestId('composer')).toHaveTextContent('chat-b'));
   expect(mockFetchConversation).toHaveBeenCalledWith('chat-b');
 });
+
+it('opens meeting conversations in the same native chat route and returns to ordinary chats', async () => {
+  const meetingId =
+    'meeting-10000000-0000-4000-8000-000000000001-20000000-0000-4000-8000-000000000001';
+  const { router } = setup();
+  await act(async () => {
+    await router.navigate('/c/' + meetingId);
+  });
+  await waitFor(() => expect(screen.getByTestId('composer')).toHaveTextContent(meetingId));
+  expect(mockFetchConversation).toHaveBeenCalledWith(meetingId);
+  await act(async () => {
+    await router.navigate('/c/chat-b');
+  });
+  await waitFor(() => expect(screen.getByTestId('composer')).toHaveTextContent('chat-b'));
+});

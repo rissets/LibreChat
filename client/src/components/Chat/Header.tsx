@@ -9,6 +9,7 @@ import {
   Permissions,
   isForcedTemporaryRetention,
 } from 'librechat-data-provider';
+import { parseMeetingChatPath } from '~/data-provider/Meetings/workspace';
 import { OpenSidebar, PresetsMenu, NewChat, HeaderMenu } from './Menus';
 import { TemporaryChat, TemporaryChatIndicator } from './TemporaryChat';
 import useDrawerViewport from '~/hooks/Nav/useDrawerViewport';
@@ -19,11 +20,11 @@ import { TraceButton, useTraceControl } from './Trace';
 import { useGetStartupConfig } from '~/data-provider';
 import ExportAndShareMenu from './ExportAndShareMenu';
 import SubagentThreadLink from './SubagentThreadLink';
+import { useHasAccess, useLocalize } from '~/hooks';
 import { PullRequestChip } from './PullRequest';
 import BookmarkMenu from './Menus/BookmarkMenu';
 import { useChatContext } from '~/Providers';
 import AddMultiConvo from './AddMultiConvo';
-import { useHasAccess } from '~/hooks';
 import { cn } from '~/utils';
 import store from '~/store';
 
@@ -47,6 +48,8 @@ function Header({
    *  previous chat for a render after a history or link navigation. An unsaved
    *  conversation has no id in the route yet, so absence counts as new too. */
   const { conversationId: routeConversationId } = useParams();
+  const meeting = parseMeetingChatPath(routeConversationId);
+  const localize = useLocalize();
   const isNewChat = routeConversationId == null || routeConversationId === Constants.NEW_CONVO;
   /** The context conversation can still be the previous chat for a render, so it counts only
    *  once it is the routed one. Only a code conversation can have a pull request. */
@@ -86,7 +89,7 @@ function Header({
     conversationId: isNewChat ? null : routeConversationId,
     traceViewer: interfaceConfig.traceViewer,
     isSubmitting,
-    enabled: parentConversationId == null,
+    enabled: parentConversationId == null && !meeting,
   });
 
   /** The drawer covers the header on mobile; keep its controls out of the tab order. */
@@ -110,18 +113,27 @@ function Header({
         {parentConversationId != null && (
           <SubagentThreadLink threadId={parentConversationId} labelClassName="hidden lg:inline" />
         )}
-        {!readOnly && <ModelSelector startupConfig={startupConfig} />}
-        {!readOnly && interfaceConfig.presets === true && interfaceConfig.modelSelect === true && (
-          <PresetsMenu />
+        {!readOnly && (
+          <ModelSelector
+            startupConfig={startupConfig}
+            managedLabel={meeting ? localize('com_meeting_copilot') : undefined}
+          />
         )}
-        {hasAccessToBookmarks === true && (
+        {!readOnly && interfaceConfig.presets === true && interfaceConfig.modelSelect === true && (
+          <PresetsMenu
+            disabledReason={meeting ? localize('com_meeting_presets_locked') : undefined}
+          />
+        )}
+        {!meeting && hasAccessToBookmarks === true && (
           <div className={cn('items-center', isSmallScreen ? 'hidden' : 'flex')}>
             <BookmarkMenu />
           </div>
         )}
         {hasAccessToMultiConvo === true && (
           <div className={cn('items-center', isSmallScreen ? 'hidden' : 'flex')}>
-            <AddMultiConvo />
+            <AddMultiConvo
+              disabledReason={meeting ? localize('com_meeting_models_locked') : undefined}
+            />
           </div>
         )}
         {/* Desktop only: its details open to the right, into the room this cluster leaves free.
@@ -132,9 +144,9 @@ function Header({
       </div>
 
       <div className={cn('flex shrink-0 items-center gap-2', hiddenBehindNav)}>
-        {showTemporaryChat && <TemporaryChatIndicator />}
+        {!meeting && showTemporaryChat && <TemporaryChatIndicator />}
         {!isNewChat && <NewChat className={isSmallScreen ? undefined : 'hidden'} />}
-        {!isNewChat && parentConversationId == null && (
+        {!meeting && !isNewChat && parentConversationId == null && (
           <BackgroundTasksButton
             key={routeConversationId}
             conversationId={routeConversationId}
@@ -143,18 +155,21 @@ function Header({
         )}
         <HeaderMenu
           startupConfig={startupConfig}
+          meetingId={meeting?.meetingId}
           trace={trace}
           readOnly={readOnly}
           pullRequestConversationId={showPullRequest ? routeConversationId : undefined}
-          className={isSmallScreen ? undefined : 'hidden'}
+          className={meeting || isSmallScreen ? undefined : 'hidden'}
         />
         <div className={cn('items-center gap-2', isSmallScreen ? 'hidden' : 'flex')}>
           {trace.show && <TraceButton onClick={trace.open} />}
-          <ExportAndShareMenu
-            isSharedButtonEnabled={startupConfig?.sharedLinksEnabled ?? false}
-            readOnly={readOnly}
-          />
-          {showTemporaryChat && <TemporaryChat />}
+          {!meeting && (
+            <ExportAndShareMenu
+              isSharedButtonEnabled={startupConfig?.sharedLinksEnabled ?? false}
+              readOnly={readOnly}
+            />
+          )}
+          {!meeting && showTemporaryChat && <TemporaryChat />}
         </div>
       </div>
     </div>

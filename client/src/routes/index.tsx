@@ -41,6 +41,9 @@ const loadSkillsView = () =>
     Component: m.default,
   }));
 
+const loadMeetings = () =>
+  importWithRecovery(() => import('~/components/Meetings')).then((m) => ({ Component: m.default }));
+
 const loadInsightsView = () =>
   importWithRecovery(() => import('~/components/Insights')).then((m) => ({
     Component: m.default,
@@ -163,6 +166,10 @@ export const router = createBrowserRouter(
                 {
                   path: 'skills',
                   lazy: loadSkillsView,
+                },
+                {
+                  path: 'meetings/:meetingId?',
+                  lazy: loadMeetings,
                 },
                 {
                   path: 'insights',

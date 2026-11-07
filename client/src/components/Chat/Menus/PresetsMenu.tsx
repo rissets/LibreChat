@@ -20,7 +20,7 @@ import { EditPresetDialog, PresetItems } from './Presets';
 import { useLocalize, usePresets } from '~/hooks';
 import { useChatContext } from '~/Providers';
 
-const PresetsMenu: FC = () => {
+const StandardPresetsMenu: FC = () => {
   const localize = useLocalize();
   const presetsMenuTriggerRef = useRef<HTMLDivElement>(null);
   const [saveAsDialogOpen, setSaveAsDialogOpen] = useState(false);
@@ -71,13 +71,13 @@ const PresetsMenu: FC = () => {
           render={
             <Button
               size="icon"
-              variant="outline"
+              variant="header-action"
               shape="theme"
               tabIndex={0}
               id="presets-button"
               data-testid="presets-button"
               aria-label={localize('com_endpoint_examples')}
-              className="bg-presentation h-9 w-9 shrink-0 duration-0"
+              className="h-9 w-9 shrink-0"
             >
               <BookCopy className="icon-md" aria-hidden="true" />
             </Button>
@@ -155,4 +155,26 @@ const PresetsMenu: FC = () => {
   );
 };
 
+const PresetsMenu: FC<{ disabledReason?: string }> = ({ disabledReason }) => {
+  const localize = useLocalize();
+  if (!disabledReason) return <StandardPresetsMenu />;
+  return (
+    <TooltipAnchor
+      description={disabledReason}
+      render={
+        <Button
+          size="icon"
+          variant="header-action"
+          shape="theme"
+          aria-disabled="true"
+          aria-label={localize('com_endpoint_examples')}
+          data-testid="presets-button"
+          className="h-9 w-9 shrink-0"
+        >
+          <BookCopy className="icon-md" aria-hidden="true" />
+        </Button>
+      }
+    />
+  );
+};
 export default PresetsMenu;

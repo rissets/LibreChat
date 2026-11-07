@@ -1,3 +1,26 @@
+export { createMeetingGateway } from './gateway/meetings';
+export {
+  createNativeMeetingGateway,
+  rejectGenericMeetingRequests,
+  resolveNativeMeetingTurnContext,
+  formatNativeMeetingContextInstructions,
+  parseNativeMeetingConversationId,
+  getNativeMeetingTurnFailure,
+  NativeMeetingTurnError,
+  meetingNativeContextSchema,
+  meetingNativeNotesSchema,
+  meetingNativeSegmentSchema,
+} from './gateway/nativeMeetings';
+export type {
+  NativeMeetingTurnUser,
+  NativeMeetingTurnPolicy,
+  NativeMeetingTurnLogger,
+  ResolveNativeMeetingTurnInput,
+  ResolvedNativeMeetingTurnContext,
+  TMeetingNativeContext,
+  TMeetingNativeNotes,
+  TMeetingNativeSegment,
+} from './gateway/nativeMeetings';
 export * from './app';
 export { createManagedSelfService } from './gateway/selfService';
 export * from './acl/accessControlService';

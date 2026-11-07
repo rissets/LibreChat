@@ -1,9 +1,9 @@
-import { memo, useMemo, useRef } from 'react';
+import { memo, useMemo, useRef, useEffect } from 'react';
 import { useAtomValue } from 'jotai';
 import { useRecoilValue } from 'recoil';
 import { useForm } from 'react-hook-form';
-import { Spinner } from '@librechat/client';
 import { useParams } from 'react-router-dom';
+import { Button, Spinner } from '@librechat/client';
 import { Constants, buildTree } from 'librechat-data-provider';
 import {
   useQueueDrain,
@@ -23,12 +23,16 @@ import {
   useLocalize,
 } from '~/hooks';
 import { ChatContext, AddedChatContext, ChatFormProvider, useFileMapContext } from '~/Providers';
+import useMeetingConversation from '~/hooks/Meetings/useMeetingConversation';
 import Footer, { useLandingFooter, useConfiguredFooter } from './Footer';
 import { QueuedTurnPortalProvider } from './Steering/QueuedTurnPortal';
+import { meetingMessageContext } from '~/components/Meetings/metadata';
+import { parseMeetingChatPath } from '~/data-provider/Meetings/path';
 import { useChatSettings } from '~/Providers/ChatSettingsContext';
 import ApprovalProvider from './Messages/Content/ApprovalContext';
 import ConversationStarters from './Input/ConversationStarters';
 import { pendingApprovalActionFamily } from './approval/state';
+import { cn, clearAllDrafts, setDocumentTitle } from '~/utils';
 import ProjectBadge from '~/components/Projects/ProjectBadge';
 import { composerLiftFamily } from './Input/Composer/state';
 import { OwnerTextProvider } from './Messages/PrivateText';
@@ -41,7 +45,6 @@ import { TraceSurface } from './Trace';
 import Lia from '~/components/Lia';
 import Landing from './Landing';
 import Header from './Header';
-import { cn } from '~/utils';
 import store from '~/store';
 
 function LoadingSpinner() {
@@ -67,8 +70,9 @@ function ChatView({
   const { conversationId } = useParams();
   const localize = useLocalize();
   const rootSubmission = useAtomValue(submissionByIndex(index));
-  const isSubmitting = useIsSubmitting(index);
-  const { saveDrafts } = useChatSettings();
+  const genericIsSubmitting = useIsSubmitting(index);
+  const isMeeting = !!parseMeetingChatPath(conversationId);
+  const { saveDrafts, auth } = useChatSettings();
   const enterToSend = useRecoilValue(store.enterToSend);
   const autoSendText = useRecoilValue(store.autoSendText);
   const speechSettingsInitialized = useRecoilValue(store.speechSettingsInitialized);
@@ -97,29 +101,81 @@ function ChatView({
     defaultValues: { text: '' },
   });
 
+  const genericHelpers = useChatHelpers(index, conversationId);
+  const nativeMeeting = useMeetingConversation({
+    conversationId,
+    userId: auth.user?.id,
+    onSubmit: genericHelpers.ask,
+    stopGenerating: genericHelpers.stopGenerating,
+    onUnavailable: () => {
+      methods.reset();
+      clearAllDrafts(conversationId);
+      setDocumentTitle(localize('com_meeting_workspace_chat'));
+      genericHelpers.setConversation((current) =>
+        current && current.conversationId === conversationId
+          ? { ...current, title: null, messages: [] }
+          : current,
+      );
+    },
+    onAccepted: (text) => {
+      if (methods.getValues('text').trim() !== text) return;
+      methods.reset();
+      clearAllDrafts(conversationId);
+    },
+  });
   const fileMap = useFileMapContext();
 
   const {
     data: messages = null,
     isLoading,
     isFetching,
+    isError: messagesError,
+    refetch: reloadMessages,
   } = useGetMessagesByConvoId(
     conversationId ?? '',
     {
-      enabled: !!conversationId && conversationId !== Constants.SEARCH,
+      enabled:
+        !!conversationId && conversationId !== Constants.SEARCH && !nativeMeeting.unavailable,
+      ...(isMeeting ? { cacheTime: 0, retry: false } : {}),
       /** Refetch stale caches on mount: navigation invalidates (not removes)
        * messages now, so a warm conversation renders instantly from cache and
        * reconciles in the background instead of unmounting into a spinner. */
       refetchOnMount: true,
     },
-    { isStreaming: isSubmitting },
+    { isStreaming: genericIsSubmitting },
   );
+  const revokeMeeting = nativeMeeting.revoke;
+  useEffect(() => {
+    if (isMeeting && messagesError) revokeMeeting();
+  }, [isMeeting, messagesError, revokeMeeting]);
+  const meetingPending =
+    isMeeting &&
+    messages?.some((message) =>
+      ['accepted', 'processing'].includes(meetingMessageContext(message)?.state ?? ''),
+    );
+  const isSubmitting = isMeeting
+    ? genericIsSubmitting || nativeMeeting.isSubmitting || !!meetingPending
+    : genericIsSubmitting;
   const messagesTree = useMemo(() => {
     const dataTree = buildTree({ messages, fileMap });
     return dataTree?.length === 0 ? null : (dataTree ?? null);
   }, [messages, fileMap]);
 
-  const chatHelpers = useChatHelpers(index, conversationId);
+  const chatHelpers = useMemo(
+    () =>
+      isMeeting
+        ? {
+            ...genericHelpers,
+            ask: nativeMeeting.ask,
+            isSubmitting,
+            regenerate: () => {},
+            handleRegenerate: () => {},
+            handleContinue: () => {},
+            feedbackEnabled: false,
+          }
+        : genericHelpers,
+    [genericHelpers, isMeeting, nativeMeeting.ask, isSubmitting],
+  );
   const addedChatHelpers = useAddedResponse();
 
   const activeConversation =
@@ -139,24 +195,44 @@ function ChatView({
 
   // Show a server-owned queued follow-up as the next user turn as soon as its
   // predecessor completes, ahead of the receipt and active-job polls.
-  const revealQueuedTurn = useQueuedTurnReveal(conversationId, index);
+  const revealQueuedTurn = useQueuedTurnReveal(isMeeting ? undefined : conversationId, index);
 
   // Auto-send queued follow-up messages once a run finishes cleanly.
-  useQueueDrain(index, conversationId, chatHelpers.ask, revealQueuedTurn);
+  useQueueDrain(index, isMeeting ? undefined : conversationId, chatHelpers.ask, revealQueuedTurn);
 
   let content: JSX.Element | null | undefined;
   const isLandingPage =
     (!messagesTree || messagesTree.length === 0) &&
-    (conversationId === Constants.NEW_CONVO || !conversationId);
+    (conversationId === Constants.NEW_CONVO || !conversationId || isMeeting);
 
   /** The welcome screen carries the full footer unless the deployment turned it
    *  off; otherwise a footer bar renders only for configured content. */
   const fullFooter = isLandingPage && landingFooter;
   const footerBelow = fullFooter || configuredFooter;
-  const isNavigating = (!messagesTree || messagesTree.length === 0) && conversationId != null;
+  const isNavigating = isMeeting
+    ? isFetching && !messages && conversationId != null
+    : (!messagesTree || messagesTree.length === 0) && conversationId != null;
   const isProjectLandingPage = isLandingPage && project != null;
 
-  if (isLoading && conversationId !== Constants.NEW_CONVO) {
+  if (isMeeting && (nativeMeeting.unavailable || messagesError)) {
+    content = (
+      <div
+        role="alert"
+        className="text-text-secondary flex flex-1 flex-col items-center justify-center gap-3 px-4"
+      >
+        <p>{localize('com_meeting_shared_unavailable')}</p>
+        <Button
+          variant="outline"
+          onClick={() => {
+            nativeMeeting.retry();
+            void reloadMessages();
+          }}
+        >
+          {localize('com_meeting_retry')}
+        </Button>
+      </div>
+    );
+  } else if (isLoading && conversationId !== Constants.NEW_CONVO) {
     content = <LoadingSpinner />;
   } else if ((isLoading || isNavigating) && !isLandingPage) {
     content = <LoadingSpinner />;
@@ -166,10 +242,10 @@ function ChatView({
     content = <Landing centerFormOnLanding={centerFormOnLanding} />;
   }
 
-  const chatFormPlaceholder =
-    isProjectLandingPage && project
-      ? localize('com_ui_new_chat_in_project', { name: project.name })
-      : undefined;
+  let chatFormPlaceholder: string | undefined;
+  if (isProjectLandingPage && project) {
+    chatFormPlaceholder = localize('com_ui_new_chat_in_project', { name: project.name });
+  }
 
   // Recoil conversation can lag the route during navigation; only announce a
   // title that belongs to the conversation currently in the URL.
@@ -254,28 +330,45 @@ function ChatView({
                               isLandingPage && 'max-w-3xl transition-all duration-200 xl:max-w-4xl',
                             )}
                           >
-                            {isLandingPage && <ConversationStarters />}
-                            {isSubagentThreadReadOnly ? (
-                              <div
-                                className="text-text-secondary mx-auto w-full max-w-3xl px-4 py-3 text-center text-sm xl:max-w-4xl"
-                                role="note"
+                            {isLandingPage && !isMeeting && <ConversationStarters />}
+                            {isMeeting && nativeMeeting.isSubmitting && (
+                              <p
+                                role="status"
+                                className="text-text-secondary mx-auto max-w-3xl px-4 py-2 text-sm"
                               >
-                                {localize('com_ui_subagent_thread_read_only')}
-                              </div>
-                            ) : (
-                              <ChatForm
-                                index={index}
-                                routePending={routePending}
-                                placeholder={chatFormPlaceholder}
-                                project={isProjectLandingPage ? project : undefined}
-                                isLandingPage={isLandingPage}
-                                enterToSend={enterToSend}
-                                autoSendText={autoSendText}
-                                speechSettingsInitialized={speechSettingsInitialized}
-                                footerBelow={footerBelow}
-                                centerFormOnLanding={centerFormOnLanding}
-                              />
+                                {localize('com_ui_sending')}
+                              </p>
                             )}
+                            {isMeeting && nativeMeeting.failed && (
+                              <p
+                                role="alert"
+                                className="text-text-secondary mx-auto max-w-3xl px-4 py-2 text-sm"
+                              >
+                                {localize('com_meeting_workspace_action_failed')}
+                              </p>
+                            )}
+                            {!(isMeeting && nativeMeeting.unavailable) &&
+                              (isSubagentThreadReadOnly ? (
+                                <div
+                                  className="text-text-secondary mx-auto w-full max-w-3xl px-4 py-3 text-center text-sm xl:max-w-4xl"
+                                  role="note"
+                                >
+                                  {localize('com_ui_subagent_thread_read_only')}
+                                </div>
+                              ) : (
+                                <ChatForm
+                                  index={index}
+                                  routePending={routePending}
+                                  placeholder={chatFormPlaceholder}
+                                  project={isProjectLandingPage ? project : undefined}
+                                  isLandingPage={isLandingPage}
+                                  enterToSend={enterToSend}
+                                  autoSendText={autoSendText}
+                                  speechSettingsInitialized={speechSettingsInitialized}
+                                  footerBelow={footerBelow}
+                                  centerFormOnLanding={centerFormOnLanding}
+                                />
+                              ))}
                             {/* The generic disclaimer and the policy links are the
                               welcome screen's; a deployment's own footer stays
                               with the conversation that always showed it. */}

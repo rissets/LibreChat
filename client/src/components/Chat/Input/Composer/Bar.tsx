@@ -180,6 +180,7 @@ export function ChipModes({ modes }: ChipModesProps) {
 
 interface BarProps {
   index: number;
+  restricted?: boolean;
   disabled: boolean;
   agentId?: string | null;
   endpoint?: string | null;
@@ -203,6 +204,7 @@ interface BarProps {
   hasAddedConversation: boolean;
   /** Code approval and review controls supplied by the composer shell. */
   approvalSlot?: React.ReactNode;
+  speechSlot?: React.ReactNode;
   /** Send, stop or the during-run split button, decided by the caller. */
   actionSlot: React.ReactNode;
   /** Owned by `ChatForm`, which also paints the trace over the textarea. */
@@ -216,6 +218,7 @@ interface BarProps {
  */
 function Bar({
   index,
+  restricted = false,
   disabled,
   agentId,
   endpoint,
@@ -235,6 +238,7 @@ function Bar({
   speechDisabled,
   hasAddedConversation,
   approvalSlot,
+  speechSlot,
   actionSlot,
   dictation,
 }: BarProps) {
@@ -461,12 +465,16 @@ function Bar({
                   : 'translate-y-0 opacity-100',
               )}
             >
-              <Thinking
-                index={index}
-                disabled={disabled}
-                hasAddedConversation={hasAddedConversation}
-              />
-              <TokenUsage index={index} conversation={conversation} isSubmitting={isSubmitting} />
+              {!restricted && (
+                <Thinking
+                  index={index}
+                  disabled={disabled}
+                  hasAddedConversation={hasAddedConversation}
+                />
+              )}
+              {!restricted && (
+                <TokenUsage index={index} conversation={conversation} isSubmitting={isSubmitting} />
+              )}
             </div>
             {/* Arrives and leaves in depth. The elapsed time is not one of the
                 things that stepped aside, so it has nowhere to travel from:
@@ -491,6 +499,7 @@ function Bar({
           <span role="status" aria-live="polite" className="sr-only">
             {dictationStatus}
           </span>
+          {speechSlot}
           {showSpeech && (
             <RoundButton
               label={dictating ? localize('com_ui_stop') : localize('com_ui_use_micrphone')}

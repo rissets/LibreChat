@@ -1,13 +1,14 @@
 import { useMemo } from 'react';
 import { useRecoilValue } from 'recoil';
-import { BarChart3, MessagesSquare } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { BarChart3, MessagesSquare, AudioLines } from 'lucide-react';
 import { useUserKeyQuery } from 'librechat-data-provider/react-query';
 import { getConfigDefaults, getEndpointField } from 'librechat-data-provider';
 import type { TEndpointsConfig } from 'librechat-data-provider';
 import type { NavLink } from '~/common';
 import { useGetEndpointsQuery, useGetStartupConfig, useInsightsAccessQuery } from '~/data-provider';
 import ConversationsSection from '~/components/UnifiedSidebar/ConversationsSection';
+import { useMeetingAccess } from '~/data-provider/Meetings';
 import useSideNavLinks from '~/hooks/Nav/useSideNavLinks';
 import { useAuthContext } from '~/hooks';
 import store from '~/store';
@@ -27,6 +28,13 @@ export default function useUnifiedSidebarLinks() {
   const interfaceConfig = useMemo(
     () => startupConfig?.interface ?? defaultInterface,
     [startupConfig],
+  );
+  const isMeetingRoute =
+    location.pathname.startsWith('/meetings') || location.pathname.startsWith('/c/meeting-');
+  const { data: meetingAccess } = useMeetingAccess(
+    user?.id,
+    interfaceConfig.meetingCopilot === true,
+    isMeetingRoute ? 5000 : false,
   );
   const insightsFeatureEnabled = startupConfig?.insightsEnabled === true;
   const isInsightsRoute = location.pathname.startsWith('/insights');
@@ -71,12 +79,21 @@ export default function useUnifiedSidebarLinks() {
       id: 'conversations',
       Component: ConversationsSection,
     };
+    const baseLinks = [conversationLink];
+    if (meetingAccess?.allowed === true)
+      baseLinks.push({
+        title: 'com_meeting_title',
+        label: '',
+        icon: AudioLines,
+        id: 'meetings',
+        onClick: () => navigate('/meetings'),
+      });
 
     if (
       !insightsFeatureEnabled ||
       (!isInsightsRoute && !isInsightsAccessLoading && insightsAccess?.access !== true)
     ) {
-      return [conversationLink, ...sideNavLinks];
+      return [...baseLinks, ...sideNavLinks];
     }
 
     const insightsLink: NavLink = {
@@ -95,8 +112,9 @@ export default function useUnifiedSidebarLinks() {
     const nextLinks = [...sideNavLinks];
     nextLinks.splice(mcpIndex >= 0 ? mcpIndex + 1 : nextLinks.length, 0, insightsLink);
 
-    return [conversationLink, ...nextLinks];
+    return [...baseLinks, ...nextLinks];
   }, [
+    meetingAccess?.allowed,
     insightsAccess?.access,
     insightsFeatureEnabled,
     isInsightsAccessLoading,

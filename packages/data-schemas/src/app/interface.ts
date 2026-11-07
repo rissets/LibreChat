@@ -41,6 +41,7 @@ export async function loadDefaultInterface({
     privacyPolicy: interfaceConfig?.privacyPolicy ?? defaults.privacyPolicy,
     termsOfService: interfaceConfig?.termsOfService ?? defaults.termsOfService,
     mcpServers: interfaceConfig?.mcpServers ?? defaults.mcpServers,
+    meetingCopilot: interfaceConfig?.meetingCopilot ?? defaults.meetingCopilot,
     customWelcome: interfaceConfig?.customWelcome ?? defaults.customWelcome,
     landingHeading: interfaceConfig?.landingHeading ?? defaults.landingHeading,
     landingFooter: interfaceConfig?.landingFooter ?? defaults.landingFooter,
