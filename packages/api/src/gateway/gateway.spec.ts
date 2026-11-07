@@ -73,6 +73,41 @@ describe('managed gateway boundary', () => {
       'PRINCIPAL_DISABLED',
     );
   });
+  it('requests global media offers only for media capabilities', async () => {
+    const user = {
+      provider: 'openid',
+      openidIssuer: 'https://idp.test/realms/test',
+      openidId: '00000000-0000-4000-8000-000000000001',
+    };
+    const transport = jest.fn(async (input: unknown) => {
+      const url = String(input);
+      if (url.endsWith('/token')) return Response.json({ access_token: 'fixture', expires_in: 60 });
+      if (url.includes('/admin/realms/')) return Response.json({ enabled: true });
+      return Response.json({
+        subject: user.openidId,
+        issuer: user.openidIssuer,
+        key: 'user-key',
+        offers: url.includes('include_media=1')
+          ? [{ id: 'local-embed/model', capabilities: ['embedding'] }]
+          : [],
+      });
+    });
+    const config = {
+      fetch: transport as unknown as typeof fetch,
+      issuer: user.openidIssuer,
+      bridgeURL: 'https://gateway.test/api/bpbatam',
+      clientId: 'media-fixture',
+      clientSecret: 'fixture',
+      endpoint: 'P0Router',
+      audience: 'gateway',
+    };
+    expect(
+      (await resolveManagedCredential(user, 'P0Router', undefined, config, 'embedding'))?.models,
+    ).toEqual(['local-embed/model']);
+    expect(
+      (await resolveManagedCredential(user, 'P0Router', undefined, config, 'chat'))?.models,
+    ).toEqual([]);
+  });
   it('persists the exact validated IdP session sid for native refresh sessions', () => {
     process.env.BPBATAM_GATEWAY_ENDPOINT = 'P0Router';
     process.env.BPBATAM_BRIDGE_URL = 'http://localhost';

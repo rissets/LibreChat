@@ -148,10 +148,16 @@ export async function resolveManagedCredential(
   );
   if (!account.ok || ((await account.json()) as { enabled?: boolean }).enabled !== true)
     throw new Error('PRINCIPAL_DISABLED');
-  const r = await c.fetch(c.bridgeURL + '/resolve?subject=' + encodeURIComponent(user.openidId), {
-    headers: { Authorization: 'Bearer ' + (await machineToken(c)) },
-    signal: AbortSignal.timeout(10000),
-  });
+  const r = await c.fetch(
+    c.bridgeURL +
+      '/resolve?subject=' +
+      encodeURIComponent(user.openidId) +
+      (capability === 'chat' ? '' : '&include_media=1'),
+    {
+      headers: { Authorization: 'Bearer ' + (await machineToken(c)) },
+      signal: AbortSignal.timeout(10000),
+    },
+  );
   if (!r.ok) throw new Error('MANAGED_ENTITLEMENT_UNAVAILABLE');
   const result = (await r.json()) as {
     subject: string;
