@@ -1,6 +1,6 @@
 import React, { memo, useMemo, useState, useCallback } from 'react';
 import * as Ariakit from '@ariakit/react';
-import { Mic, Plus, Check, Square, ChevronDown } from 'lucide-react';
+import { Mic, Check, Square, ChevronDown } from 'lucide-react';
 import { IconButton, TooltipAnchor, SendIcon } from '@librechat/client';
 import type { TConversation, EModelEndpoint, EndpointFileConfig } from 'librechat-data-provider';
 import type { PaletteEntry, PaletteMode } from '~/hooks/Input/usePaletteEntries';
@@ -9,15 +9,12 @@ import type { ExtendedFile, FileSetter } from '~/common';
 import usePaletteEntries from '~/hooks/Input/usePaletteEntries';
 import MCPConfigDialog from '~/components/MCP/MCPConfigDialog';
 import useToolFavorites from '~/hooks/Input/useToolFavorites';
-import useElementSize from '~/hooks/Generic/useElementSize';
-import useChipPacking from '~/hooks/Input/useChipPacking';
 import { useBadgeRowContext } from '~/Providers';
 import TokenUsage from '../TokenUsage';
 import { useLocalize } from '~/hooks';
 import Thinking from './Thinking';
 import Palette from './Palette';
 import { cn } from '~/utils';
-import Chip from './Chip';
 
 /** Stable identity so the memo below is not defeated when tools are hidden. */
 const EMPTY_ENTRIES: PaletteEntry[] = [];
@@ -178,6 +175,69 @@ export function ChipModes({ modes }: ChipModesProps) {
   );
 }
 
+export function ToolIcon({ entry }: { entry: PaletteEntry }) {
+  const localize = useLocalize();
+  const modes = chipMenuModes(entry.modes);
+  return (
+    <div role="listitem" className="shrink-0" data-testid={`composer-active-${entry.itemType}`}>
+      <Ariakit.MenuProvider placement="top-start">
+        <Ariakit.MenuButton
+          aria-label={entry.label}
+          title={entry.label}
+          className={cn(
+            'focus-visible:ring-border-xheavy flex size-8 items-center justify-center rounded-lg transition-colors focus-visible:ring-2 focus-visible:outline-none',
+            entry.active
+              ? 'text-text-primary hover:bg-surface-hover'
+              : 'text-text-tertiary hover:bg-surface-hover',
+          )}
+        >
+          <span aria-hidden="true" className="flex items-center justify-center [&_svg]:size-4">
+            {entry.icon}
+          </span>
+        </Ariakit.MenuButton>
+        <Ariakit.Menu
+          portal
+          gutter={6}
+          unmountOnHide
+          className="animate-composer-popover border-border-menu bg-surface-menu rounded-theme-menu-panel z-50 min-w-[10rem] border p-1 shadow-lg outline-hidden"
+        >
+          <div className="text-text-secondary px-2 py-1.5 text-xs font-medium">{entry.label}</div>
+          <Ariakit.MenuItem
+            onClick={entry.onSelect}
+            className="text-text-primary data-[active-item]:bg-surface-hover flex cursor-pointer items-center rounded-lg px-2 py-1.5 text-sm"
+          >
+            {entry.active
+              ? localize('com_ui_remove_var', { 0: entry.label })
+              : localize('com_ui_select_var', { 0: entry.label })}
+          </Ariakit.MenuItem>
+          {entry.active &&
+            modes.map((mode) => (
+              <Ariakit.MenuItem
+                key={mode.id}
+                role="menuitemradio"
+                aria-checked={mode.active}
+                hideOnClick={false}
+                onClick={mode.onSelect}
+                className="text-text-secondary data-[active-item]:bg-surface-hover flex cursor-pointer items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-sm"
+              >
+                {mode.label}
+                {mode.active && <Check className="size-4" aria-hidden="true" />}
+              </Ariakit.MenuItem>
+            ))}
+          {entry.pinned && entry.onUnpin && (
+            <Ariakit.MenuItem
+              onClick={entry.onUnpin}
+              className="text-text-secondary data-[active-item]:bg-surface-hover flex cursor-pointer items-center rounded-lg px-2 py-1.5 text-sm"
+            >
+              {localize('com_ui_unpin')}
+            </Ariakit.MenuItem>
+          )}
+        </Ariakit.Menu>
+      </Ariakit.MenuProvider>
+    </div>
+  );
+}
+
 interface BarProps {
   index: number;
   restricted?: boolean;
@@ -276,22 +336,6 @@ function Bar({
      turn, so it belongs in the tray above the textarea with files and quotes.
      Built-in tool pins remain visible while off. */
   const barEntries = useMemo(() => projectBarEntries(entries), [entries]);
-  /* Catalog order puts long skill and MCP names mid-row, stranding the rest of
-     that row; packing widest-first fills the rows instead. */
-  const { ordered: packedEntries, rootRef, widths } = useChipPacking(barEntries);
-
-  const { ref: rowRef, width: rowWidth } = useElementSize<HTMLDivElement>();
-  const { ref: plusRef, width: plusWidth } = useElementSize<HTMLSpanElement>();
-  const { ref: controlsRef, width: controlsWidth } = useElementSize<HTMLDivElement>();
-
-  /* A row of their own once they need one, and it runs the full width of the
-     composer (the `+` corner included), since the buttons are on the row below
-     it rather than in the flow. */
-  const inlineChips = useMemo(
-    () =>
-      chipsFitInline(packedEntries, widths, rowWidth - plusWidth - controlsWidth - CHIP_GAP * 2),
-    [packedEntries, widths, rowWidth, plusWidth, controlsWidth],
-  );
   const dictating = dictation.active || dictation.transcribing;
 
   /* Spoken rather than shown: the recording state is otherwise carried only by
@@ -305,103 +349,17 @@ function Bar({
     dictationStatus = localize('com_ui_listening');
   }
 
-  /* The arrangement is frozen for the length of a recording. The controls
-     shrink to just the elapsed time while one runs, which would otherwise let
-     chips qualify for the bottom row and re-mount there mid-animation: a chip
-     that changes parent restarts from its new parent's resting state, which is
-     no transition at all. */
-  const [restingInline, setRestingInline] = useState(true);
-  if (!dictating && restingInline !== inlineChips) {
-    setRestingInline(inlineChips);
-  }
-  const chipsInline = dictating ? restingInline : inlineChips;
-  const above = chipsInline ? EMPTY_ENTRIES : packedEntries;
-  const inline = chipsInline ? packedEntries : EMPTY_ENTRIES;
-
-  const rowClass = 'flex flex-wrap items-center gap-1.5';
+  const rowClass = 'flex items-center gap-1.5';
   const barClass = 'flex flex-col gap-1.5 px-2 pb-2';
 
-  const renderChip = (entry: PaletteEntry) => {
-    const pinnedInactive = entry.pinned && !entry.active;
-    const menuModes = chipMenuModes(entry.modes);
-    const modeMenu = menuModes.length > 0 ? <ChipModes modes={menuModes} /> : null;
-    const activate = pinnedInactive ? (
-      <IconButton
-        label={localize('com_ui_select_var', { 0: entry.label })}
-        size="xs"
-        className="-mr-1"
-        onClick={entry.onSelect}
-      >
-        {/* Matches the chip's own `tone="surface"` text color: IconButton owns
-            its own color, so the glyph carries it directly rather than
-            inheriting through the button. */}
-        <Plus className="text-text-secondary size-3" aria-hidden="true" />
-      </IconButton>
-    ) : null;
-
-    return (
-      <Chip
-        key={entry.key}
-        label={entry.label}
-        icon={entry.icon}
-        trailing={
-          modeMenu != null || activate != null ? (
-            <span className="flex items-center gap-0.5">
-              {modeMenu}
-              {activate}
-            </span>
-          ) : undefined
-        }
-        onRemove={pinnedInactive ? entry.onUnpin : entry.onSelect}
-        removeLabel={
-          pinnedInactive
-            ? localize('com_ui_unpin')
-            : localize('com_ui_remove_var', { 0: entry.label })
-        }
-        data-testid={`composer-active-${entry.itemType}`}
-      />
-    );
-  };
+  const renderChip = (entry: PaletteEntry) => <ToolIcon key={entry.key} entry={entry} />;
 
   return (
-    <div ref={rootRef} className={barClass}>
-      {/* Full-width rows, so the chips run right across the composer including
-          the corner the `+` sits in. Labelled the same as the row below: one
-          set of tools that happens to need two rows to fit.
-
-          Wrapped in a `0fr`/`1fr` grid rather than dropped outright while
-          dictating: height has nothing to animate between unless something
-          supplies the two ends, and this supplies them without measuring. */}
-      <div
-        aria-hidden={above.length === 0 || dictating}
-        {...(above.length === 0 || dictating ? { inert: '' } : {})}
-        className={cn(
-          'grid transition-all duration-200 ease-out motion-reduce:transition-none',
-          above.length > 0 && !dictating
-            ? 'grid-rows-[1fr] opacity-100'
-            : 'grid-rows-[0fr] opacity-0',
-        )}
-      >
-        <div className="overflow-hidden">
-          {/* Travels down as the row above closes over it, so the chips read as
-              moving out of the way rather than being wiped from the bottom up. */}
-          <div
-            role="list"
-            aria-label={localize('com_ui_composer_tools')}
-            className={cn(
-              rowClass,
-              'pb-1.5 transition-transform duration-200 ease-out',
-              dictating ? 'translate-y-3' : 'translate-y-0',
-            )}
-          >
-            {above.map(renderChip)}
-          </div>
-        </div>
-      </div>
-      <div ref={rowRef} className={rowClass}>
+    <div className={barClass}>
+      <div className={rowClass}>
         {/* Never unmounted, so its glyph can turn into the close mark rather
             than one icon being swapped for another. */}
-        <span ref={plusRef} className="shrink-0">
+        <span className="shrink-0">
           <Palette
             index={index}
             entries={entries}
@@ -423,25 +381,6 @@ function Bar({
             anchorRef={anchorRef}
           />
         </span>
-        {/* A box rather than `contents` so it has something to move: the split
-            only puts chips here when they all fit on this line, so wrapping as
-            one unit and wrapping as siblings come to the same layout. */}
-        <div
-          role="list"
-          aria-label={localize('com_ui_composer_tools')}
-          aria-hidden={dictating}
-          /* Hidden from a reader and unreachable by a pointer, but every chip
-             still holds a remove button that Tab would land on. `inert` is what
-             takes those out of the tab order along with everything else. */
-          {...(dictating ? { inert: '' } : {})}
-          className={cn(
-            'flex min-w-0 flex-wrap items-center gap-1.5',
-            'transition duration-200 ease-out motion-reduce:transition-none',
-            dictating ? 'pointer-events-none translate-y-3 opacity-0' : 'translate-y-0 opacity-100',
-          )}
-        >
-          {inline.map(renderChip)}
-        </div>
         {/* Auto margin on the main-start side, so the group sits at the end of
             the row whether or not chips share it.
 
@@ -449,7 +388,7 @@ function Bar({
             each takes over the job next to it (stop, and stop-and-send) rather
             than being replaced by a control that slides in somewhere else. Only
             what has no job during a recording actually moves. */}
-        <div ref={controlsRef} className="ms-auto flex shrink-0 items-center gap-1.5">
+        <div className="ms-auto flex min-w-0 items-center gap-1.5">
           {/* One cell holding both: the settled controls drop out of it as the
               elapsed time rises into their place, and the row keeps one width
               throughout so nothing beside it shifts. */}
@@ -496,6 +435,18 @@ function Bar({
             </div>
           </div>
           {approvalSlot}
+          <div
+            role="list"
+            aria-label={localize('com_ui_composer_tools')}
+            aria-hidden={dictating}
+            {...(dictating ? { inert: '' } : {})}
+            className={cn(
+              'flex min-w-0 items-center overflow-x-auto',
+              dictating && 'pointer-events-none invisible',
+            )}
+          >
+            {barEntries.map(renderChip)}
+          </div>
           <span role="status" aria-live="polite" className="sr-only">
             {dictationStatus}
           </span>

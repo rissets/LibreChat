@@ -58,6 +58,7 @@ export default function BadgeRowProvider({
 }: BadgeRowProviderProps) {
   const lastContextKeyRef = useRef<string>('');
   const hasInitializedRef = useRef(false);
+  const hasAppliedNewChatDefaults = useRef(false);
   const { agentsConfig } = useGetAgentsConfig();
   const defaultTools =
     endpoint && !isAgentsEndpoint(endpoint) && !isAssistantsEndpoint(endpoint)
@@ -100,6 +101,9 @@ export default function BadgeRowProvider({
     if (isSubmitting) {
       return;
     }
+    if (!isNewConvo) {
+      hasAppliedNewChatDefaults.current = false;
+    }
     if (specName) {
       // Spec active: applyModelSpecEphemeralAgent handles all state (spec base + localStorage
       // overrides for existing conversations). Reset init flag so switching back to non-spec
@@ -124,12 +128,23 @@ export default function BadgeRowProvider({
       const skillsToggleKey = `${LocalStorageKeys.LAST_SKILLS_TOGGLE_}${storageSuffix}`;
       const memoryToggleKey = `${LocalStorageKeys.LAST_MEMORY_TOGGLE_}${storageSuffix}`;
 
-      const codeToggleValue = getTimestampedValue(codeToggleKey);
-      const webSearchToggleValue = getTimestampedValue(webSearchToggleKey);
-      const fileSearchToggleValue = getTimestampedValue(fileSearchToggleKey);
-      const artifactsToggleValue = getTimestampedValue(artifactsToggleKey);
-      const skillsToggleValue = getTimestampedValue(skillsToggleKey);
-      const memoryToggleValue = getTimestampedValue(memoryToggleKey);
+      const applyNewChatDefaults =
+        isNewConvo && defaultTools != null && !hasAppliedNewChatDefaults.current;
+      if (applyNewChatDefaults) {
+        hasAppliedNewChatDefaults.current = true;
+      }
+      const codeToggleValue = applyNewChatDefaults ? null : getTimestampedValue(codeToggleKey);
+      const webSearchToggleValue = applyNewChatDefaults
+        ? null
+        : getTimestampedValue(webSearchToggleKey);
+      const fileSearchToggleValue = applyNewChatDefaults
+        ? null
+        : getTimestampedValue(fileSearchToggleKey);
+      const artifactsToggleValue = applyNewChatDefaults
+        ? null
+        : getTimestampedValue(artifactsToggleKey);
+      const skillsToggleValue = applyNewChatDefaults ? null : getTimestampedValue(skillsToggleKey);
+      const memoryToggleValue = applyNewChatDefaults ? null : getTimestampedValue(memoryToggleKey);
 
       const { mcp: defaultMCP, tools: _toolIds, ...defaultSelections } = defaultTools ?? {};
       const initialValues: Record<string, boolean | string> = { ...defaultSelections };
@@ -187,7 +202,7 @@ export default function BadgeRowProvider({
       /** Read persisted MCP values from localStorage */
       let mcpOverrides: string[] | null = defaultMCP ?? null;
       const mcpStorageKey = `${LocalStorageKeys.LAST_MCP_}${storageSuffix}`;
-      const mcpRaw = localStorage.getItem(mcpStorageKey);
+      const mcpRaw = applyNewChatDefaults ? null : localStorage.getItem(mcpStorageKey);
       if (mcpRaw !== null) {
         try {
           const parsed = JSON.parse(mcpRaw);
@@ -200,6 +215,9 @@ export default function BadgeRowProvider({
       }
 
       setEphemeralAgent((prev) => {
+        if (applyNewChatDefaults) {
+          return { ...prev, ...initialValues, ...(mcpOverrides ? { mcp: mcpOverrides } : {}) };
+        }
         if (prev == null) {
           /** ephemeralAgent is null — use localStorage defaults */
           if (hasOverrides || mcpOverrides) {
@@ -228,7 +246,7 @@ export default function BadgeRowProvider({
         return changed ? result : prev;
       });
     }
-  }, [storageSuffix, specName, isSubmitting, setEphemeralAgent, defaultTools]);
+  }, [storageSuffix, specName, isSubmitting, setEphemeralAgent, defaultTools, isNewConvo]);
 
   /** CodeInterpreter hook — sandbox auth is handled server-side by the
    *  agents library, so the toggle no longer has an auth dialog gate. */

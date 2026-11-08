@@ -72,6 +72,30 @@ const routeMarketplace = async (page: Page, handler: (route: Route) => Promise<v
   });
 };
 test.describe('marketplace recovery', () => {
+  test('agent results scroll without requesting admin roles', async ({ page }) => {
+    const agents = makeAgents(36, 0);
+    let adminRoleRequests = 0;
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname === '/api/admin/roles') {
+        adminRoleRequests += 1;
+      }
+    });
+    await routeMarketplace(page, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(pageFor(agents)),
+      });
+    });
+    await page.goto('/agents/all');
+    await expect(page.getByRole('button', { name: agents[0].name })).toBeVisible();
+    const frame = page.getByRole('tabpanel').locator('xpath=..');
+    await frame.hover();
+    await page.mouse.wheel(0, 600);
+    await expect.poll(() => frame.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+    expect(adminRoleRequests).toBe(0);
+  });
+
   test('@scenario:failed-marketplace-load-retries-itself retries a failed marketplace load without user interaction', async ({
     page,
   }) => {

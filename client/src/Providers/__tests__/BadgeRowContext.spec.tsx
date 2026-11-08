@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { RecoilRoot } from 'recoil';
 import { useForm } from 'react-hook-form';
 import { render, act } from '@testing-library/react';
-import { LocalStorageKeys } from 'librechat-data-provider';
+import { Constants, LocalStorageKeys } from 'librechat-data-provider';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ExtendedFile, ChatFormValues } from '~/common';
 import { getFilesDraft, getComposerDraftId, getAskAnswerDraftId } from '~/utils/drafts';
@@ -346,6 +346,28 @@ describe('default tools for ordinary model chats', () => {
     expect(view.getValue()?.fileSearch.isToolEnabled).toBe(true);
     expect(view.getValue()?.skills.isToolEnabled).toBe(true);
     expect(view.getValue()?.mcpServerManager.mcpValues).toEqual(['fetch']);
+    view.unmount();
+  });
+
+  it('starts a new chat with defaults even when an older draft saved tools as off', () => {
+    localStorage.setItem(
+      `${LocalStorageKeys.LAST_FILE_SEARCH_TOGGLE_}${Constants.NEW_CONVO}`,
+      'false',
+    );
+    localStorage.setItem(`${LocalStorageKeys.LAST_MCP_}${Constants.NEW_CONVO}`, '[]');
+    const view = renderProvider(String(Constants.NEW_CONVO));
+    expect(view.getValue()?.fileSearch.isToolEnabled).toBe(true);
+    expect(view.getValue()?.mcpServerManager.mcpValues).toEqual(['fetch']);
+    view.unmount();
+  });
+
+  it('keeps a user opt-out in the current chat and resets it on the next new chat', () => {
+    const view = renderProvider(String(Constants.NEW_CONVO));
+    act(() => view.getValue()?.fileSearch.setToggleState(false));
+    expect(view.getValue()?.fileSearch.isToolEnabled).toBe(false);
+    view.navigate('existing-chat');
+    view.navigate(String(Constants.NEW_CONVO));
+    expect(view.getValue()?.fileSearch.isToolEnabled).toBe(true);
     view.unmount();
   });
 

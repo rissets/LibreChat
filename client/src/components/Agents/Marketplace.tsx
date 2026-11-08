@@ -5,7 +5,6 @@ import type t from 'librechat-data-provider';
 import { useGetEndpointsQuery, useGetAgentCategoriesQuery } from '~/data-provider';
 import SortDropdown, { SORT_OPTIONS, DEFAULT_SORT_OPTION } from './SortDropdown';
 import { useDocumentTitle, useHasAccess, useLocalize } from '~/hooks';
-import MarketplaceAdminSettings from './MarketplaceAdminSettings';
 import OpenSidebar from '~/components/Chat/Menus/OpenSidebar';
 import useDrawerViewport from '~/hooks/Nav/useDrawerViewport';
 import { SidePanelGroup } from '~/components/SidePanel';
@@ -126,7 +125,7 @@ const AgentMarketplace: React.FC<AgentMarketplaceProps> = ({ className = '' }) =
 
   return (
     <div
-      className={`bg-surface-primary-alt relative flex w-full grow overflow-hidden ${className}`}
+      className={`bg-surface-primary-alt relative flex h-full w-full grow overflow-hidden ${className}`}
     >
       <SidePanelGroup>
         <main
@@ -143,7 +142,6 @@ const AgentMarketplace: React.FC<AgentMarketplaceProps> = ({ className = '' }) =
             <div className="flex items-center gap-2 p-3">
               {isSmallScreen && <OpenSidebar className="size-9 shrink-0 rounded-lg" />}
               <SearchBar value={searchQuery} onSearch={handleSearch} className="min-w-0 flex-1" />
-              <MarketplaceAdminSettings />
             </div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 pb-3">
               <div className="min-w-0 flex-1 basis-full lg:basis-0">

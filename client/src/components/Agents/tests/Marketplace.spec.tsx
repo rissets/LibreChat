@@ -79,11 +79,6 @@ jest.mock('~/components/Chat/Menus/OpenSidebar', () => ({
   default: () => <button type="button">{mockLocalize('com_nav_toggle_nav')}</button>,
 }));
 
-jest.mock('../MarketplaceAdminSettings', () => ({
-  __esModule: true,
-  default: () => <div data-testid="admin-settings" />,
-}));
-
 jest.mock('../AgentCard', () => ({
   __esModule: true,
   default: ({ agent }: { agent: t.Agent }) => (
