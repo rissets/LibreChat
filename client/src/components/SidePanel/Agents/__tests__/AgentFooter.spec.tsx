@@ -11,6 +11,7 @@ const mockUseWatch = jest.fn();
 const mockUseAuthContext = jest.fn();
 const mockUseHasAccess = jest.fn();
 const mockUseResourcePermissions = jest.fn();
+const mockStartupConfig = jest.fn();
 
 jest.mock('react-hook-form', () => ({
   useFormContext: () => ({
@@ -124,6 +125,7 @@ const createBaseMutation = <T = Agent, P = any>(
 
 jest.mock('~/data-provider', () => ({
   useUpdateAgentMutation: () => createBaseMutation<Agent, any>(),
+  useGetStartupConfig: () => ({ data: mockStartupConfig() }),
 }));
 
 jest.mock('../Advanced/AdvancedButton', () => ({
@@ -237,6 +239,7 @@ describe('AgentFooter', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     // Reset to default mock implementations
+    mockStartupConfig.mockReturnValue({ managedControlPlane: false });
     mockUseWatch.mockImplementation(({ name }) => {
       if (name === 'agent') {
         return {
@@ -349,6 +352,15 @@ describe('AgentFooter', () => {
       expect(screen.queryByTestId('delete-button')).not.toBeInTheDocument();
       expect(screen.queryByTestId('grant-access-dialog-agent')).not.toBeInTheDocument();
       expect(screen.queryByTestId('duplicate-agent')).not.toBeInTheDocument();
+    });
+
+    test('hides agent admin settings in managed mode without hiding agent controls', () => {
+      mockUseAuthContext.mockReturnValue(createAuthContext(mockUsers.admin));
+      mockStartupConfig.mockReturnValue({ managedControlPlane: true });
+      render(<AgentFooter {...defaultProps} />);
+      expect(screen.queryByTestId('admin-settings')).not.toBeInTheDocument();
+      expect(screen.getByTestId('advanced-button')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
     });
 
     test('adjusts UI based on user role', () => {

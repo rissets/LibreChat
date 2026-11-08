@@ -22,6 +22,7 @@ jest.mock('@librechat/data-schemas', () => ({
   getTenantId: (...args) => mockGetTenantId(...args),
 }));
 
+const mockGatewayConfig = jest.fn(() => null);
 const mockGetCloudFrontConfig = jest.fn(() => null);
 const mockResolveBuildInfo = jest.fn(() => ({
   commit: null,
@@ -31,6 +32,7 @@ const mockResolveBuildInfo = jest.fn(() => ({
 }));
 jest.mock('@librechat/api', () => ({
   ...jest.requireActual('@librechat/api'),
+  gatewayConfig: (...args) => mockGatewayConfig(...args),
   getCloudFrontConfig: (...args) => mockGetCloudFrontConfig(...args),
   resolveBuildInfo: (...args) => mockResolveBuildInfo(...args),
 }));
@@ -835,6 +837,19 @@ describe('GET /api/config', () => {
       response = await request(app).get('/api/config');
       expect(response.body.langfuseFanoutEnabled).toBe(true);
       expect(response.body.langfuseConnectionAccess).toBe(true);
+    });
+
+    it('hides native Langfuse admin access in managed mode', async () => {
+      mockGetAppConfig.mockResolvedValue(baseAppConfig);
+      mockGatewayConfig.mockReturnValue({ endpoint: 'http://gateway' });
+      mockHasCapability.mockResolvedValue(true);
+      mockHasConfigCapability.mockResolvedValue(true);
+
+      const response = await request(createApp(mockUser)).get('/api/config');
+
+      expect(response.body.langfuseConnectionAccess).toBe(false);
+      expect(response.body.managedControlPlane).toBe(true);
+      expect(mockHasCapability).not.toHaveBeenCalled();
     });
 
     it('hides Langfuse connection access when tenant export is emergency-disabled', async () => {

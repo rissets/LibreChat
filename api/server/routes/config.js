@@ -5,6 +5,7 @@ const {
   checkEmailConfig,
   isLangfuseConnectionAvailable,
   isLangfuseFanoutEnabled,
+  gatewayConfig,
   getBalanceConfig,
   getCloudFrontConfig,
   getAppConfigOptionsFromUser,
@@ -276,9 +277,10 @@ router.get('/', async function (req, res) {
     const cloudFront = buildCloudFrontStartupConfig();
     const langfuseFanoutEnabled = isLangfuseFanoutEnabled();
     const langfuseConnectionAvailable = isLangfuseConnectionAvailable();
+    const managedControlPlane = !!gatewayConfig();
     let langfuseConnectionAccess = false;
 
-    if (langfuseConnectionAvailable) {
+    if (langfuseConnectionAvailable && !managedControlPlane) {
       try {
         const userId = req.user.id ?? req.user._id?.toString();
         if (userId) {
@@ -330,6 +332,7 @@ router.get('/', async function (req, res) {
         : 0,
       langfuseFanoutEnabled,
       langfuseConnectionAccess,
+      managedControlPlane,
       insightsEnabled: isEnabled(process.env.ENABLE_INSIGHTS),
       /** Lets the client skip the pull request lookup entirely when the feature is off. */
       ...resolvePullRequestCapabilities(appConfig, process.env),

@@ -11,7 +11,7 @@ import {
 import type { AgentForm, AgentPanelProps } from '~/common';
 import { useLocalize, useAuthContext, useHasAccess, useResourcePermissions } from '~/hooks';
 import { GenericGrantAccessDialog } from '~/components/Sharing';
-import { useUpdateAgentMutation } from '~/data-provider';
+import { useGetStartupConfig, useUpdateAgentMutation } from '~/data-provider';
 import AdvancedButton from './Advanced/AdvancedButton';
 import VersionButton from './Version/VersionButton';
 import DuplicateAgent from './DuplicateAgent';
@@ -35,6 +35,7 @@ export default function AgentFooter({
 }) {
   const localize = useLocalize();
   const { user } = useAuthContext();
+  const { data: startupConfig } = useGetStartupConfig();
 
   const methods = useFormContext<AgentForm>();
 
@@ -84,7 +85,9 @@ export default function AgentFooter({
           {!!agent_id && <VersionButton setActivePanel={setActivePanel} />}
         </div>
       )}
-      {user?.role === SystemRoles.ADMIN && showButtons && <AdminSettings />}
+      {isAdmin && showButtons && startupConfig != null && !startupConfig.managedControlPlane && (
+        <AdminSettings />
+      )}
       {/* Context Button */}
       <div className="flex items-center justify-end gap-2">
         {(agent?.author === user?.id || user?.role === SystemRoles.ADMIN || canDeleteThisAgent) &&

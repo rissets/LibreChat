@@ -65,6 +65,8 @@ RUN \
     npm prune --production && \
     npm cache clean --force
 
+COPY --chown=node:node --from=agents_dist . ./node_modules/@librechat/agents/dist
+
 # Optional build metadata surfaced in Settings -> About for support triage.
 # Declared here (after the heavy install/build steps) so that commit/date
 # changing on every CI run does not bust the cache for dependency install
