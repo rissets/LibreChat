@@ -1,5 +1,5 @@
 import { useContext, useId, useRef, useState } from 'react';
-import { Send } from 'lucide-react';
+import { CheckCircle2, Coins, Send } from 'lucide-react';
 import {
   Button,
   OGDialog,
@@ -38,24 +38,39 @@ function ManagedTokenRequestButton() {
       }}
     >
       <OGDialogTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" className="mt-1 self-start">
           <Send className="h-4 w-4" aria-hidden="true" />
           {t('com_gateway_request_tokens')}
         </Button>
       </OGDialogTrigger>
-      <OGDialogContent>
-        <OGDialogHeader>
-          <OGDialogTitle>{t('com_gateway_request_tokens')}</OGDialogTitle>
-          <OGDialogDescription>{t('com_gateway_request_help')}</OGDialogDescription>
+      <OGDialogContent className="w-11/12 max-w-lg">
+        <OGDialogHeader className="pr-6 text-left">
+          <div className="bg-surface-secondary text-text-primary mb-3 flex h-11 w-11 items-center justify-center rounded-xl">
+            <Coins className="h-5 w-5" aria-hidden="true" />
+          </div>
+          <OGDialogTitle className="text-lg font-semibold">
+            {t('com_gateway_request_tokens')}
+          </OGDialogTitle>
+          <OGDialogDescription className="mt-1 leading-relaxed">
+            {t('com_gateway_request_help')}
+          </OGDialogDescription>
         </OGDialogHeader>
         {submit.isSuccess ? (
-          <div className="space-y-4">
-            <p role="status">{t('com_gateway_request_success')}</p>
-            <Button onClick={() => setOpen(false)}>{t('com_ui_close')}</Button>
+          <div className="space-y-5 pt-2">
+            <p
+              role="status"
+              className="bg-surface-secondary text-text-primary flex items-start gap-3 rounded-xl p-4 text-sm leading-relaxed"
+            >
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+              {t('com_gateway_request_success')}
+            </p>
+            <div className="flex justify-end">
+              <Button onClick={() => setOpen(false)}>{t('com_ui_close')}</Button>
+            </div>
           </div>
         ) : (
           <form
-            className="space-y-4"
+            className="space-y-5 pt-2"
             onSubmit={(event) => {
               event.preventDefault();
               const value = Number(amount);
@@ -68,10 +83,12 @@ function ManagedTokenRequestButton() {
             }}
           >
             <label htmlFor={id + '-amount'} className="block space-y-2">
-              <span>{t('com_gateway_request_amount')}</span>
+              <span className="text-text-primary text-sm font-medium">
+                {t('com_gateway_request_amount')}
+              </span>
               <input
                 id={id + '-amount'}
-                className="bg-surface-primary border-border-light w-full rounded-lg border p-3"
+                className="bg-surface-primary border-border-medium text-text-primary focus-visible:ring-ring-primary w-full rounded-lg border px-3 py-2.5 tabular-nums outline-none focus-visible:ring-2"
                 type="number"
                 min="1"
                 max={Number.MAX_SAFE_INTEGER}
@@ -82,10 +99,12 @@ function ManagedTokenRequestButton() {
               />
             </label>
             <label htmlFor={id + '-reason'} className="block space-y-2">
-              <span>{t('com_gateway_request_reason')}</span>
+              <span className="text-text-primary text-sm font-medium">
+                {t('com_gateway_request_reason')}
+              </span>
               <textarea
                 id={id + '-reason'}
-                className="bg-surface-primary border-border-light min-h-24 w-full rounded-lg border p-3"
+                className="bg-surface-primary border-border-medium text-text-primary focus-visible:ring-ring-primary min-h-28 w-full resize-y rounded-lg border px-3 py-2.5 outline-none focus-visible:ring-2"
                 minLength={10}
                 maxLength={1000}
                 required
@@ -93,8 +112,12 @@ function ManagedTokenRequestButton() {
                 onChange={(event) => setReason(event.target.value)}
               />
             </label>
-            {submit.isError && <p role="alert">{t('com_gateway_mutation_error')}</p>}
-            <div className="flex justify-end gap-2">
+            {submit.isError && (
+              <p role="alert" className="text-text-primary text-sm">
+                {t('com_gateway_mutation_error')}
+              </p>
+            )}
+            <div className="border-border-light flex flex-wrap justify-end gap-2 border-t pt-4">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 {t('com_ui_cancel')}
               </Button>
