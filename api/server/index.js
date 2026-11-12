@@ -432,6 +432,29 @@ const startServer = async () => {
   /* Pre-auth tenant context for unauthenticated routes that need tenant scoping.
    * The reverse proxy / auth gateway sets `X-Tenant-Id` header for multi-tenant deployments. */
   app.use('/oauth', preAuthTenantMiddleware, routes.oauth);
+  /* Dev OIDC Broker Adapter routes */
+  const { ssoDevAdapterRouter, isDevAdapterEnabled, DEFAULT_KEYCLOAK_BROKER_ENDPOINT } = require('./routes/ssoDevAdapter');
+  app.use('/api/sso-adapter', ssoDevAdapterRouter);
+  /* SSO callback route: in dev mode, forwards B-Pass callback to Keycloak broker endpoint while preserving code and state */
+  app.use('/sso', preAuthTenantMiddleware, (req, res, next) => {
+    if (req.path === '/callback') {
+      if (isDevAdapterEnabled() && req.query.code && req.query.state) {
+        const brokerEndpoint =
+          process.env.BPBATAM_KEYCLOAK_BROKER_ENDPOINT || DEFAULT_KEYCLOAK_BROKER_ENDPOINT;
+        const targetUrl = new URL(brokerEndpoint);
+        // Enforce HTTPS destination to prevent auth code leakage over cleartext
+        targetUrl.protocol = 'https:';
+        for (const [key, value] of Object.entries(req.query)) {
+          if (typeof value === 'string') targetUrl.searchParams.set(key, value);
+        }
+        return res.redirect(302, targetUrl.toString());
+      }
+      req.url =
+        '/openid/callback' + (req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '');
+      return routes.oauth(req, res, next);
+    }
+    next();
+  });
   /* API Endpoints */
   app.use('/api/auth', preAuthTenantMiddleware, routes.auth);
   app.use('/api/insights', routes.insights);
@@ -454,6 +477,15 @@ const startServer = async () => {
   app.use('/api/keys', routes.keys);
   app.use('/api/api-keys', routes.apiKeys);
   app.use('/api/user', routes.user);
+  app.use('/api/onboarding', routes.onboarding);
+  /* Server-side onboarding gate: blocks any authenticated request across /api routes until onboarding is complete */
+  const globalOnboardingGate = require('@librechat/api').createOnboardingGate();
+  app.use('/api', (req, res, next) => {
+    if (req.user) {
+      return globalOnboardingGate(req, res, next);
+    }
+    next();
+  });
   app.use('/api/search', routes.search);
   app.use('/api/messages', routes.messages);
   app.use('/api/convos', routes.convos);

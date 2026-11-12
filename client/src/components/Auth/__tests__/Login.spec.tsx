@@ -127,91 +127,19 @@ jest.mock('react-router-dom', () => ({
   }),
 }));
 
-test('renders login form', () => {
-  const { getByLabelText, getByRole } = setup();
-  expect(getByLabelText(/email/i)).toBeInTheDocument();
-  expect(getByLabelText(/password/i)).toBeInTheDocument();
-  expect(getByTestId(document.body, 'login-button')).toBeInTheDocument();
-  expect(getByRole('link', { name: /Sign up/i })).toBeInTheDocument();
+test('renders accessible two-choice login view initially', () => {
+  const { queryByLabelText, getByRole, queryByTestId } = setup();
+  const bPassLink = getByRole('link', { name: /B-Pass/i });
+  expect(bPassLink).toBeInTheDocument();
+  expect(bPassLink).toHaveAttribute('href', 'mock-server/oauth/openid/b-pass');
+  expect(getByRole('link', { name: /BP Batam username\/password/i })).toHaveAttribute('href', 'mock-server/oauth/openid');
+  expect(queryByLabelText(/email/i)).not.toBeInTheDocument();
+  expect(queryByLabelText(/password/i)).not.toBeInTheDocument();
+  expect(queryByTestId('login-button')).not.toBeInTheDocument();
+  expect(queryByTestId('passkey')).not.toBeInTheDocument();
   expect(getByRole('link', { name: /Sign up/i })).toHaveAttribute('href', '/register');
-  expect(getByRole('link', { name: /Continue with Google/i })).toBeInTheDocument();
-  expect(getByRole('link', { name: /Continue with Google/i })).toHaveAttribute(
-    'href',
-    'mock-server/oauth/google',
-  );
-  expect(getByRole('link', { name: /Continue with Facebook/i })).toBeInTheDocument();
-  expect(getByRole('link', { name: /Continue with Facebook/i })).toHaveAttribute(
-    'href',
-    'mock-server/oauth/facebook',
-  );
-  expect(getByRole('link', { name: /Continue with Github/i })).toBeInTheDocument();
-  expect(getByRole('link', { name: /Continue with Github/i })).toHaveAttribute(
-    'href',
-    'mock-server/oauth/github',
-  );
-  expect(getByRole('link', { name: /Continue with Discord/i })).toBeInTheDocument();
-  expect(getByRole('link', { name: /Continue with Discord/i })).toHaveAttribute(
-    'href',
-    'mock-server/oauth/discord',
-  );
-  expect(getByRole('link', { name: /Test SAML/i })).toBeInTheDocument();
-  expect(getByRole('link', { name: /Test SAML/i })).toHaveAttribute(
-    'href',
-    'mock-server/oauth/saml',
-  );
 });
 
-test('calls loginUser.mutate on login', async () => {
-  const mutate = jest.fn();
-  const { getByLabelText } = setup({
-    // @ts-ignore - we don't need all parameters of the QueryObserverResult
-    useLoginUserReturnValue: {
-      isLoading: false,
-      mutate: mutate,
-      isError: false,
-    },
-  });
-
-  const emailInput = getByLabelText(/email/i);
-  const passwordInput = getByLabelText(/password/i);
-  const submitButton = getByTestId(document.body, 'login-button');
-
-  await userEvent.type(emailInput, 'test@test.com');
-  await userEvent.type(passwordInput, 'password');
-  await userEvent.click(submitButton);
-
-  waitFor(() => expect(mutate).toHaveBeenCalled());
-});
-
-test('Navigates to / on successful login', async () => {
-  const { getByLabelText } = setup({
-    // @ts-ignore - we don't need all parameters of the QueryObserverResult
-    useLoginUserReturnValue: {
-      isLoading: false,
-      mutate: jest.fn(),
-      isError: false,
-      isSuccess: true,
-    },
-    useGetStartupConfigReturnValue: {
-      ...mockStartupConfig,
-      data: {
-        ...mockStartupConfig.data,
-        emailLoginEnabled: true,
-        registrationEnabled: true,
-      },
-    },
-  });
-
-  const emailInput = getByLabelText(/email/i);
-  const passwordInput = getByLabelText(/password/i);
-  const submitButton = getByTestId(document.body, 'login-button');
-
-  await userEvent.type(emailInput, 'test@test.com');
-  await userEvent.type(passwordInput, 'password');
-  await userEvent.click(submitButton);
-
-  waitFor(() => expect(window.location.pathname).toBe('/'));
-});
 
 describe('OAuth rejection redirects', () => {
   const enterAt = (search: string) => {
@@ -247,7 +175,7 @@ describe('OAuth rejection redirects', () => {
 
       setup();
 
-      await waitFor(() => expect(getByTestId(document.body, 'login-button')).toBeInTheDocument());
+      await waitFor(() => expect(getByTestId(document.body, 'bpass-login')).toBeInTheDocument());
       expect(mockShowToast).not.toHaveBeenCalled();
     },
   );

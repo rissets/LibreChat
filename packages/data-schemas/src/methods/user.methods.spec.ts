@@ -422,6 +422,32 @@ describe('User Methods - Database Tests', () => {
       expect(balance?.tokenCredits).toBe(1000);
       expect(balance?._id.toString()).toBe(userId.toString());
     });
+
+    test('should create a username-only user without email', async () => {
+      const result = await methods.createUser(
+        {
+          name: 'Username Only User',
+          username: 'user_without_email',
+          provider: 'openid',
+        },
+        undefined,
+        true,
+        true,
+      );
+
+      expect(result).toHaveProperty('_id');
+      expect(result).toHaveProperty('username', 'user_without_email');
+      expect(result).not.toHaveProperty('email');
+    });
+
+    test('should reject user creation when both email and username are missing', async () => {
+      await expect(
+        methods.createUser({
+          name: 'Anonymous',
+          provider: 'local',
+        }),
+      ).rejects.toThrow();
+    });
   });
 
   describe('createUserIfAbsent', () => {
@@ -542,6 +568,23 @@ describe('User Methods - Database Tests', () => {
         ),
       ).rejects.toMatchObject({ name: 'ValidationError' });
       expect(await Balance.countDocuments()).toBe(0);
+    });
+
+    test('creates username-only user without email', async () => {
+      const usernameOnlyUser = {
+        name: 'Username Only OpenID',
+        username: 'openid_username_only',
+        provider: 'openid',
+        openidId: 'sub-username-only',
+        openidIssuer: 'https://issuer.example.com',
+      };
+
+      const result = await methods.createUserIfAbsent(usernameOnlyUser);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.username).toBe('openid_username_only');
+        expect(result.value.email).toBeUndefined();
+      }
     });
   });
 

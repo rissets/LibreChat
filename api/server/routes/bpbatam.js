@@ -9,7 +9,7 @@ router.use('/journal', require('@librechat/api').createGovernanceJournalHandler(
   decrypt: require('@librechat/data-schemas').decryptV2,
   audit: db.recordAuditEntry,
 }));
-router.post('/users/erase',require('@librechat/api').createGovernanceErasure({getUserById:db.getUserById,audit:db.recordAuditEntry,erase:require('~/server/controllers/UserController').deleteUserController}));
+router.post('/users/erase',require('@librechat/api').createGovernanceErasure({getUserById:db.getUserById,findUserByIdentity:(subject,issuer)=>db.findUser({openidId:subject,openidIssuer:issuer}),audit:db.recordAuditEntry,erase:require('~/server/controllers/UserController').deleteUserController}));
 router.use('/resources', require('./bpbatamResources'));
 router.use(
   createGatewayBridge({

@@ -81,10 +81,12 @@ const mockMarkOAuthNavigation = jest.fn((req, _res, next) => {
   req.isOAuthNavigation = true;
   next();
 });
+const mockOAuthLimiter = jest.fn((_req, _res, next) => next());
 
 jest.mock('~/server/middleware', () => ({
   checkDomainAllowed: jest.fn((_req, _res, next) => next()),
   loginLimiter: jest.fn((_req, _res, next) => next()),
+  oauthLimiter: (...args) => mockOAuthLimiter(...args),
   logHeaders: jest.fn((_req, _res, next) => next()),
   markOAuthNavigation: (...args) => mockMarkOAuthNavigation(...args),
 }));
@@ -142,6 +144,7 @@ describe('OAuth route failure logging', () => {
     mockGetOAuthFailureMessage.mockClear();
     mockRedirectToAuthFailure.mockClear();
     mockPassportAuthenticate.mockClear();
+    mockOAuthLimiter.mockClear();
     mockMarkOAuthNavigation.mockClear();
     mockOpenIDCallbackAuthenticatorOptions = undefined;
     mockPassportAuthenticate.mockImplementation(() => (_req, _res, next) => next());
@@ -203,5 +206,48 @@ describe('OAuth route failure logging', () => {
       }),
     );
     expect(JSON.stringify(mockLogger.warn.mock.calls[0])).not.toContain('Unknown OAuth error');
+  });
+
+  it('passes kc_idp_hint for b-pass provider on openid initiation', async () => {
+    const app = createApp();
+
+    await request(app).get('/oauth/openid/b-pass').expect(204);
+
+    expect(mockPassportAuthenticate).toHaveBeenCalledWith(
+      'openid',
+      expect.objectContaining({
+        session: false,
+        kc_idp_hint: 'b-pass',
+        extraQueryParams: { kc_idp_hint: 'b-pass' },
+      }),
+    );
+  });
+
+
+  it('does not pass kc_idp_hint when no provider is specified', async () => {
+    const app = createApp();
+
+    await request(app).get('/oauth/openid').expect(204);
+
+    expect(mockPassportAuthenticate).toHaveBeenCalledWith(
+      'openid',
+      expect.not.objectContaining({
+        kc_idp_hint: expect.anything(),
+      }),
+    );
+  });
+
+  it('applies oauthLimiter to openid callback and not to initiation or error route', async () => {
+    const app = createApp();
+
+    await request(app).get('/oauth/openid').expect(204);
+    expect(mockOAuthLimiter).not.toHaveBeenCalled();
+
+    await request(app).get('/oauth/openid/callback?code=secret-code').expect(204);
+    expect(mockOAuthLimiter).toHaveBeenCalledTimes(1);
+
+    mockOAuthLimiter.mockClear();
+    await request(app).get('/oauth/error').expect(302);
+    expect(mockOAuthLimiter).not.toHaveBeenCalled();
   });
 });

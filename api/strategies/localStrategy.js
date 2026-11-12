@@ -7,7 +7,7 @@ const {
   grandfatherLegacyEmailVerification,
   compareSecret,
 } = require('@librechat/api');
-const { findUser, updateUser } = require('~/models');
+const { findUsers, updateUser } = require('~/models');
 const { loginSchema } = require('./validators');
 
 async function validateLoginRequest(req) {
@@ -24,23 +24,42 @@ async function passportLogin(req, email, password, done) {
       return done(null, false, { message: validationError });
     }
 
-    const user = await findUser({ email: email.trim() }, '+password');
-    if (!user) {
-      logError('Passport Local Strategy - User Not Found', { email });
-      logger.error(`[Login] [Login failed] [Username: ${email}] [Request-IP: ${req.ip}]`);
+    const identifier = (email ?? '').trim();
+    const query = {
+      $or: [
+        { email: identifier },
+        { username: identifier.toLowerCase() },
+      ],
+    };
+
+    const uniqueUsers = await findUsers(query, '+password', { limit: 2 });
+
+    if (uniqueUsers.length === 0) {
+      logError('Passport Local Strategy - User Not Found', { email: identifier });
+      logger.error(`[Login] [Login failed] [Username: ${identifier}] [Request-IP: ${req.ip}]`);
       return done(null, false, { message: 'Email does not exist.' });
     }
 
+    if (uniqueUsers.length > 1) {
+      logError('Passport Local Strategy - Ambiguous Identity', { identifier });
+      logger.error(
+        `[Login] [Login failed] [Ambiguous identity: ${identifier}] [Count: ${uniqueUsers.length}] [Request-IP: ${req.ip}]`,
+      );
+      return done(null, false, { message: 'Ambiguous identity.' });
+    }
+
+    const user = uniqueUsers[0];
+
     if (!user.password) {
-      logError('Passport Local Strategy - User has no password', { email });
-      logger.error(`[Login] [Login failed] [Username: ${email}] [Request-IP: ${req.ip}]`);
+      logError('Passport Local Strategy - User has no password', { email: identifier });
+      logger.error(`[Login] [Login failed] [Username: ${identifier}] [Request-IP: ${req.ip}]`);
       return done(null, false, { message: 'Email does not exist.' });
     }
 
     const isMatch = await comparePassword(user, password, { compare: compareSecret });
     if (!isMatch) {
       logError('Passport Local Strategy - Password does not match', { isMatch });
-      logger.error(`[Login] [Login failed] [Username: ${email}] [Request-IP: ${req.ip}]`);
+      logger.error(`[Login] [Login failed] [Username: ${identifier}] [Request-IP: ${req.ip}]`);
       return done(null, false, { message: 'Incorrect password.' });
     }
 
@@ -51,13 +70,13 @@ async function passportLogin(req, email, password, done) {
       await updateUser(user._id, {});
     }
 
-    if (!user.emailVerified && !unverifiedAllowed) {
-      logError('Passport Local Strategy - Email not verified', { email });
-      logger.error(`[Login] [Login failed] [Username: ${email}] [Request-IP: ${req.ip}]`);
+    if (user.email && !user.emailVerified && !unverifiedAllowed) {
+      logError('Passport Local Strategy - Email not verified', { email: identifier });
+      logger.error(`[Login] [Login failed] [Username: ${identifier}] [Request-IP: ${req.ip}]`);
       return done(null, user, { message: 'Email not verified.' });
     }
 
-    logger.info(`[Login] [Login successful] [Username: ${email}] [Request-IP: ${req.ip}]`);
+    logger.info(`[Login] [Login successful] [Username: ${identifier}] [Request-IP: ${req.ip}]`);
     return done(null, user);
   } catch (err) {
     return done(err);
@@ -69,7 +88,7 @@ function logError(title, parameters) {
   logger.error(title, { parameters: entries });
 }
 
-module.exports = () =>
+const localStrategy = () =>
   new PassportLocalStrategy(
     {
       usernameField: 'email',
@@ -79,3 +98,7 @@ module.exports = () =>
     },
     passportLogin,
   );
+
+localStrategy.passportLogin = passportLogin;
+
+module.exports = localStrategy;

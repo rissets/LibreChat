@@ -9,7 +9,7 @@ import { ErrorMessage } from '~/components/Auth/ErrorMessage';
 import SocialButton from '~/components/Auth/SocialButton';
 import { useAuthContext } from '~/hooks/AuthContext';
 import { useLocalize } from '~/hooks';
-import LoginForm from './LoginForm';
+import LinkAccountCard from './LinkAccountCard';
 
 interface LoginLocationState {
   redirect_to?: string;
@@ -25,13 +25,20 @@ const oauthErrorKeys: Record<string, TranslationKeys> = {
 function Login() {
   const localize = useLocalize();
   const { showToast } = useToastContext();
-  const { error, setError, login } = useAuthContext();
+  const { error } = useAuthContext();
   const { startupConfig } = useOutletContext<TLoginLayoutContext>();
 
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const disableAutoRedirect = searchParams.get('redirect') === 'false';
 
+  const isLinkRequired = searchParams.get('link') === 'required';
+
+  const handleCancelLink = () => {
+    const newParams = new URLSearchParams(searchParams);
+    newParams.delete('link');
+    setSearchParams(newParams, { replace: true });
+  };
   const [isAutoRedirectDisabled, setIsAutoRedirectDisabled] = useState(disableAutoRedirect);
 
   useEffect(() => {
@@ -75,7 +82,8 @@ function Login() {
     startupConfig?.openidLoginEnabled &&
     startupConfig?.openidAutoRedirect &&
     startupConfig?.serverDomain &&
-    !isAutoRedirectDisabled;
+    !isAutoRedirectDisabled &&
+    !isLinkRequired;
 
   useEffect(() => {
     if (shouldAutoRedirect) {
@@ -111,28 +119,66 @@ function Login() {
     );
   }
 
+  const serverDomain = startupConfig?.serverDomain?.replace(/\/+$/, '') ?? '';
+  const bPassUrl = serverDomain
+    ? `${serverDomain}/oauth/openid/b-pass`
+    : '/oauth/openid/b-pass';
+
+  const bPassLocalized = localize('com_auth_bpass_login');
+  const bPassLabel =
+    !bPassLocalized || bPassLocalized === 'com_auth_bpass_login' ? 'B-Pass' : bPassLocalized;
+
+  const localLocalized = localize('com_auth_bpbatam_local_login');
+  const localLoginLabel =
+    !localLocalized || localLocalized === 'com_auth_bpbatam_local_login'
+      ? 'BP Batam username/password'
+      : localLocalized;
+
+
   return (
     <>
       {error != null && <ErrorMessage>{localize(getLoginError(error))}</ErrorMessage>}
-      {startupConfig?.emailLoginEnabled === true && (
-        <LoginForm
-          onSubmit={login}
-          startupConfig={startupConfig}
-          error={error}
-          setError={setError}
+      {isLinkRequired ? (
+        <LinkAccountCard
+          onCancel={handleCancelLink}
+          onSuccess={() => {
+            window.location.href = '/';
+          }}
         />
-      )}
-      {startupConfig?.registrationEnabled === true && (
-        <p className="text-text-secondary my-4 text-center text-sm font-light">
-          {' '}
-          {localize('com_auth_no_account')}{' '}
-          <a
-            href={registerPage()}
-            className="text-accent-primary hover:text-accent-primary-hover hover:decoration-accent-primary-hover focus:text-accent-primary-hover focus:decoration-accent-primary-hover inline-flex p-1 text-sm font-medium underline decoration-transparent transition-all duration-200"
-          >
-            {localize('com_auth_sign_up')}
-          </a>
-        </p>
+      ) : (
+        <>
+          <div className="mt-4 space-y-3">
+            <a
+              href={bPassUrl}
+              data-testid="bpass-login"
+              aria-label={bPassLabel}
+              className="border-border-light bg-surface-primary text-text-primary hover:bg-surface-tertiary focus-visible:ring-text-primary flex w-full items-center justify-center space-x-3 rounded-2xl border px-5 py-3 font-semibold transition-colors duration-200 focus-visible:ring-2 focus-visible:outline-none"
+            >
+              <OpenIDIcon />
+              <span>{bPassLabel}</span>
+            </a>
+            <a
+              href={`${serverDomain}/oauth/openid`}
+              data-testid="local-login"
+              aria-label={localLoginLabel}
+              className="border-border-light bg-surface-primary text-text-primary hover:bg-surface-tertiary focus-visible:ring-text-primary flex w-full items-center justify-center space-x-3 rounded-2xl border px-5 py-3 font-semibold transition-colors duration-200 focus-visible:ring-2 focus-visible:outline-none"
+            >
+              <span>{localLoginLabel}</span>
+            </a>
+          </div>
+          {startupConfig?.registrationEnabled === true && (
+            <p className="text-text-secondary my-4 text-center text-sm font-light">
+              {' '}
+              {localize('com_auth_no_account')}{' '}
+              <a
+                href={registerPage()}
+                className="text-accent-primary hover:text-accent-primary-hover hover:decoration-accent-primary-hover focus:text-accent-primary-hover focus:decoration-accent-primary-hover inline-flex p-1 text-sm font-medium underline decoration-transparent transition-all duration-200"
+              >
+                {localize('com_auth_sign_up')}
+              </a>
+            </p>
+          )}
+        </>
       )}
     </>
   );

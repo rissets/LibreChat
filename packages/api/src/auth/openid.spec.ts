@@ -11,6 +11,7 @@ import {
   getOpenIdIssuer,
   createOpenIDUser,
   normalizeOpenIdIssuer,
+  applyOpenIDProfile,
 } from './openid';
 import { recordOpenIDUserLookup } from '~/app/metrics';
 
@@ -1262,5 +1263,132 @@ describe('createOpenIDUser', () => {
 
     await expect(login).rejects.toMatchObject({ name: 'ValidationError' });
     expect(findUser).not.toHaveBeenCalled();
+  });
+});
+
+describe('applyOpenIDProfile', () => {
+  it('preserves local provider for linked local accounts', () => {
+    const localUser = {
+      _id: newId(),
+      provider: 'local',
+      email: 'user@example.com',
+      username: 'localuser',
+      name: 'Local User',
+    } as IUser;
+
+    const profile = {
+      openidId: 'sub-sso-123',
+      openidIssuer: 'https://sso-dev.bpbatam.go.id/application/o/devai/',
+      username: 'ssouser',
+      name: 'SSO User',
+      email: 'user@example.com',
+      emailVerified: true,
+    };
+
+    const updated = applyOpenIDProfile(localUser, profile);
+    expect(updated.provider).toBe('local');
+    expect(updated.openidId).toBe('sub-sso-123');
+    expect(updated.openidIssuer).toBe('https://sso-dev.bpbatam.go.id/application/o/devai/');
+  });
+
+  it('sets openid provider for normal unlinked accounts', () => {
+    const openidUser = {
+      _id: newId(),
+      provider: 'openid',
+      email: 'user@example.com',
+    } as IUser;
+
+    const profile = {
+      openidId: 'sub-sso-456',
+      openidIssuer: 'https://sso-dev.bpbatam.go.id/application/o/devai/',
+      username: 'ssouser',
+      name: 'SSO User',
+    };
+
+    const updated = applyOpenIDProfile(openidUser, profile);
+    expect(updated.provider).toBe('openid');
+    expect(updated.openidId).toBe('sub-sso-456');
+  });
+});
+
+describe('getOpenIdEmail username non-substitution', () => {
+  const originalEnv = process.env.OPENID_REQUIRE_VERIFIED_EMAIL;
+  afterEach(() => {
+    if (originalEnv !== undefined) {
+      process.env.OPENID_REQUIRE_VERIFIED_EMAIL = originalEnv;
+    } else {
+      delete process.env.OPENID_REQUIRE_VERIFIED_EMAIL;
+    }
+  });
+
+  it('does not substitute username as email regardless of env', () => {
+    delete process.env.OPENID_REQUIRE_VERIFIED_EMAIL;
+    const claims = {
+      preferred_username: '198501012010011001',
+    };
+    expect(getOpenIdEmail(claims)).toBeUndefined();
+  });
+
+  it('returns valid email when claims.email has email address', () => {
+    const claims = {
+      preferred_username: 'pegawai123',
+      email: 'pegawai@bpbatam.go.id',
+    };
+    expect(getOpenIdEmail(claims)).toBe('pegawai@bpbatam.go.id');
+  });
+
+  it('returns email from upn or preferred_username if it contains @', () => {
+    expect(getOpenIdEmail({ upn: 'user@corp.local' })).toBe('user@corp.local');
+    expect(getOpenIdEmail({ preferred_username: 'user@corp.local' })).toBe('user@corp.local');
+  });
+});
+
+describe('findOpenIDUser unverified email and username-only', () => {
+  it('rejects auto-migration when email is unverified', async () => {
+    const existingUser = {
+      _id: newId(),
+      email: 'unverified@example.com',
+      provider: 'openid',
+    } as IUser;
+
+    const findUser = jest.fn().mockImplementation(async (query: Record<string, unknown>) => {
+      if (query.email === 'unverified@example.com') return existingUser;
+      return null;
+    });
+
+    const result = await findOpenIDUser({
+      openidId: 'sub-new-123',
+      openidIssuer: 'https://issuer.test',
+      email: 'unverified@example.com',
+      emailVerified: false,
+      findUser,
+    });
+
+    expect(result.error).toBe('ACCOUNT_EXISTS_LINK_REQUIRED');
+    expect(result.migration).toBe(false);
+  });
+
+  it('finds user by openidId when user has no email (username-only)', async () => {
+    const usernameOnlyUser = {
+      _id: newId(),
+      username: 'username_only_user',
+      openidId: 'sub-username-only',
+      openidIssuer: 'https://issuer.test',
+      provider: 'openid',
+    } as IUser;
+
+    const findUser = jest.fn().mockImplementation(async (query: Record<string, unknown>) => {
+      if (query.openidId === 'sub-username-only') return usernameOnlyUser;
+      return null;
+    });
+
+    const result = await findOpenIDUser({
+      openidId: 'sub-username-only',
+      openidIssuer: 'https://issuer.test',
+      findUser,
+    });
+
+    expect(result.user).toBe(usernameOnlyUser);
+    expect(result.error).toBeNull();
   });
 });

@@ -265,6 +265,8 @@ export const reasoningCapabilities = (endpoint: string) =>
 export const models = () => `${BASE_URL}/api/models`;
 
 export const login = () => `${BASE_URL}/api/auth/login`;
+export const linkOpenId = () => `${BASE_URL}/api/auth/link-openid`;
+export const linkChallenge = () => `${BASE_URL}/api/auth/link-challenge`;
 
 export const logout = () => `${BASE_URL}/api/auth/logout`;
 
@@ -625,6 +627,8 @@ export const addTagToConversation = (conversationId: string) =>
 export const userTerms = () => `${BASE_URL}/api/user/terms`;
 export const acceptUserTerms = () => `${BASE_URL}/api/user/terms/accept`;
 export const banner = () => `${BASE_URL}/api/banner`;
+export const onboardingProfile = () => `${BASE_URL}/api/onboarding/profile`;
+export const completeOnboarding = () => `${BASE_URL}/api/onboarding/complete`;
 
 // Message Feedback
 export const feedback = (conversationId: string, messageId: string) =>

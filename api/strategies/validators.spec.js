@@ -4,7 +4,7 @@ const { loginSchema, registerSchema } = require('./validators');
 
 describe('Zod Schemas', () => {
   describe('loginSchema', () => {
-    it('should validate a correct login object', () => {
+    it('should validate a correct login object with email', () => {
       const result = loginSchema.safeParse({
         email: 'test@example.com',
         password: 'password123',
@@ -13,9 +13,27 @@ describe('Zod Schemas', () => {
       expect(result.success).toBe(true);
     });
 
+    it('should validate a correct login object with username', () => {
+      const result = loginSchema.safeParse({
+        email: 'admin_user',
+        password: 'password123',
+      });
+
+      expect(result.success).toBe(true);
+    });
+
     it('should invalidate an incorrect email', () => {
       const result = loginSchema.safeParse({
-        email: 'testexample.com',
+        email: 'test@invalid_domain',
+        password: 'password123',
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it('should invalidate an incorrect username', () => {
+      const result = loginSchema.safeParse({
+        email: 'a',
         password: 'password123',
       });
 

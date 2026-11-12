@@ -26,6 +26,7 @@ const {
   configMiddleware,
   createFileLimiters,
   requireTermsAcceptance,
+  requireNestedOnboarding,
 } = require('~/server/middleware');
 const { hasCapability } = require('~/server/middleware/roles/capabilities');
 const { checkPermission, findAccessibleResources } = require('~/server/services/PermissionService');
@@ -154,6 +155,7 @@ const handleUploadError = (error, _req, res, _next) => {
 
 router.use(requireAgentManagementAuth);
 router.use(requireTermsAcceptance);
+router.use(requireNestedOnboarding);
 router.use(checkBan);
 
 router.post('/', configMiddleware, createHandler);

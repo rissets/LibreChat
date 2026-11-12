@@ -143,6 +143,26 @@ test('submits login form', async () => {
   expect(mockLogin).toHaveBeenCalledWith({ email: 'test@example.com', password: 'password' });
 });
 
+test('submits login form with username', async () => {
+  const { getByLabelText } = render(
+    <Login
+      onSubmit={mockLogin}
+      startupConfig={mockStartupConfig}
+      error={undefined}
+      setError={jest.fn()}
+    />,
+  );
+  const identifierInput = getByLabelText(/email/i);
+  const passwordInput = getByLabelText(/password/i);
+  const submitButton = getByTestId(document.body, 'login-button');
+
+  await userEvent.type(identifierInput, 'testuser');
+  await userEvent.type(passwordInput, 'password');
+  await userEvent.click(submitButton);
+
+  expect(mockLogin).toHaveBeenCalledWith({ email: 'testuser', password: 'password' });
+});
+
 test('displays validation error messages', async () => {
   const { getByLabelText, getByText } = render(
     <Login
@@ -156,10 +176,10 @@ test('displays validation error messages', async () => {
   const passwordInput = getByLabelText(/password/i);
   const submitButton = getByTestId(document.body, 'login-button');
 
-  await userEvent.type(emailInput, 'test');
+  await userEvent.type(emailInput, 't');
   await userEvent.type(passwordInput, 'pass');
   await userEvent.click(submitButton);
 
-  expect(getByText(/You must enter a valid email address/i)).toBeInTheDocument();
+  expect(getByText(/You must enter a valid username or email address/i)).toBeInTheDocument();
   expect(getByText(/Password must be at least 8 characters/i)).toBeInTheDocument();
 });

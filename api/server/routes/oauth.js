@@ -1,10 +1,11 @@
-// file deepcode ignore NoRateLimitingForLogin: Rate limiting is handled by the `loginLimiter` middleware
+// file deepcode ignore NoRateLimitingForLogin: Rate limiting is handled by the `oauthLimiter` middleware
 const express = require('express');
 const passport = require('passport');
 const { randomState } = require('openid-client');
 const { logger } = require('@librechat/data-schemas');
 const { ErrorTypes } = require('librechat-data-provider');
 const {
+  shouldUseSecureCookie,
   buildOAuthFailureLog,
   createOpenIDCallbackAuthenticator,
   createSetBalanceConfig,
@@ -13,7 +14,7 @@ const {
 } = require('@librechat/api');
 const {
   checkDomainAllowed,
-  loginLimiter,
+  oauthLimiter,
   logHeaders,
   markOAuthNavigation,
 } = require('~/server/middleware');
@@ -39,16 +40,43 @@ const authFailureRedirectOptions = {
   authFailedError: ErrorTypes.AUTH_FAILED,
 };
 
+
 router.use(logHeaders);
 router.use(markOAuthNavigation);
-router.use(loginLimiter);
-
 const oauthHandler = createOAuthHandler();
-const authenticateOpenIDCallback = createOpenIDCallbackAuthenticator({
-  passport,
-  logger,
-  ...authFailureRedirectOptions,
-});
+const authenticateOpenIDCallback = (req, res, next) => {
+  passport.authenticate('openid', { session: false, failureMessage: true }, (err, user, info) => {
+    if (err) {
+      return next(err);
+    }
+    if (info && info.message === 'ACCOUNT_EXISTS_LINK_REQUIRED' && info.linkToken) {
+      const isSecure = shouldUseSecureCookie();
+      res.cookie('link_challenge', info.linkToken, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: isSecure,
+        maxAge: 10 * 60 * 1000,
+        path: '/',
+      });
+      const clientDomain = process.env.DOMAIN_CLIENT || 'http://localhost:3080';
+      return res.redirect(`${clientDomain}/login?link=required`);
+    }
+    if (!user) {
+      return redirectToAuthFailure(res, {
+        clientDomain: domains.client,
+        authFailedError: ErrorTypes.AUTH_FAILED,
+      });
+    }
+    if (typeof req.logIn !== 'function') {
+      req.user = user;
+      return next();
+    }
+    return req.logIn(user, { session: false }, (loginErr) => {
+      if (loginErr) return next(loginErr);
+      return next();
+    });
+  })(req, res, next);
+};
 
 router.get('/error', (req, res) => {
   /** A single error message is pushed by passport when authentication fails. */
@@ -79,6 +107,7 @@ router.get(
 
 router.get(
   '/google/callback',
+  oauthLimiter,
   passport.authenticate('google', {
     failureRedirect: `${domains.client}/oauth/error`,
     session: false,
@@ -103,6 +132,7 @@ router.get(
 
 router.get(
   '/facebook/callback',
+  oauthLimiter,
   passport.authenticate('facebook', {
     failureRedirect: `${domains.client}/oauth/error`,
     session: false,
@@ -117,15 +147,26 @@ router.get(
 /**
  * OpenID Routes
  */
-router.get('/openid', (req, res, next) => {
-  return passport.authenticate('openid', {
+router.get(['/openid', '/openid/b-pass'], (req, res, next) => {
+  const provider = req.path === '/openid/b-pass' ? 'b-pass' : undefined;
+  if (req.session) req.session.bpassLogin = provider === 'b-pass';
+
+  const authOptions = {
     session: false,
     state: randomState(),
-  })(req, res, next);
+  };
+
+  if (provider === 'b-pass') {
+    authOptions.kc_idp_hint = 'b-pass';
+    authOptions.extraQueryParams = { kc_idp_hint: 'b-pass' };
+  }
+
+  return passport.authenticate('openid', authOptions)(req, res, next);
 });
 
 router.get(
-  '/openid/callback',
+  ['/openid/callback', '/sso/callback'],
+  oauthLimiter,
   authenticateOpenIDCallback,
   setBalanceConfig,
   checkDomainAllowed,
@@ -145,6 +186,7 @@ router.get(
 
 router.get(
   '/github/callback',
+  oauthLimiter,
   passport.authenticate('github', {
     failureRedirect: `${domains.client}/oauth/error`,
     session: false,
@@ -168,6 +210,7 @@ router.get(
 
 router.get(
   '/discord/callback',
+  oauthLimiter,
   passport.authenticate('discord', {
     failureRedirect: `${domains.client}/oauth/error`,
     session: false,
@@ -190,6 +233,7 @@ router.get(
 
 router.post(
   '/apple/callback',
+  oauthLimiter,
   passport.authenticate('apple', {
     failureRedirect: `${domains.client}/oauth/error`,
     session: false,
@@ -211,6 +255,7 @@ router.get(
 
 router.post(
   '/saml/callback',
+  oauthLimiter,
   passport.authenticate('saml', {
     failureRedirect: `${domains.client}/oauth/error`,
     failureMessage: true,

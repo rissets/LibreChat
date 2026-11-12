@@ -209,6 +209,11 @@ export const router = createBrowserRouter(
         },
       ],
     },
+    {
+      path: '*',
+      loader: () => { throw new Response(null, { status: 404 }); },
+      errorElement: <RouteErrorBoundary />,
+    },
   ],
   { basename: baseHref },
 );

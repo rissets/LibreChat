@@ -377,6 +377,13 @@ export function getUserBalance(): Promise<t.TBalanceResponse> {
 export const login = (payload: t.TLoginUser): Promise<t.TLoginResponse> => {
   return request.post(endpoints.login(), payload);
 };
+export const linkOpenIdAccount = (payload: { password: string; token?: string }): Promise<t.TLoginResponse> => {
+  return request.post(endpoints.linkOpenId(), payload);
+};
+
+export const getLinkChallengeStatus = (): Promise<{ required: boolean }> => {
+  return request.get(endpoints.linkChallenge());
+};
 
 export const logout = (): Promise<m.TLogoutResponse> => {
   return request.post(endpoints.logout());
@@ -1732,6 +1739,16 @@ export function getUserTerms(): Promise<t.TUserTermsResponse> {
 
 export function acceptTerms(): Promise<t.TAcceptTermsResponse> {
   return request.post(endpoints.acceptUserTerms());
+}
+
+export function getOnboardingProfile(): Promise<t.TOnboardingProfileResponse> {
+  return request.get(endpoints.onboardingProfile());
+}
+
+export function completeOnboarding(
+  payload: t.TCompleteOnboardingRequest,
+): Promise<t.TCompleteOnboardingResponse> {
+  return request.post(endpoints.completeOnboarding(), payload);
 }
 
 export function getBanner(): Promise<t.TBannerResponse> {

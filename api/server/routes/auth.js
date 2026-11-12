@@ -10,11 +10,13 @@ const {
   requireTwoFactorSetupFinalizationToken,
 } = require('@librechat/api');
 const {
-  resetPasswordRequestController,
   resetPasswordController,
+  resetPasswordRequestController,
   registrationController,
   graphTokenController,
   refreshController,
+  linkAccountController,
+  linkChallengeStatusController,
 } = require('~/server/controllers/AuthController');
 const {
   regenerateBackupCodes,
@@ -39,6 +41,7 @@ const {
   finalize2FASetup,
 } = require('~/server/controllers/auth/TwoFactorAuthController');
 const { logoutController } = require('~/server/controllers/auth/LogoutController');
+const { revokedSessionController } = require('~/server/controllers/auth/RevokedSessionController');
 const { loginController } = require('~/server/controllers/auth/LoginController');
 const { findBalanceByUser, upsertBalanceFields } = require('~/models');
 const { getAppConfig } = require('~/server/services/Config');
@@ -66,6 +69,7 @@ const getCloudFrontAuthCookieRefreshResult = (req, res) => {
 
 const ldapAuth = !!process.env.LDAP_URL && !!process.env.LDAP_USER_SEARCH_BASE;
 //Local
+router.get('/revoked-session', revokedSessionController);
 router.post('/logout', middleware.requireJwtAuth, logoutController);
 router.post(
   '/login',
@@ -114,6 +118,15 @@ router.post(
   middleware.validatePasswordReset,
   resetPasswordController,
 );
+router.post(
+  '/link-openid',
+  middleware.logHeaders,
+  middleware.requireSameOrigin,
+  middleware.loginLimiter,
+  middleware.checkBan,
+  linkAccountController,
+);
+router.get('/link-challenge', linkChallengeStatusController);
 
 router.post('/2fa/enable', middleware.requireJwtAuth, twoFactorManagementLimiter, enable2FA);
 router.post('/2fa/verify', middleware.requireJwtAuth, twoFactorManagementLimiter, verify2FA);

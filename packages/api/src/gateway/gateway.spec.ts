@@ -4,6 +4,7 @@ import {
   managedSessionOptions,
   gatewayConfig,
   validateManagedJwtUser,
+  canonicalLocalSubject,
 } from './index';
 
 describe('managed gateway boundary', () => {
@@ -121,6 +122,75 @@ describe('managed gateway boundary', () => {
       ),
     ).toEqual({ expiresIn: 100, identitySessionId: 'identity-session-a' });
     expect(() => managedSessionOptions(null, 100)).toThrow('IDENTITY_SESSION_REQUIRED');
+  });
+  it('supports local users and linked local accounts in managed mode', async () => {
+    process.env.BPBATAM_GATEWAY_ENDPOINT = 'P0Router';
+    process.env.BPBATAM_BRIDGE_URL = 'http://localhost';
+    process.env.BPBATAM_LC_CLIENT_ID = 'lc';
+    process.env.BPBATAM_LC_CLIENT_SECRET = 'private-fixture';
+    process.env.OPENID_ISSUER = 'https://idp.test/realms/test';
+
+    // Local user session options (no tokenset, has password or local provider)
+    expect(
+      managedSessionOptions({ user: { provider: 'local', password: 'hashed-password' } }, 100),
+    ).toEqual({ expiresIn: 100 });
+
+    // Local user validation without identitySessionId
+    const localUser = { provider: 'local', password: 'hashed-password' };
+    expect(await validateManagedJwtUser(localUser, {})).toBe(localUser);
+
+    // Linked local user logging in locally
+    const linkedUser = {
+      provider: 'local',
+      password: 'hashed-password',
+      openidId: 'sub-123',
+      openidIssuer: 'https://idp.test/realms/test',
+    };
+    expect(await validateManagedJwtUser(linkedUser, {})).toBe(linkedUser);
+
+    // Rejects forged identitySessionId for purely local user with no openidId
+    expect(await validateManagedJwtUser(localUser, { identitySessionId: 'fake' })).toBeNull();
+
+    // Resolves managed credential for local user via deterministic canonical UUIDv5 without Keycloak
+    const localSub = canonicalLocalSubject('local-user-id');
+    const localUserConfig = {
+      fetch: jest.fn(async (input: unknown) => {
+        if (String(input).includes('/resolve?subject=' + encodeURIComponent(localSub))) {
+          return new Response(
+            JSON.stringify({
+              subject: localSub,
+              issuer: 'https://bpchat.local',
+              key: 'local-inference-key',
+              offers: [{ id: 'local-model' }],
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response(JSON.stringify({}), { status: 404 });
+      }) as unknown as typeof fetch,
+      issuer: 'https://idp.test/realms/test',
+      bridgeURL: 'https://gateway.test/api/bpbatam',
+      clientId: 'lc',
+      clientSecret: 'private-fixture',
+      endpoint: 'P0Router',
+      audience: 'gateway',
+    };
+    const localInferenceUser = {
+      id: 'local-user-id',
+      provider: 'local',
+      password: 'hashed-password',
+    };
+    const resolved = await resolveManagedCredential(
+      localInferenceUser,
+      'P0Router',
+      'local-model',
+      localUserConfig,
+    );
+    expect(resolved).toEqual({
+      key: 'local-inference-key',
+      models: ['local-model'],
+      baseURL: 'https://gateway.test/v1',
+    });
   });
 });
 

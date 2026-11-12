@@ -175,6 +175,7 @@ let deleteTokens;
 let getAppConfig;
 let sendEmail;
 let bcrypt;
+let clearOpenIDAuthTokens;
 let setOpenIDAuthTokens;
 let storeOpenIDSession;
 let requestPasswordReset;
@@ -224,6 +225,7 @@ jest.isolateModules(() => {
   ({ sendEmail } = require('~/server/utils'));
   bcrypt = require('bcryptjs');
   ({
+    clearOpenIDAuthTokens,
     setOpenIDAuthTokens,
     storeOpenIDSession,
     requestPasswordReset,
@@ -255,6 +257,21 @@ function mockRequest(sessionData = {}, cookies = {}) {
     cookies,
   };
 }
+
+it('preserves only logout identity after clearing revoked OpenID credentials', () => {
+  const req = mockRequest({
+    openidTokens: {
+      appUserId: 'user-1', openidSubject: 'sub-1', openidIssuer: 'https://issuer.test',
+      idToken: 'id-token', refreshToken: 'secret-refresh', accessToken: 'secret-access',
+    },
+  });
+  clearOpenIDAuthTokens(req, { clearCookie: jest.fn() }, 'user-1');
+  expect(req.session.openidTokens).toBeUndefined();
+  expect(req.session.revokedLogout).toEqual({
+    appUserId: 'user-1', openidSubject: 'sub-1', openidIssuer: 'https://issuer.test',
+    idToken: 'id-token',
+  });
+});
 
 describe('setOpenIDAuthTokens', () => {
   const env = process.env;

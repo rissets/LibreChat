@@ -38,7 +38,7 @@ import { MeetingNotesProvider } from '~/components/Meetings/NotesState';
 import KeyboardShortcutsDialog from '~/components/Nav/KeyboardShortcutsDialog';
 import { SteerHostProvider, appSteerHost } from '~/Providers/SteerHostContext';
 import KeyboardDeleteDialog from '~/components/Nav/KeyboardDeleteDialog';
-import { useUserTermsQuery, useGetStartupConfig } from '~/data-provider';
+import { useUserTermsQuery, useGetStartupConfig, useOnboardingProfileQuery } from '~/data-provider';
 import { MobileDrawerScrim } from '~/components/UnifiedSidebar/mobile';
 import AnalyticsConsent from '~/components/System/AnalyticsConsent';
 import useKeyboardShortcuts from '~/hooks/useKeyboardShortcuts';
@@ -46,6 +46,7 @@ import useDrawerDismiss from '~/hooks/Nav/useDrawerDismiss';
 import useSidebarToggle from '~/hooks/Nav/useSidebarToggle';
 import useSidebarState from '~/hooks/Nav/useSidebarState';
 import { TermsAndConditionsModal } from '~/components/ui';
+import OnboardingModal from '~/components/Onboarding/OnboardingModal';
 import useDrawerSwipe from '~/hooks/Nav/useDrawerSwipe';
 import ChatSettingsProvider from './ChatSettings';
 import { useHealthCheck } from '~/data-provider';
@@ -143,6 +144,9 @@ function RootLayout() {
   const { data: config, isSuccess: isConfigReady, error: configError } = useGetStartupConfig();
   const { data: termsData } = useUserTermsQuery({
     enabled: isAuthenticated && config?.interface?.termsOfService?.modalAcceptance === true,
+  });
+  const { data: onboardingProfile } = useOnboardingProfileQuery({
+    enabled: isAuthenticated,
   });
   const highlightThrottleMs = normalizeCodeHighlightThrottleMs(
     config?.interface?.codeHighlightThrottleMs,
@@ -265,6 +269,12 @@ function RootLayout() {
                 onDecline={handleDeclineTerms}
                 title={config.interface.termsOfService.modalTitle}
                 modalContent={config.interface.termsOfService.modalContent}
+              />
+            )}
+            {onboardingProfile != null && !onboardingProfile.onboarding_completed && (
+              <OnboardingModal
+                open={!onboardingProfile.onboarding_completed}
+                profile={onboardingProfile}
               />
             )}
           </AssistantsMapContext.Provider>

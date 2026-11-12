@@ -212,6 +212,8 @@ const getOpenIDAppAuthToken = (tokenset, sessionIdToken) =>
 
 const clearOpenIDAuthTokens = (req, res, userId, tenantId) => {
   if (req.session?.openidTokens) {
+    const { appUserId, openidSubject, openidIssuer, idToken } = req.session.openidTokens;
+    req.session.revokedLogout = { appUserId, openidSubject, openidIssuer, idToken };
     delete req.session.openidTokens;
   }
   for (const name of [
@@ -740,6 +742,7 @@ const setAuthTokens = async (userId, res, _session = null, req = null) => {
       refreshTokenExpires = session.expiration.getTime();
     }
 
+    if (req?.session) delete req.session.revokedLogout;
     const user = await getUserById(userId);
     const sessionExpiry = math(process.env.SESSION_EXPIRY, DEFAULT_SESSION_EXPIRY);
     const token = await generateToken(user, sessionExpiry, session);
@@ -849,6 +852,7 @@ const setOpenIDAuthTokens = (
       logger.error('[setOpenIDAuthTokens] No tokenset found in request');
       return;
     }
+    if (req?.session) delete req.session.revokedLogout;
     const expiryInMilliseconds = math(
       process.env.REFRESH_TOKEN_EXPIRY,
       DEFAULT_REFRESH_TOKEN_EXPIRY,

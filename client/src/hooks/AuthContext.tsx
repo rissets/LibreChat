@@ -94,6 +94,7 @@ const AuthContextProvider = ({
   children: ReactNode;
 }) => {
   const isExternalRedirectRef = useRef(false);
+  const initialRevokedCheckRef = useRef<Promise<void> | null>(null);
   const prerenderRefreshDeferredRef = useRef(false);
   const [user, setUser] = useRecoilState(store.user);
   const logoutRedirectRef = useRef<string | undefined>(undefined);
@@ -117,6 +118,44 @@ const AuthContextProvider = ({
   });
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (authConfig?.test === true) return;
+    let stopped = false;
+    let pending = false;
+    const check = async () => {
+      if (stopped || pending || isExternalRedirectRef.current || isPrerendering()) return;
+      pending = true;
+      try {
+        const response = await fetch(`${apiBaseUrl()}/api/auth/revoked-session`, {
+          credentials: 'same-origin',
+          cache: 'no-store',
+        });
+        if (response.status !== 200) return;
+        const data = await response.json();
+        if (!stopped && typeof data.redirect === 'string') {
+          isExternalRedirectRef.current = true;
+          setTokenHeader(undefined);
+          endSessionClientState();
+          window.location.replace(data.redirect);
+        }
+      } catch {
+        // A temporary network failure must not be treated as a revoked session.
+      } finally {
+        pending = false;
+      }
+    };
+    const initialCheck = check();
+    initialRevokedCheckRef.current = initialCheck;
+    void initialCheck.finally(() => {
+      if (initialRevokedCheckRef.current === initialCheck) initialRevokedCheckRef.current = null;
+    });
+    const timer = window.setInterval(check, 30000);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   const setUserContext = useMemo(
     () =>
@@ -318,6 +357,12 @@ const AuthContextProvider = ({
       return;
     }
     if (isExternalRedirectRef.current) {
+      return;
+    }
+    if (initialRevokedCheckRef.current) {
+      void initialRevokedCheckRef.current.then(() => {
+        if (!isExternalRedirectRef.current) silentRefresh();
+      });
       return;
     }
     /** A prerendered page can be discarded without ever being shown. Refreshing from it rotates

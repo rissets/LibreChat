@@ -2114,3 +2114,52 @@ export const useAcceptTermsMutation = (
     onMutate: options?.onMutate,
   });
 };
+
+export const useCompleteOnboardingMutation = (
+  options?: MutationObserverOptions<
+    t.TCompleteOnboardingResponse,
+    unknown,
+    t.TCompleteOnboardingRequest,
+    unknown
+  >,
+): UseMutationResult<
+  t.TCompleteOnboardingResponse,
+  unknown,
+  t.TCompleteOnboardingRequest,
+  unknown
+> => {
+  const queryClient = useQueryClient();
+  return useMutation(
+    (payload: t.TCompleteOnboardingRequest) => dataService.completeOnboarding(payload),
+    {
+      ...options,
+      onSuccess: (data, variables, context) => {
+        queryClient.invalidateQueries();
+        queryClient.setQueryData<t.TOnboardingProfileResponse | undefined>(
+          [QueryKeys.onboardingProfile],
+          (prev) =>
+            prev
+              ? {
+                  ...prev,
+                  onboarding_completed: true,
+                  department_id: data.department_id,
+                  department_name: data.department_name,
+                }
+              : undefined,
+        );
+        options?.onSuccess?.(data, variables, context);
+      },
+      onError: options?.onError,
+      onMutate: options?.onMutate,
+    },
+  );
+};
+
+export const useLinkOpenIdMutation = (
+  options?: MutationObserverOptions<t.TLoginResponse, unknown, { password: string; token?: string }>,
+): UseMutationResult<t.TLoginResponse, unknown, { password: string; token?: string }> => {
+  return useMutation(
+    (payload: { password: string; token?: string }) => dataService.linkOpenIdAccount(payload),
+    options,
+  );
+};

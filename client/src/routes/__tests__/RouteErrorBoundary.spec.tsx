@@ -112,6 +112,18 @@ describe('RouteErrorBoundary stale-asset recovery', () => {
     expect(recover).not.toHaveBeenCalled();
   });
 
+  it('shows a not-found page with a working home link for a 404', async () => {
+    renderRouteThatThrows(() => ({ status: 404 }));
+    expect(await screen.findByRole('heading', { name: en.com_ui_page_not_found })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: en.com_ui_back_home })).toHaveAttribute('href', '/');
+  });
+
+  it('identifies server errors without treating them as missing pages', async () => {
+    renderRouteThatThrows(() => ({ status: 500 }));
+    expect(await screen.findByText(en.com_ui_server_error)).toBeInTheDocument();
+    expect(screen.queryByText(en.com_ui_page_not_found)).not.toBeInTheDocument();
+  });
+
   it('shows the updating state for any error while a recovery reload is already underway', async () => {
     const recover = jest.fn(() => true);
     window.__lcRecoverStaleAssets = recover;

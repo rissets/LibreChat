@@ -45,6 +45,7 @@ const user = require('./user');
 const mcp = require('./mcp');
 const rum = require('./rum');
 const insights = require('./insights');
+const onboarding = require('./onboarding');
 
 module.exports = {
   bpbatam,
@@ -68,6 +69,7 @@ module.exports = {
   apiKeys,
   user,
   tags,
+  onboarding,
   roles,
   oauth,
   files,

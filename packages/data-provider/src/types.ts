@@ -331,6 +331,10 @@ export type TUser = {
     memories?: boolean;
     statefulCodeEnvironment?: StatefulCodeEnvironment;
   };
+  departmentId?: string | null;
+  departmentName?: string | null;
+  onboardingCompleted?: boolean;
+  onboardingCompletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -1244,6 +1248,42 @@ export type TUserTermsResponse = {
 export type TAcceptTermsResponse = {
   message: string;
   termsAcceptedAt: Date | string;
+};
+
+export type TOnboardingDepartment = {
+  id: string;
+  name: string;
+  parent_id: string | null;
+};
+
+export type TOnboardingProfileResponse = {
+  principal_id: string;
+  subject: string;
+  issuer: string;
+  username: string | null;
+  email: string | null;
+  email_verified: boolean;
+  name: string;
+  onboarding_completed: boolean;
+  department_locked: boolean;
+  department_id: string | null;
+  department_name: string | null;
+  departments: TOnboardingDepartment[];
+  review_status: 'pending' | 'reviewed' | null;
+};
+
+export type TCompleteOnboardingRequest = {
+  department_id: string;
+  name?: string;
+};
+
+export type TCompleteOnboardingResponse = {
+  status: string;
+  principal_id: string;
+  department_id: string;
+  department_name: string;
+  onboarding_completed: boolean;
+  review_status: 'pending' | 'reviewed' | null;
 };
 
 export type TBannerResponse = TBanner | null;

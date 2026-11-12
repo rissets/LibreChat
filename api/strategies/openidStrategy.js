@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const undici = require('undici');
 const { get } = require('lodash');
 const passport = require('passport');
@@ -35,6 +36,7 @@ const { resizeAvatar } = require('~/server/services/Files/images/avatar');
 const {
   findUser,
   updateUser,
+  createToken,
   findRolesByNames,
   findBalanceByUser,
   recordAuditEntry,
@@ -140,6 +142,10 @@ class CustomOpenIDStrategy extends OpenIDStrategy {
       params.set('state', options.state);
     }
 
+    const kcIdpHint = options?.kc_idp_hint || options?.extraQueryParams?.kc_idp_hint;
+    if (kcIdpHint && !params.has('kc_idp_hint')) {
+      params.set('kc_idp_hint', kcIdpHint);
+    }
     const authorizationAudience = getOpenIdAuthorizationAudience();
     if (authorizationAudience) {
       params.set('audience', authorizationAudience);
@@ -659,16 +665,42 @@ async function processOpenIDAuth(tokenset, existingUsersOnly = false) {
     Object.assign(userinfo, providerUserinfo);
   }
 
-  const email = getOpenIdEmail(userinfo);
+  let username = '';
+  if (process.env.OPENID_USERNAME_CLAIM) {
+    username = userinfo[process.env.OPENID_USERNAME_CLAIM];
+  } else {
+    username = convertToUsername(
+      userinfo.preferred_username || userinfo.username || userinfo.email,
+    );
+  }
+
+  const rawEmail = getOpenIdEmail(userinfo);
+  const email = rawEmail && rawEmail.trim() ? rawEmail.trim() : undefined;
+  const isVerified = userinfo.email_verified === true || userinfo.email_verified === 'true';
   const openidIssuer = getOpenIdIssuer(claims, openidConfig);
 
+  if ((!username || !username.trim()) && !email) {
+    logger.error('[openidStrategy] Authentication blocked - username or email is required');
+    throw new Error('Username or email is required');
+  }
+
+  if (email && isEnabled(process.env.OPENID_REQUIRE_VERIFIED_EMAIL)) {
+    if (!isVerified) {
+      logger.error(
+        `[openidStrategy] Authentication blocked - email is not verified by IdP [Identifier: ${email}]`,
+      );
+      throw new Error('Email must be verified by identity provider');
+    }
+  }
+
   const baseConfig = await resolvePreAuthAppConfig(getAppConfig);
-  if (!isEmailDomainAllowed(email, baseConfig?.registration?.allowedDomains)) {
+  if (email && !isEmailDomainAllowed(email, baseConfig?.registration?.allowedDomains)) {
     logger.error(
       `[OpenID Strategy] Authentication blocked - email domain not allowed [Identifier: ${email}]`,
     );
     throw new Error('Email domain not allowed');
   }
+  const fullName = getFullName(userinfo);
 
   const lookup = {
     findUser,
@@ -677,10 +709,30 @@ async function processOpenIDAuth(tokenset, existingUsersOnly = false) {
     openidIssuer,
     idOnTheSource: claims.oid || userinfo.oid,
     strategyName: 'openidStrategy',
+    emailVerified: isVerified,
   };
   const result = await findOpenIDUser(lookup);
   let user = result.user;
   const error = result.error;
+
+  if (error === 'ACCOUNT_EXISTS_LINK_REQUIRED' && user) {
+    const linkingToken = crypto.randomBytes(24).toString('hex');
+    await createToken({
+      userId: user._id,
+      email: user.email || '',
+      type: 'account_linking',
+      token: linkingToken,
+      expiresIn: 600,
+      metadata: {
+        openidId: claims.sub || userinfo.sub,
+        openidIssuer,
+      },
+    });
+    const linkErr = new Error('ACCOUNT_EXISTS_LINK_REQUIRED');
+    linkErr.linkToken = linkingToken;
+    linkErr.email = user.email || '';
+    throw linkErr;
+  }
 
   if (error) {
     throw new Error(ErrorTypes.AUTH_FAILED);
@@ -688,14 +740,12 @@ async function processOpenIDAuth(tokenset, existingUsersOnly = false) {
 
   let appConfig = user ? await resolveAppConfigForUser(getAppConfig, user) : baseConfig;
 
-  if (!isEmailDomainAllowed(email, appConfig?.registration?.allowedDomains)) {
+  if (email && !isEmailDomainAllowed(email, appConfig?.registration?.allowedDomains)) {
     logger.error(
       `[OpenID Strategy] Authentication blocked - email domain not allowed [Identifier: ${email}]`,
     );
     throw new Error('Email domain not allowed');
   }
-
-  const fullName = getFullName(userinfo);
 
   const requiredRole = process.env.OPENID_REQUIRED_ROLE;
   let resolvedOverageGroups = null;
@@ -754,13 +804,14 @@ async function processOpenIDAuth(tokenset, existingUsersOnly = false) {
     }
   }
 
-  let username = '';
-  if (process.env.OPENID_USERNAME_CLAIM) {
-    username = userinfo[process.env.OPENID_USERNAME_CLAIM];
-  } else {
-    username = convertToUsername(
-      userinfo.preferred_username || userinfo.username || userinfo.email,
-    );
+  if (!username) {
+    if (process.env.OPENID_USERNAME_CLAIM) {
+      username = userinfo[process.env.OPENID_USERNAME_CLAIM];
+    } else {
+      username = convertToUsername(
+        userinfo.preferred_username || userinfo.username || userinfo.email,
+      );
+    }
   }
 
   if (existingUsersOnly && !user) {
@@ -773,7 +824,7 @@ async function processOpenIDAuth(tokenset, existingUsersOnly = false) {
     username,
     name: fullName,
     email,
-    emailVerified: userinfo.email_verified || false,
+    emailVerified: isVerified,
     idOnTheSource: userinfo.oid,
   };
 
@@ -813,7 +864,7 @@ async function processOpenIDAuth(tokenset, existingUsersOnly = false) {
    */
   if (user.role !== roleBeforeClaims) {
     appConfig = await resolveAppConfigForUser(getAppConfig, user);
-    if (!isEmailDomainAllowed(email, appConfig?.registration?.allowedDomains)) {
+    if (email && !isEmailDomainAllowed(email, appConfig?.registration?.allowedDomains)) {
       logger.error(
         `[OpenID Strategy] Authentication blocked after a role change - email domain not allowed [Identifier: ${email}]`,
       );
@@ -888,6 +939,13 @@ function createOpenIDCallback(existingUsersOnly) {
       const user = await processOpenIDAuth(tokenset, existingUsersOnly);
       done(null, user);
     } catch (err) {
+      if (err.message === 'ACCOUNT_EXISTS_LINK_REQUIRED') {
+        return done(null, false, {
+          message: 'ACCOUNT_EXISTS_LINK_REQUIRED',
+          linkToken: err.linkToken,
+          email: err.email,
+        });
+      }
       if (err.message === 'Email domain not allowed') {
         return done(null, false, { message: err.message });
       }

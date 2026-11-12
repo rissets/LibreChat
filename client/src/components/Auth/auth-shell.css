@@ -69,9 +69,10 @@ body#keycloak-bg.bp-auth-page { background: var(--bp-canvas); color: var(--bp-te
 .bp-auth-page .bp-auth-footer { display: flex; grid-area: 3 / 2; align-items: center; justify-content: space-between; gap: 16px; width: calc(100% - 96px); max-width: var(--bp-form-width); margin: 0 auto; padding: 16px 0 32px; color: var(--bp-muted); font-size: 12px; line-height: 1.5; }
 .bp-auth-footer a { color: var(--bp-muted); font-size: 12px; }
 .bp-auth-footer [role='contentinfo'] { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; margin: 0; }
-.bp-auth-main :is([data-testid='openid'],[data-testid='passkey']) { min-height: 52px; border-radius: 10px; background: transparent; border-color: var(--bp-border); color: var(--bp-text); font-size: 14px; font-weight: 600; line-height: 1.5; }
-.bp-auth-main [data-testid='openid'] { background: var(--bp-accent); border-color: var(--bp-accent); color: var(--bp-button-text); }
-.bp-auth-main [data-testid='openid']:hover { background: var(--bp-accent-hover); }
+.bp-auth-main :is([data-testid='openid'],[data-testid='passkey'],[data-testid='bpass-login'],[data-testid='local-login']) { min-height: 52px; border-radius: 10px; background: transparent; border-color: var(--bp-border); color: var(--bp-text); font-size: 14px; font-weight: 600; line-height: 1.5; }
+.bp-auth-main :is([data-testid='openid'],[data-testid='bpass-login']) { background: var(--bp-accent); border-color: var(--bp-accent); color: var(--bp-button-text); }
+.bp-auth-main :is([data-testid='openid'],[data-testid='bpass-login']):hover { background: var(--bp-accent-hover); }
+.bp-auth-main [data-testid='local-login']:hover { background: var(--bp-field); }
 .bp-auth-page .lc-field { transition: border-color 160ms ease; }
 .bp-auth-page .lc-field:hover { border-color: color-mix(in srgb, var(--bp-accent) 50%, var(--bp-border)); }
 .bp-auth-page .lc-field:focus-visible { outline: 1px solid var(--bp-accent); outline-offset: 0; border-color: var(--bp-accent); }

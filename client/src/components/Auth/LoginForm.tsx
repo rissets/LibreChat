@@ -13,7 +13,7 @@ import {
 import type { TLoginUser, TStartupConfig } from 'librechat-data-provider';
 import type { TAuthContext } from '~/common';
 import { useResendVerificationEmail, useGetStartupConfig } from '~/data-provider';
-import { validateEmail } from '~/utils';
+import { validateEmail, validateUsernameOrEmail } from '~/utils';
 import { useLocalize } from '~/hooks';
 
 type TLoginFormProps = {
@@ -107,13 +107,23 @@ const LoginForm: React.FC<TLoginFormProps> = ({ onSubmit, startupConfig, error, 
               type="text"
               id="email"
               autoComplete={emailAutoComplete}
-              aria-label={localize('com_auth_email')}
+              aria-label={
+                useUsernameLogin
+                  ? localize('com_auth_email')
+                  : localize('com_auth_username_or_email')
+              }
               {...register('email', {
-                required: localize('com_auth_email_required'),
+                required: useUsernameLogin
+                  ? localize('com_auth_email_required')
+                  : localize('com_auth_username_or_email_required'),
                 maxLength: { value: 120, message: localize('com_auth_email_max_length') },
                 validate: useUsernameLogin
                   ? undefined
-                  : (value) => validateEmail(value, localize('com_auth_email_pattern')),
+                  : (value) =>
+                      validateUsernameOrEmail(
+                        value,
+                        localize('com_auth_username_or_email_invalid'),
+                      ),
               })}
               aria-invalid={!!errors.email}
               variant="floating"
@@ -122,7 +132,7 @@ const LoginForm: React.FC<TLoginFormProps> = ({ onSubmit, startupConfig, error, 
             <label htmlFor="email" className={floatingLabel}>
               {useUsernameLogin
                 ? localize('com_auth_username').replace(/ \(.*$/, '')
-                : localize('com_auth_email_address')}
+                : localize('com_auth_username_or_email')}
             </label>
           </div>
           {renderError('email')}
