@@ -40,7 +40,7 @@ function AuthLayout({
   const hasStartupConfigError = startupConfigError !== null && startupConfigError !== undefined;
   const isRegister = pathname.includes('register');
   const isLogin = !pathname.includes('2fa') && pathname.includes('login');
-  const showsSocialLogin = isLogin || isRegister;
+  const showsSocialLogin = isRegister;
   /** Both ways in state it, rather than the layout guessing which of them can
    *  create an account. That guess is not available here: account creation
    *  also happens on a first provider sign-in, on a first LDAP sign-in through
@@ -165,7 +165,7 @@ function AuthLayout({
             )}
             {children}
             {showsSocialLogin && (
-              <SocialLoginRender startupConfig={startupConfig} showPasskey={isLogin} />
+              <SocialLoginRender startupConfig={startupConfig} showPasskey={false} />
             )}
             {statesConsentBelowProviders && <LegalConsent startupConfig={startupConfig} />}
           </div>

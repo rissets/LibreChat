@@ -104,7 +104,6 @@ function getIssuerExactCondition(
   if (!hasOpenIdLookupValue(value) || !openidIssuer) return null;
   return { [field]: value, openidIssuer };
 }
-
 function getLegacyIssuerConditions(
   field: OpenIdLookupField,
   value: string | undefined,
@@ -161,7 +160,6 @@ export function isUserIssuerAllowed(user: IUser, openidIssuer: string | undefine
 
   const userIssuer = normalizeOpenIdIssuer(user.openidIssuer);
   if (userIssuer) return userIssuer === openidIssuer;
-
   return isLegacyOpenIdIssuer(openidIssuer);
 }
 
@@ -201,23 +199,30 @@ export function getOpenIdEmail(
   const claimKey = process.env.OPENID_EMAIL_CLAIM?.trim();
   if (claimKey) {
     const value = claims[claimKey];
-    if (typeof value === 'string' && value) return value;
+    if (typeof value === 'string' && value && value.includes('@')) return value;
     if (value != null) {
       logger.warn(
-        `[${strategyName}] OPENID_EMAIL_CLAIM="${claimKey}" resolved to a non-string value (type: ${typeof value}). Falling back to: email -> preferred_username -> upn.`,
-      );
-    } else {
-      logger.warn(
-        `[${strategyName}] OPENID_EMAIL_CLAIM="${claimKey}" not present in userinfo. Falling back to: email -> preferred_username -> upn.`,
+        `[${strategyName}] OPENID_EMAIL_CLAIM="${claimKey}" resolved to a non-string or non-email value (type: ${typeof value}). Falling back to standard email claims.`,
       );
     }
   }
 
-  return (
-    getStringClaim(claims, 'email') ??
-    getStringClaim(claims, 'preferred_username') ??
-    getStringClaim(claims, 'upn')
-  );
+  const directEmail = getStringClaim(claims, 'email');
+  if (directEmail && directEmail.includes('@')) {
+    return directEmail;
+  }
+
+  const upn = getStringClaim(claims, 'upn');
+  if (upn && upn.includes('@')) {
+    return upn;
+  }
+
+  const preferredUsername = getStringClaim(claims, 'preferred_username');
+  if (preferredUsername && preferredUsername.includes('@')) {
+    return preferredUsername;
+  }
+
+  return undefined;
 }
 
 /**
@@ -231,6 +236,7 @@ export async function findOpenIDUser({
   openidIssuer,
   idOnTheSource,
   strategyName = 'openid',
+  emailVerified = false,
 }: {
   openidId: string;
   findUser: UserMethods['findUser'];
@@ -238,6 +244,7 @@ export async function findOpenIDUser({
   openidIssuer?: string;
   idOnTheSource?: string;
   strategyName?: string;
+  emailVerified?: boolean;
 }): Promise<OpenIdUserResolution> {
   const lookupStartedAt = isMetricsConfigured() ? process.hrtime.bigint() : null;
   const finish = (resolution: OpenIdUserResolution): OpenIdUserResolution => {
@@ -278,9 +285,11 @@ export async function findOpenIDUser({
         logger.warn(
           `[${strategyName}] Attempted OpenID login by user ${user.email}, was registered with "${user.provider}" provider`,
         );
+        if (user.provider === 'local') {
+          return finish({ user, error: 'ACCOUNT_EXISTS_LINK_REQUIRED', migration: false });
+        }
         return finish({ user: null, error: ErrorTypes.AUTH_FAILED, migration: false });
       }
-
       if (user?.openidId && user.openidId !== openidId) {
         logger.warn(
           `[${strategyName}] Rejected email fallback for ${user.email}: stored openidId does not match token sub`,
@@ -297,6 +306,12 @@ export async function findOpenIDUser({
       if (emailIssuerResolution) return finish(emailIssuerResolution);
 
       if (user && !user.openidId) {
+        if (!emailVerified || process.env.OPENID_ALLOW_AUTO_MIGRATION === 'false') {
+          logger.warn(
+            `[${strategyName}] Rejected automatic OpenID migration for existing account ${user.email} (emailVerified=${emailVerified})`,
+          );
+          return finish({ user, error: 'ACCOUNT_EXISTS_LINK_REQUIRED', migration: false });
+        }
         logger.info(
           `[${strategyName}] Preparing user ${user.email} for migration to OpenID with sub: ${openidId}`,
         );
@@ -320,10 +335,10 @@ export async function findOpenIDUser({
 export function applyOpenIDProfile<T extends UserRecord>(user: T, profile: OpenIDProfile): T {
   const updated = {
     ...user,
-    provider: 'openid',
+    provider: user.provider === 'local' ? 'local' : 'openid',
     openidId: profile.openidId,
-    username: profile.username,
-    name: profile.name,
+    username: profile.username || user.username,
+    name: profile.name || user.name,
     idOnTheSource: profile.idOnTheSource,
   };
   if (profile.openidIssuer) {
@@ -331,7 +346,7 @@ export function applyOpenIDProfile<T extends UserRecord>(user: T, profile: OpenI
   }
   if (profile.email && profile.email !== user.email) {
     updated.email = profile.email;
-    updated.emailVerified = profile.emailVerified;
+    updated.emailVerified = Boolean(profile.emailVerified);
   }
   return updated;
 }
@@ -363,20 +378,24 @@ export async function createOpenIDUser({
   createUserIfAbsent: CreateUserIfAbsent;
   findBalanceByUser: FindBalanceByUser;
 }): Promise<{ user: UserRecord; appConfig: AppConfig; created: boolean }> {
+  const newUser: NewUserData = {
+    provider: 'openid',
+    role: SystemRoles.USER,
+    openidId: profile.openidId,
+    username: profile.username,
+    name: profile.name,
+    idOnTheSource: profile.idOnTheSource,
+    openidIssuer: profile.openidIssuer,
+    emailVerified: Boolean(profile.emailVerified),
+  };
+  if (profile.email) {
+    newUser.email = profile.email;
+  }
+
   const result = await createUserOnce({
     strategyName: lookup.strategyName ?? 'openid',
-    newUser: {
-      provider: 'openid',
-      role: SystemRoles.USER,
-      openidId: profile.openidId,
-      username: profile.username,
-      email: profile.email || '',
-      emailVerified: profile.emailVerified,
-      name: profile.name,
-      idOnTheSource: profile.idOnTheSource,
-      openidIssuer: profile.openidIssuer,
-    },
-    email: profile.email ?? '',
+    newUser,
+    email: profile.email,
     claimedRole,
     getAppConfig,
     getBalanceConfig,

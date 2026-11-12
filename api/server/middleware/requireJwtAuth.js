@@ -15,6 +15,7 @@ const {
   generateTwoFactorSetupToken,
   afterTermsGate,
   createTermsAcceptanceGate,
+  createOnboardingGate,
   isTwoFactorEnrollmentRequired,
 } = require('@librechat/api');
 const { getAppConfig } = require('~/server/services/Config');
@@ -86,6 +87,8 @@ const requiredTwoFactorGate = createRequiredTwoFactorGate({
 const requireJwtTermsAcceptance = createTermsAcceptanceGate({ getAppConfig });
 /** Remote agent and management boundaries answer in the nested error envelope. */
 const requireTermsAcceptance = createTermsAcceptanceGate({ getAppConfig }, { envelope: 'nested' });
+const requireOnboarding = createOnboardingGate();
+const requireNestedOnboarding = createOnboardingGate({}, { envelope: 'nested' });
 
 /**
  * Custom Middleware to handle JWT authentication, with support for OpenID token reuse.
@@ -212,7 +215,12 @@ const requireJwtAuth = (req, res, next) => {
           if (tenantErr) {
             return next(tenantErr);
           }
-          afterTermsGate(requireJwtTermsAcceptance, refreshCloudFrontCookies)(req, res, next);
+          afterTermsGate(requireJwtTermsAcceptance, refreshCloudFrontCookies)(req, res, (gateErr) => {
+            if (gateErr) {
+              return next(gateErr);
+            }
+            requireOnboarding(req, res, next);
+          });
         });
       });
     })(req, res, next);
@@ -263,4 +271,6 @@ const requireRumProxyAuth = (req, res, next) => {
 
 module.exports = require('@librechat/api').withGovernanceAuthentication(requireJwtAuth);
 module.exports.requireRumProxyAuth = requireRumProxyAuth;
+module.exports.requireOnboarding = requireOnboarding;
+module.exports.requireNestedOnboarding = requireNestedOnboarding;
 module.exports.requireTermsAcceptance = requireTermsAcceptance;

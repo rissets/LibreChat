@@ -186,18 +186,28 @@ const openIdJwtLogin = (openIdConfig) => {
           authUserCacheMode === 'on' &&
           cachedUser &&
           isUserInAuthCacheScope(cachedUser, authUserCacheScope);
+        const rawEmail = payload ? getOpenIdEmail(payload) : undefined;
+        const email = rawEmail && rawEmail.trim() ? rawEmail.trim() : undefined;
+        const isVerified =
+          payload?.email_verified === true || payload?.email_verified === 'true';
+        if (email && isEnabled(process.env.OPENID_REQUIRE_VERIFIED_EMAIL)) {
+          if (!isVerified) {
+            done(null, false, { message: 'Email must be verified by identity provider' });
+            return;
+          }
+        }
         const lookupResult = servedCachedUser
           ? { user: cachedUser, error: null, migration: false }
           : await findOpenIDUser({
               findUser,
-              email: payload ? getOpenIdEmail(payload) : undefined,
+              email,
               openidId: payload?.sub,
               openidIssuer,
               idOnTheSource: payload?.oid,
               strategyName: 'openIdJwtLogin',
+              emailVerified: isVerified,
             });
         const { user, error, migration } = lookupResult;
-
         if (error) {
           done(null, false, { message: error });
           return;

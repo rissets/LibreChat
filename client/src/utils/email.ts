@@ -26,3 +26,31 @@ export const validateEmail = (email: string, errorMessage?: string): true | stri
     'Please enter a valid email address'
   );
 };
+
+const injectionPatternsRegex = /('|--|\$ne|\$gt|\$lt|\$or|\{|\}|\*|;|<|>|\/|=)/i;
+
+/**
+ * Validates a username or email address
+ * @param value - The username or email to validate
+ * @param errorMessage - Optional custom error message
+ * @returns true if valid, error message if invalid
+ */
+export const validateUsernameOrEmail = (
+  value: string,
+  errorMessage?: string,
+): true | string => {
+  if (!value || value.trim() === '') {
+    return true;
+  }
+
+  const trimmed = value.trim();
+  if (trimmed.includes('@')) {
+    return validateEmail(trimmed, errorMessage);
+  }
+
+  if (trimmed.length < 2 || trimmed.length > 120 || injectionPatternsRegex.test(trimmed)) {
+    return errorMessage || 'Please enter a valid username or email address';
+  }
+
+  return true;
+};

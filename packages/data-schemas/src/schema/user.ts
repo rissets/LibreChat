@@ -37,9 +37,16 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
     },
     email: {
       type: String,
-      required: [true, "can't be blank"],
       lowercase: true,
-      match: [/\S+@\S+\.\S+/, 'is invalid'],
+      validate: {
+        validator: function (v: string | undefined | null) {
+          if (v == null || v === '') {
+            return true;
+          }
+          return /\S+@\S+\.\S+/.test(v);
+        },
+        message: 'is invalid',
+      },
       index: true,
     },
     emailVerified: {
@@ -167,6 +174,22 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
       type: String,
       enum: ['migration'],
     },
+    departmentId: {
+      type: String,
+      default: null,
+    },
+    departmentName: {
+      type: String,
+      default: null,
+    },
+    onboardingCompleted: {
+      type: Boolean,
+      default: false,
+    },
+    onboardingCompletedAt: {
+      type: Date,
+      default: null,
+    },
     agentTriggerDeletionStartedAt: {
       type: Date,
       select: false,
@@ -239,7 +262,22 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
   { timestamps: true },
 );
 
-userSchema.index({ email: 1, tenantId: 1 }, { unique: true });
+userSchema.pre('validate', function (next) {
+  if (this.email === '') {
+    this.email = undefined;
+  }
+  const hasEmail = typeof this.email === 'string' && this.email.trim().length > 0;
+  const hasUsername = typeof this.username === 'string' && this.username.trim().length > 0;
+  if (!hasEmail && !hasUsername) {
+    this.invalidate('email', "can't be blank");
+  }
+  next();
+});
+
+userSchema.index(
+  { email: 1, tenantId: 1 },
+  { name: 'email_tenant_present_unique', unique: true, partialFilterExpression: { email: { $type: 'string' } } },
+);
 userSchema.index({ role: 1, tenantId: 1 });
 userSchema.index({ idOnTheSource: 1, openidIssuer: 1, tenantId: 1 });
 /* Tenant first: the popular sort's only predicates are the caller's tenant and

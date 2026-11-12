@@ -34,6 +34,7 @@ const {
   configMiddleware,
   agentEventUserLimiter,
   requireTermsAcceptance,
+  requireNestedOnboarding,
 } = require('~/server/middleware');
 const {
   enqueueAgentTrigger,
@@ -65,6 +66,7 @@ const eventBindingHandlers = createAgentEventBindingHandlers({
 router.use(preAuthTenantMiddleware);
 router.use(requireRemoteAgentAuth);
 router.use(requireTermsAcceptance);
+router.use(requireNestedOnboarding);
 router.use(configMiddleware);
 router.use(checkRemoteAgentsFeature);
 

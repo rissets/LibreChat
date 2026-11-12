@@ -18,7 +18,7 @@ export interface IUser extends Document {
   id: string;
   name?: string;
   username?: string;
-  email: string;
+  email?: string;
   emailVerified: boolean;
   emailChangedAt?: Date;
   password?: string;
@@ -69,6 +69,10 @@ export interface IUser extends Document {
   termsAcceptedAt?: Date | null;
   /** Present only when termsAcceptedAt was backfilled by config/migrate-terms-timestamp.js. */
   termsAcceptedSource?: 'migration';
+  departmentId?: string | null;
+  departmentName?: string | null;
+  onboardingCompleted?: boolean;
+  onboardingCompletedAt?: Date | null;
   /** Internal fence that prevents agent-trigger admission during account deletion. */
   agentTriggerDeletionStartedAt?: Date;
   /** Expiring fences closing subagent admission while bulk deletions drain. */
@@ -142,7 +146,8 @@ export interface BalanceConfig {
 }
 
 export interface CreateUserRequest extends Partial<IUser> {
-  email: string;
+  email?: string;
+  username?: string;
 }
 
 /** A user's own fields, without Mongoose document members. */
@@ -155,7 +160,7 @@ type UserFields = Omit<IUser, keyof Document>;
 export type UserRecord = UserFields & { _id: { toString(): string } };
 
 /** The fields a new user is created with, as plain data. */
-export type NewUserData = Partial<UserFields> & { email: string };
+export type NewUserData = Partial<UserFields> & { email?: string; username?: string };
 
 /** The created user, or `user_exists` when an account already holds its email or provider identity. */
 export type CreateUserIfAbsentResult =

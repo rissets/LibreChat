@@ -636,3 +636,19 @@ export const useUserTermsQuery = (
     ...config,
   });
 };
+
+export const useOnboardingProfileQuery = (
+  config?: UseQueryOptions<t.TOnboardingProfileResponse>,
+): QueryObserverResult<t.TOnboardingProfileResponse> => {
+  return useQuery<t.TOnboardingProfileResponse>(
+    [QueryKeys.onboardingProfile],
+    () => dataService.getOnboardingProfile(),
+    {
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      refetchOnMount: true,
+      staleTime: 30000,
+      ...config,
+    },
+  );
+};

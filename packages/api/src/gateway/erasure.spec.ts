@@ -47,6 +47,11 @@ function fixture(mode: string | undefined = 'admin-direct', checker = 'admin') {
       openidId: 'target-subject',
       openidIssuer: issuer,
     })),
+    findUserByIdentity: jest.fn(async () => ({
+      _id: userId,
+      openidId: 'target-subject',
+      openidIssuer: issuer,
+    })),
     audit: jest.fn(async () => undefined),
     erase: jest.fn(async (request: Request, response: Response) => {
       expect(requiresSelfServiceErasure(request, true)).toBe(false);
@@ -71,6 +76,15 @@ it('accepts an authenticated admin-direct approval when maker and checker are th
     }),
     { failClosed: true },
   );
+});
+
+it('erases an unlinked account using its exact issuer and subject', async () => {
+  const { req, res, deps, handler } = fixture();
+  delete req.body.userId;
+  await handler(req, res);
+  expect(deps.findUserByIdentity).toHaveBeenCalledWith('target-subject', issuer);
+  expect(deps.erase).toHaveBeenCalledTimes(1);
+  expect(res.status).not.toHaveBeenCalled();
 });
 
 it('retains independent checker approval', async () => {

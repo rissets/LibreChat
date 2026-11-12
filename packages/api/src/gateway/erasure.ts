@@ -16,6 +16,7 @@ interface ErasureOwner {
 }
 export function createGovernanceErasure(deps: {
   getUserById: (id: string) => Promise<ErasureOwner | null>;
+  findUserByIdentity: (subject: string, issuer: string) => Promise<ErasureOwner | null>;
   audit: (input: RecordAuditEntryInput, options?: RecordAuditEntryOptions) => Promise<unknown>;
   erase: (req: Request, res: Response) => Promise<unknown>;
 }): (req: Request, res: Response) => Promise<void> {
@@ -41,14 +42,19 @@ export function createGovernanceErasure(deps: {
       }
       const input = req.body as { userId?: string; subject?: string; issuer?: string };
       if (
-        typeof input.userId !== 'string' ||
-        !/^[a-f0-9]{24}$/i.test(input.userId) ||
+        (input.userId != null &&
+          (typeof input.userId !== 'string' || !/^[a-f0-9]{24}$/i.test(input.userId))) ||
+        typeof input.subject !== 'string' ||
+        !input.subject ||
+        typeof input.issuer !== 'string' ||
         input.issuer !== gatewayConfig()?.issuer
       ) {
         res.status(422).json({ code: 'INVALID_ERASURE_IDENTITY' });
         return;
       }
-      const owner = await deps.getUserById(input.userId);
+      const owner = input.userId
+        ? await deps.getUserById(input.userId)
+        : await deps.findUserByIdentity(input.subject, input.issuer);
       if (!owner) {
         res.json({ erased: true, already_absent: true });
         return;
@@ -63,7 +69,7 @@ export function createGovernanceErasure(deps: {
           outcome: 'pending',
           severity: 'critical',
           actor: { type: 'service', id: identity.sub, name: identity.name },
-          target: { type: 'user', id: input.userId },
+          target: { type: 'user', id: String(owner._id) },
           metadata: {
             operation: 'approved-managed-user-erasure',
             maker,

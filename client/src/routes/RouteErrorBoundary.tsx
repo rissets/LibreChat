@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Button } from '@librechat/client';
-import { useRouteError } from 'react-router-dom';
+import { Link, useRouteError } from 'react-router-dom';
 import { onClientLogsStarted, reportBoundaryError } from '~/lib/rum/logs';
 import useStaleAssetRecovery from '~/lib/assets/useRecovery';
 import { isChunkLoadError } from '~/lib/assets/recovery';
@@ -140,6 +140,17 @@ export default function RouteErrorBoundary() {
   if (updating) {
     return <Updating />;
   }
+  if (typedError.status === 404) {
+    return (
+      <main className="bg-surface-primary flex min-h-screen flex-col items-center justify-center px-6 text-center">
+        <p className="text-text-secondary mb-4 text-lg">404</p>
+        <h1 className="text-text-primary text-3xl font-semibold">{localize('com_ui_page_not_found')}</h1>
+        <p className="text-text-secondary mt-3">{localize('com_ui_page_not_found_description')}</p>
+        <Link className="text-text-primary mt-6 underline" to="/">{localize('com_ui_back_home')}</Link>
+      </main>
+    );
+  }
+
 
   return (
     <div
@@ -148,7 +159,9 @@ export default function RouteErrorBoundary() {
     >
       <div className="border-border-light bg-surface-primary/60 mx-4 w-11/12 max-w-4xl rounded-2xl border p-8 shadow-2xl backdrop-blur-xl">
         <h2 className="text-text-primary mb-6 text-center text-3xl font-medium tracking-tight">
-          {localize('com_ui_error_unexpected')}
+          {typedError.status != null && typedError.status >= 500
+            ? localize('com_ui_server_error')
+            : localize('com_ui_error_unexpected')}
         </h2>
 
         {/* Error Message */}

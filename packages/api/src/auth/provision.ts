@@ -84,7 +84,7 @@ export async function createUserOnce({
   findBalanceByUser,
 }: {
   newUser: NewUserData;
-  email: string;
+  email?: string;
   claimedRole?: string;
   getAppConfig: GetAppConfig;
   getBalanceConfig: GetBalanceConfig;
@@ -98,14 +98,16 @@ export async function createUserOnce({
   const configs = await Promise.all(
     roles.map((admittedRole) => resolveAppConfigForUser(getAppConfig, { role: admittedRole })),
   );
-  const refused = configs.findIndex(
-    (config) => !isEmailDomainAllowed(email, config?.registration?.allowedDomains),
-  );
-  if (refused !== -1) {
-    logger.error(
-      `[${strategyName}] Authentication blocked - email domain not allowed for a new account in the ${roles[refused]} role`,
+  if (email) {
+    const refused = configs.findIndex(
+      (config) => !isEmailDomainAllowed(email, config?.registration?.allowedDomains),
     );
-    return { user: null, error: EMAIL_DOMAIN_NOT_ALLOWED, created: false };
+    if (refused !== -1) {
+      logger.error(
+        `[${strategyName}] Authentication blocked - email domain not allowed for a new account in the ${roles[refused]} role`,
+      );
+      return { user: null, error: EMAIL_DOMAIN_NOT_ALLOWED, created: false };
+    }
   }
 
   const appConfig = configs[0];

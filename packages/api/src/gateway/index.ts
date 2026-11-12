@@ -10,9 +10,33 @@ import type {
 import { ManagedUserError } from './users';
 import { managedRoleProjection, nativeFeatureContract } from './permissions';
 export { createManagedUserManager } from './users';
+export {
+  createOnboardingGateway,
+  createLocalAssertionToken,
+  resolveUserIdentityToken,
+  resolveControlPanelBaseUrl,
+  OnboardingServiceError,
+} from './onboarding';
+export type {
+  OnboardingUser,
+  OnboardingDepartment,
+  OnboardingProfileResponse,
+  CompleteOnboardingResponse,
+} from './onboarding';
 import jwt from 'jsonwebtoken';
 import type { Request, Response } from 'express';
 import { verifyOidcAccessToken, extractBearerToken } from '~/auth/oidc';
+import crypto from 'node:crypto';
+
+export function canonicalLocalSubject(userId: string): string {
+  const nsBytes = Buffer.from('6ba7b8109dad11d180b400c04fd430c8', 'hex');
+  const nameBytes = Buffer.from(`bpchat-local:${userId}`, 'utf8');
+  const hash = crypto.createHash('sha1').update(Buffer.concat([nsBytes, nameBytes])).digest();
+  hash[6] = (hash[6] & 0x0f) | 0x50; // RFC 4122 v5
+  hash[8] = (hash[8] & 0x3f) | 0x80;
+  const hex = hash.subarray(0, 16).toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+}
 
 interface ManagedUser {
   governanceDisabled?: boolean;
@@ -75,8 +99,19 @@ export async function validateManagedJwtUser<T extends ManagedUser>(
   if (user?.governanceDisabled || payload.scope === 'rag_workload') return null;
   const c: GatewayDeps | null = gatewayConfig();
   if (!c) return user;
-  if (!user || user.provider !== 'openid' || user.openidIssuer !== c.issuer || !user.openidId)
+  if (!user) return null;
+  // Local authentication session: signed token has no identitySessionId and was generated for a user with local provider/credentials
+  if (!payload.identitySessionId) {
+    if (user.provider === 'local' || Boolean(user.password)) {
+      return user;
+    }
     return null;
+  }
+
+  // OpenID authentication session:
+  if (user.openidIssuer !== c.issuer || !user.openidId) {
+    return null;
+  }
   try {
     if (
       workload &&
@@ -88,8 +123,11 @@ export async function validateManagedJwtUser<T extends ManagedUser>(
       payload.exp > Date.now() / 1000 &&
       payload.exp - payload.iat <= 60
     ) {
+      const adminBase = c.issuer.replace(/^https?:\/\//, '').includes('/realms/')
+        ? c.issuer.replace('/realms/', '/admin/realms/')
+        : c.issuer + '/admin';
       const response = await c.fetch(
-        c.issuer.replace('/realms/', '/admin/realms/') +
+        adminBase +
           '/users/' +
           encodeURIComponent(user.openidId),
         {
@@ -111,7 +149,7 @@ export async function validateManagedJwtUser<T extends ManagedUser>(
   }
 }
 export function managedSessionOptions(
-  req: { user?: { tokenset?: { id_token?: string } } } | null,
+  req: { user?: { provider?: string; tokenset?: { id_token?: string } } } | null,
   expiresIn: number,
 ): { expiresIn: number; identitySessionId?: string } {
   if (!gatewayConfig()) return { expiresIn };
@@ -121,8 +159,13 @@ export function managedSessionOptions(
     decoded && typeof decoded === 'object' && typeof decoded.sid === 'string'
       ? decoded.sid
       : undefined;
-  if (!sid) throw new Error('IDENTITY_SESSION_REQUIRED');
-  return { expiresIn, identitySessionId: sid };
+  if (sid) {
+    return { expiresIn, identitySessionId: sid };
+  }
+  if (req?.user?.provider === 'local' || Boolean(req?.user?.password)) {
+    return { expiresIn };
+  }
+  throw new Error('IDENTITY_SESSION_REQUIRED');
 }
 export async function resolveManagedCredential(
   user: ManagedUser | undefined,
@@ -132,26 +175,39 @@ export async function resolveManagedCredential(
   capability = 'chat',
 ): Promise<{ key: string; models: string[]; baseURL: string } | null> {
   if (!c) return null;
-  if (
-    endpoint !== c.endpoint ||
-    user?.provider !== 'openid' ||
-    !user.openidId ||
-    user.openidIssuer !== c.issuer
-  )
-    throw new Error('MANAGED_ENDPOINT_REQUIRED');
-  const account = await c.fetch(
-    c.issuer.replace('/realms/', '/admin/realms/') + '/users/' + encodeURIComponent(user.openidId),
-    {
-      headers: { Authorization: 'Bearer ' + (await machineToken(c)) },
-      signal: AbortSignal.timeout(10000),
-    },
-  );
-  if (!account.ok || ((await account.json()) as { enabled?: boolean }).enabled !== true)
-    throw new Error('PRINCIPAL_DISABLED');
+  if (endpoint !== c.endpoint || !user) throw new Error('MANAGED_ENDPOINT_REQUIRED');
+  if (user.governanceDisabled) throw new Error('PRINCIPAL_DISABLED');
+
+  let subject: string;
+  let expectedIssuer: string;
+  const isLocalUser = user.provider === 'local' || (!user.openidId && Boolean(user.password));
+
+  if (isLocalUser) {
+    const rawId = user.id ?? user._id?.toString?.();
+    if (!rawId) throw new Error('MANAGED_ENDPOINT_REQUIRED');
+    subject = canonicalLocalSubject(rawId);
+    expectedIssuer = process.env.BPBATAM_LOCAL_ISSUER ?? 'https://bpchat.local';
+  } else {
+    if (!user.openidId || user.openidIssuer !== c.issuer) {
+      throw new Error('MANAGED_ENDPOINT_REQUIRED');
+    }
+    subject = user.openidId;
+    expectedIssuer = c.issuer;
+    const account = await c.fetch(
+      c.issuer.replace('/realms/', '/admin/realms/') + '/users/' + encodeURIComponent(subject),
+      {
+        headers: { Authorization: 'Bearer ' + (await machineToken(c)) },
+        signal: AbortSignal.timeout(10000),
+      },
+    );
+    if (!account.ok || ((await account.json()) as { enabled?: boolean }).enabled !== true) {
+      throw new Error('PRINCIPAL_DISABLED');
+    }
+  }
   const r = await c.fetch(
     c.bridgeURL +
       '/resolve?subject=' +
-      encodeURIComponent(user.openidId) +
+      encodeURIComponent(subject) +
       (capability === 'chat' ? '' : '&include_media=1'),
     {
       headers: { Authorization: 'Bearer ' + (await machineToken(c)) },
@@ -165,8 +221,9 @@ export async function resolveManagedCredential(
     key: string;
     offers: Array<{ id: string; capabilities?: string[] }>;
   };
-  if (result.subject !== user.openidId || result.issuer !== c.issuer || !result.key)
+  if (result.subject !== subject || result.issuer !== expectedIssuer || !result.key) {
     throw new Error('MANAGED_SUBJECT_MISMATCH');
+  }
   const models = result.offers
     .filter(
       (x) => (capability === 'chat' && !x.capabilities) || x.capabilities?.includes(capability),

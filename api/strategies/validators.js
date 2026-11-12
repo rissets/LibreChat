@@ -30,8 +30,28 @@ const usernameSchema = z
     message: 'Potential injection attack detected',
   });
 
+const loginIdentifierSchema = z
+  .string()
+  .trim()
+  .min(2)
+  .max(120)
+  .refine((value) => !injectionPatternsRegex.test(value), {
+    message: 'Potential injection attack detected',
+  })
+  .refine(
+    (value) => {
+      if (value.includes('@')) {
+        return z.string().email().safeParse(value).success;
+      }
+      return allowedCharactersRegex.test(value);
+    },
+    {
+      message: 'Invalid username or email',
+    },
+  );
+
 const loginSchema = z.object({
-  email: z.string().email(),
+  email: loginIdentifierSchema,
   password: z
     .string()
     .min(MIN_PASSWORD_LENGTH)
@@ -75,6 +95,8 @@ const registerSchema = z
   });
 
 module.exports = {
+  usernameSchema,
+  loginIdentifierSchema,
   loginSchema,
   registerSchema,
 };

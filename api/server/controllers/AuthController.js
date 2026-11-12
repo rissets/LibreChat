@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const { isManagedRefreshSessionValid } = require('@librechat/api');
 const cookies = require('cookie');
 const jwt = require('jsonwebtoken');
@@ -22,6 +23,12 @@ const {
   getSafeErrorMetadata,
   sanitizeUserForAuthResponse,
   clearSessionHintCookie,
+  comparePassword,
+  compareSecret,
+  gatewayConfig,
+  machineToken,
+  resolveControlPanelBaseUrl,
+  createLocalAssertionToken,
 } = require('@librechat/api');
 const {
   requestPasswordReset,
@@ -37,7 +44,9 @@ const {
   awaitAuthUserDocEviction,
   deleteSession,
   getUserById,
+  findUser,
   findSession,
+  findToken,
   updateUser,
   deleteTokens,
 } = require('~/models');
@@ -597,6 +606,204 @@ const graphTokenController = async (req, res) => {
     });
   }
 };
+const linkAccountController = async (req, res) => {
+  const { password } = req.body ?? {};
+  if (!password || typeof password !== 'string') {
+    return res.status(400).json({ message: 'Password is required' });
+  }
+
+  const parsedCookies = req.headers.cookie ? cookies.parse(req.headers.cookie) : {};
+  const rawToken = parsedCookies.link_challenge || req.body?.token;
+  if (!rawToken || typeof rawToken !== 'string') {
+    return res.status(400).json({ message: 'LINK_CHALLENGE_REQUIRED' });
+  }
+  const token = rawToken.trim();
+
+  try {
+    const Token = mongoose.models.Token;
+    const tokenDoc = await Token.findOne({
+      token,
+      type: 'account_linking',
+      expiresAt: { $gt: new Date() },
+    });
+
+    if (!tokenDoc) {
+      res.clearCookie('link_challenge', { path: '/' });
+      return res.status(400).json({ message: 'LINK_TOKEN_EXPIRED_OR_INVALID' });
+    }
+
+    const user = await findUser({ _id: tokenDoc.userId }, '+password');
+    if (!user || !user.password) {
+      await Token.deleteOne({ _id: tokenDoc._id });
+      res.clearCookie('link_challenge', { path: '/' });
+      return res.status(400).json({ message: 'LOCAL_ACCOUNT_UNAVAILABLE' });
+    }
+
+    const isMatch = await comparePassword(user, password, { compare: compareSecret });
+    if (!isMatch) {
+      logger.warn(`[linkAccount] Password verification failed for account linking: ${user.email}`);
+      const currentAttempts =
+        (tokenDoc.metadata instanceof Map
+          ? tokenDoc.metadata.get('attempts')
+          : tokenDoc.metadata?.attempts) ?? 0;
+      const nextAttempts = currentAttempts + 1;
+      if (nextAttempts >= 5) {
+        await Token.deleteOne({ _id: tokenDoc._id });
+        res.clearCookie('link_challenge', { path: '/' });
+        return res.status(401).json({
+          message: 'MAX_ATTEMPTS_EXCEEDED',
+          detail: 'Batas percobaan terlampaui. Silakan login kembali lewat B-Pass.',
+        });
+      }
+      await Token.updateOne({ _id: tokenDoc._id }, { $set: { 'metadata.attempts': nextAttempts } });
+      return res.status(401).json({
+        message: 'INCORRECT_PASSWORD',
+        attemptsRemaining: 5 - nextAttempts,
+        detail: 'Password akun lokal salah. Silakan periksa kembali password Anda.',
+      });
+    }
+    const meta =
+      tokenDoc.metadata instanceof Map
+        ? Object.fromEntries(tokenDoc.metadata)
+        : (tokenDoc.metadata ?? {});
+    const openidId = meta.openidId;
+    const openidIssuer = meta.openidIssuer;
+    if (!openidId || !openidIssuer) {
+      await Token.deleteOne({ _id: tokenDoc._id });
+      res.clearCookie('link_challenge', { path: '/' });
+      return res.status(400).json({ message: 'LINK_METADATA_INVALID' });
+    }
+
+    // Step 1: Synchronize linked identity with Control Panel fail-closed via signed assertion
+    const c = gatewayConfig();
+    if (c) {
+      let cpResponse;
+      try {
+        const assertionSecret = process.env.BPBATAM_LOCAL_ASSERTION_SECRET;
+        if (!assertionSecret) {
+          logger.error('[linkAccount] BPBATAM_LOCAL_ASSERTION_SECRET is not configured');
+          return res.status(503).json({
+            message: 'CONTROL_PANEL_UNAVAILABLE',
+            detail: 'Konfigurasi secret assertion lokal belum lengkap.',
+          });
+        }
+        const assertionToken = createLocalAssertionToken(
+          {
+            id: String(user._id),
+            username: user.username,
+            email: user.email,
+            name: user.name,
+            openidId,
+            openidIssuer,
+          },
+          assertionSecret,
+        );
+
+        const mToken = await machineToken(c);
+        const baseUrl = resolveControlPanelBaseUrl(c);
+        cpResponse = await c.fetch(`${baseUrl}/api/v1/onboarding/link-identity`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${mToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            assertion: assertionToken,
+          }),
+          signal: AbortSignal.timeout(10000),
+        });
+      } catch (cpErr) {
+        logger.error(
+          '[linkAccount] Control Panel unavailable during identity linking:',
+          cpErr.message,
+        );
+        // Fail-closed: do NOT consume challenge token, do NOT clear cookie, allow retry
+        return res.status(503).json({
+          message: 'CONTROL_PANEL_UNAVAILABLE',
+          detail:
+            'Layanan manajemen identitas sedang tidak dapat dihubungi. Silakan coba kembali dalam beberapa saat.',
+        });
+      }
+
+      if (!cpResponse.ok) {
+        const cpErrBody = await cpResponse.json().catch(() => ({}));
+        logger.error(
+          `[linkAccount] Control Panel rejected identity link with HTTP ${cpResponse.status}:`,
+          cpErrBody,
+        );
+        if (cpResponse.status >= 500) {
+          return res.status(503).json({
+            message: 'CONTROL_PANEL_UNAVAILABLE',
+            detail:
+              'Layanan manajemen identitas sedang tidak dapat dihubungi. Silakan coba kembali dalam beberapa saat.',
+          });
+        }
+        return res.status(cpResponse.status).json({
+          message: cpErrBody.code || 'IDENTITY_LINK_REJECTED',
+          detail: cpErrBody.message || 'Penautan identitas ditolak oleh server otorisasi.',
+        });
+      }
+    }
+
+    // Step 2: Control Panel succeeded! Atomically consume challenge token to prevent replay
+    const consumedDoc = await Token.findOneAndDelete({
+      _id: tokenDoc._id,
+      token: tokenDoc.token,
+      type: 'account_linking',
+      expiresAt: { $gt: new Date() },
+    }).lean();
+
+    res.clearCookie('link_challenge', { path: '/' });
+
+    if (!consumedDoc) {
+      return res.status(400).json({ message: 'LINK_TOKEN_EXPIRED_OR_INVALID' });
+    }
+
+    // Step 3: Mutate MongoDB: bind openidId + openidIssuer while preserving provider as 'local', password, history, and roles
+    const updatedUser = await updateUser(user._id, {
+      openidId,
+      openidIssuer,
+    });
+
+    logger.info(`[linkAccount] Successfully linked OpenID identity to local account: ${user.email}`);
+
+    // Step 4: Generate authenticated session with verified user context attached to req
+    req.user = updatedUser;
+    const authToken = await setAuthTokens(updatedUser._id, res, null, req);
+    return res.status(200).json({
+      status: 'LINK_SUCCESS',
+      token: authToken,
+      user: sanitizeUserForAuthResponse(updatedUser),
+    });
+  } catch (err) {
+    logger.error('[linkAccount] Failed to link account:', err);
+    return res.status(500).json({ message: 'LINK_FAILED' });
+  }
+};
+
+const linkChallengeStatusController = async (req, res) => {
+  const parsedCookies = req.headers.cookie ? cookies.parse(req.headers.cookie) : {};
+  const rawToken = parsedCookies.link_challenge;
+  if (!rawToken || typeof rawToken !== 'string') {
+    return res.json({ required: false });
+  }
+  try {
+    const Token = mongoose.models.Token;
+    const tokenDoc = await Token.findOne({
+      token: rawToken.trim(),
+      type: 'account_linking',
+      expiresAt: { $gt: new Date() },
+    }).lean();
+    if (!tokenDoc) {
+      res.clearCookie('link_challenge', { path: '/' });
+      return res.json({ required: false });
+    }
+    return res.json({ required: true });
+  } catch {
+    return res.json({ required: false });
+  }
+};
+
 
 module.exports = {
   refreshController,
@@ -604,4 +811,6 @@ module.exports = {
   resetPasswordController,
   resetPasswordRequestController,
   graphTokenController,
+  linkAccountController,
+  linkChallengeStatusController,
 };
