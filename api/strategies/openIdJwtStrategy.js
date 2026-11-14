@@ -305,7 +305,13 @@ const openIdJwtLogin = (openIdConfig) => {
                     : decodeJwtExpiry(resolvedAccessToken),
               };
 
-              done(null, user);
+              done(null, {
+                ...user,
+                identitySessionId:
+                  typeof payload?.sid === 'string' && payload.sid.length <= 200
+                    ? payload.sid
+                    : undefined,
+              });
             },
             isTokenRetired,
           );

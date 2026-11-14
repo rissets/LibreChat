@@ -323,6 +323,21 @@ describe('openIdJwtStrategy – token source handling', () => {
     openIdJwtLogin(mockOpenIdConfig);
   });
 
+  it('binds each verified OIDC token to its own meeting session without caching the session id', async () => {
+    const cachedUser = { ...baseUser };
+    findOpenIDUser.mockResolvedValue({ user: cachedUser, error: null, migration: false });
+    const req = { headers: { authorization: 'Bearer token' }, session: {} };
+
+    const first = await invokeVerify(req, { ...payload, sid: 'session-one' });
+    const second = await invokeVerify(req, { ...payload, sid: 'session-two' });
+    const missing = await invokeVerify(req, payload);
+
+    expect(first.user.identitySessionId).toBe('session-one');
+    expect(second.user.identitySessionId).toBe('session-two');
+    expect(missing.user.identitySessionId).toBeUndefined();
+    expect(cachedUser.identitySessionId).toBeUndefined();
+  });
+
   it('should read all tokens from session when available', async () => {
     const req = {
       headers: { authorization: 'Bearer raw-bearer-token' },

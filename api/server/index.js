@@ -432,26 +432,20 @@ const startServer = async () => {
   /* Pre-auth tenant context for unauthenticated routes that need tenant scoping.
    * The reverse proxy / auth gateway sets `X-Tenant-Id` header for multi-tenant deployments. */
   app.use('/oauth', preAuthTenantMiddleware, routes.oauth);
-  /* Dev OIDC Broker Adapter routes */
-  const { ssoDevAdapterRouter, isDevAdapterEnabled, DEFAULT_KEYCLOAK_BROKER_ENDPOINT } = require('./routes/ssoDevAdapter');
+  /* SSO OIDC Broker Adapter routes */
+  const {
+    ssoDevAdapterRouter,
+    handleSsoCallback,
+  } = require('./routes/ssoDevAdapter');
   app.use('/api/sso-adapter', ssoDevAdapterRouter);
-  /* SSO callback route: in dev mode, forwards B-Pass callback to Keycloak broker endpoint while preserving code and state */
+  /* SSO callback route: forwards B-Pass callback to Keycloak broker endpoint while preserving code and state */
   app.use('/sso', preAuthTenantMiddleware, (req, res, next) => {
     if (req.path === '/callback') {
-      if (isDevAdapterEnabled() && req.query.code && req.query.state) {
-        const brokerEndpoint =
-          process.env.BPBATAM_KEYCLOAK_BROKER_ENDPOINT || DEFAULT_KEYCLOAK_BROKER_ENDPOINT;
-        const targetUrl = new URL(brokerEndpoint);
-        // Enforce HTTPS destination to prevent auth code leakage over cleartext
-        targetUrl.protocol = 'https:';
-        for (const [key, value] of Object.entries(req.query)) {
-          if (typeof value === 'string') targetUrl.searchParams.set(key, value);
-        }
-        return res.redirect(302, targetUrl.toString());
-      }
-      req.url =
-        '/openid/callback' + (req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '');
-      return routes.oauth(req, res, next);
+      return handleSsoCallback(req, res, () => {
+        req.url =
+          '/openid/callback' + (req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '');
+        return routes.oauth(req, res, next);
+      });
     }
     next();
   });
